@@ -17,8 +17,10 @@ Windows548검사/21skip·최종 판정2개 재검사·WSL관련23 통과. 임시
 감사 오류는 원본 보존 후 수정했으며 게임 재실행0. 원문·가중치·훈련캐시·원본월드 SHA256 보존.
 자동 STOP 유지, API/optimizer/최종5시드 사용0·기본/LLM vocabulary 승격0.
 완료 근거 `results/blind-recovery-20261012/final-verification.json`, 작은 요약/그림은 `docs/reports/2026-10-12`.
-사용자 승인 GitHub 1차 업로드 준비: README·코드·문서·작은 근거를 정리하고 원본 results/가중치/
-외부 코드/런타임/비밀 파일을 제외했다. README 원본은 `README-history-2026-10-10.md`에 보존한다.
+사용자 승인 GitHub 1차 업로드 완료: [csb1004/MinecraftRL](https://github.com/csb1004/MinecraftRL) 비공개 main,
+첫 연구 정리 커밋 `d9338046bd9d154d90d88146c0cee157ceea8778` 원격 일치 확인.
+README·코드·문서·작은 근거617파일/약9MB, 원본 results/가중치/외부 코드/런타임/비밀 파일 제외.
+[업로드 영수증](reports/2026-10-12/publication.json). README 원본은 `README-history-2026-10-10.md`에 보존한다.
 다음 단위는 실패한 방향/연결 기억, 정밀 도달 학습, 접근 회복 근거에 따른 root 재개다.
 
 ## 상대 경유점 이동 학습·실제 개발 — 2026-10-10 (이번 배치 완료)

@@ -1,0 +1,13 @@
+{
+  "verified": true,
+  "repository": "csb1004/MinecraftRL",
+  "url": "https://github.com/csb1004/MinecraftRL",
+  "private": true,
+  "created": true,
+  "branch": "main",
+  "commit": "d9338046bd9d154d90d88146c0cee157ceea8778",
+  "remote_commit_matches": true,
+  "publication_scan": "results/blind-recovery-20261012/publication-scan.json",
+  "utc": "2026-10-12T00:26:59.2279847Z",
+  "scope": "Verified first research snapshot; this publication receipt is added in a follow-up documentation commit"
+}

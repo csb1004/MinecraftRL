@@ -42,7 +42,11 @@ root prefix의 화면/행동 차이를 대조한다. 달라지면 인과 성능 
 - [x] WaypointController/CLI의 명시적 planner 선택과 기록. 기존 fixture 기본값 보존.
 - [x] 새 시작 월드·일회4게임, 실제 행동/보상/탐색 결정을 원시 로그로 재생 감사.
 - [x] 보고서/작은 재현 자료/README 갱신. 결과의 성공·실패·미실행을 분리.
-- [ ] 비밀/원본 가중치/대용량·외부 코드 제외 검사, 로컬 Git 초기화·커밋,
+- [x] 비밀/원본 가중치/대용량·외부 코드 제외 검사, 로컬 Git 초기화·커밋,
   로그인한 개인 계정의 MinecraftRL 비공개 저장소에 업로드 후 원격 commit 확인.
 
 주 실행 흐름에서 순차 수행하며 재승인/자동 서브에이전트/gh는 사용하지 않는다.
+
+첫 정리본 `d9338046bd9d154d90d88146c0cee157ceea8778`을
+[csb1004/MinecraftRL](https://github.com/csb1004/MinecraftRL)의 비공개 main에 업로드하고
+원격 commit 일치를 확인했다. [업로드 영수증](reports/2026-10-12/publication.json).
