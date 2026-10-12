@@ -1,0 +1,67 @@
+{
+  "completed": true,
+  "checks": [
+    {
+      "case": "far",
+      "planner": "fixture",
+      "steps": 1200,
+      "action_logp_max_error": 0.0,
+      "root_success": false,
+      "recovery_evaluated": true
+    },
+    {
+      "case": "far",
+      "planner": "visit_memory",
+      "steps": 1200,
+      "action_logp_max_error": 0.0,
+      "root_success": false,
+      "recovery_evaluated": true
+    },
+    {
+      "case": "corner",
+      "planner": "fixture",
+      "steps": 1407,
+      "action_logp_max_error": 0.0,
+      "root_success": true,
+      "recovery_evaluated": true
+    },
+    {
+      "case": "corner",
+      "planner": "visit_memory",
+      "steps": 792,
+      "action_logp_max_error": 0.0,
+      "root_success": true,
+      "recovery_evaluated": false
+    }
+  ],
+  "total_actual_transitions": 4599,
+  "tests": {
+    "windows_full": {
+      "total": 548,
+      "skipped": 21,
+      "passed": 527,
+      "log": "results/blind-recovery-20261012/windows-full-tests-workspace-temp.log"
+    },
+    "windows_changed_metric": {
+      "total": 2,
+      "skipped": 0,
+      "passed": 2,
+      "log": "results/blind-recovery-20261012/windows-final-metric-tests.log"
+    },
+    "wsl_affected": {
+      "total": 23,
+      "skipped": 0,
+      "passed": 23,
+      "log": "results/blind-recovery-20261012/wsl-final-tests.log"
+    }
+  },
+  "new_api_calls": 0,
+  "optimizer_updates": 0,
+  "final_evaluation_seeds_used": 0,
+  "default_policy_promoted": false,
+  "llm_executable_catalogue_extended": false,
+  "stop_text": "RL collection ended; blind recovery development trial finished.",
+  "preserved_assets_verified": true,
+  "scope": "Four development trials, known map vs pose/visit heuristic; privileged server pose and root RM, learned motor actions; not F3-only or LLM planning.",
+  "raw_verification": "results/blind-recovery-20261012/final-verification.json (local, excluded from Git)"
+}

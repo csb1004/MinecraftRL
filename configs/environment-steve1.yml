@@ -1,0 +1,19 @@
+# Candidate, NOT a verified environment lock. Official STEVE-1 recommends torch 2.0.
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pytorch=2.0.1
+  - torchvision=0.15.2
+  - torchaudio=2.0.2
+  - pytorch-cuda=11.7
+  - openjdk=8
+  - pip=23.0.1
+  - setuptools=65.5.0
+  - wheel=0.38.4
+  - numpy=1.23.5
+  - mkl=2024.0.0
+  - libgl
+  - libglu

@@ -1,0 +1,12 @@
+[
+  {"id":"future_house","text":"우리 나중에 나무를 모아 멋진 집을 만들면 좋겠다.","history":[],"task":null,"expected":{"intent":"TASK_PROPOSAL","goal":"wood","count":null}},
+  {"id":"future_count","text":"나중에 흙 네 개를 모아보자.","history":[],"task":null,"expected":{"intent":"TASK_PROPOSAL","goal":"dirt","count":4}},
+  {"id":"present_request","text":"나무 네 개 모아줄래?","history":[],"task":null,"expected":{"intent":"TASK_REQUEST","goal":"wood","count":4}},
+  {"id":"missing_count","text":"흙 좀 모아줄래?","history":[],"task":null,"expected":{"intent":"TASK_REQUEST","goal":"dirt","count":null}},
+  {"id":"quantity_followup","text":"예순네 개만 부탁해.","history":[{"role":"user","content":"흙 좀 모아줄래?"},{"role":"assistant","content":"몇 개 모을까요?"}],"task":null,"expected":{"intent":"TASK_REQUEST","goal":"dirt","count":64}},
+  {"id":"preference","text":"나는 작은 집이 좋아","history":[],"task":null,"expected":{"intent":"PREFERENCE","goal":null,"count":null}},
+  {"id":"question","text":"나무는 어디 있어?","history":[],"task":null,"expected":{"intent":"QUESTION","goal":"wood","count":null}},
+  {"id":"greeting","text":"안녕, 만나서 반가워","history":[],"task":null,"expected":{"intent":"CHAT","goal":null,"count":null}},
+  {"id":"quotation","text":"친구가 '흙 네 개 모아줘'라고 말했어.","history":[],"task":null,"expected":{"intent":"INFORMATION","goal":"dirt","count":4}},
+  {"id":"unsupported","text":"지금 다이아몬드 검을 만들어줘.","history":[],"task":null,"expected":{"intent":"UNRESOLVED","goal":null,"count":null}}
+]

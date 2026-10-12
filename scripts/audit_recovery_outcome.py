@@ -1,0 +1,238 @@
+"""Audit committed neural/neutral transitions and planning pauses, without gameplay."""
+import argparse
+import hashlib
+import json
+from pathlib import Path
+import sys
+
+import numpy as np
+import torch
+
+from minecraftrl.policies import model_kwargs
+from minecraftrl.replanning import PlanHistory
+from minecraftrl.recovery_evidence import assess_attempt
+from minecraftrl.rl_core import SHAPED_REWARDS,tick_delta
+from minecraftrl.rl_policy import guided,state_fingerprint
+from minecraftrl.runtime import jsonable,write_json
+from minecraftrl.stall_detection import StallDetector
+from minecraftrl.stall_replay import wood_sample,log_count
+from minecraftrl.world_store import digest
+
+
+def audit(run,checkpoint,exchange=None):
+    root=Path(__file__).resolve().parents[1];run=run.resolve()
+    read=lambda p:json.loads(p.read_text(encoding='utf-8-sig'))
+    destination=run/'recovery-outcome-audit.json'
+    if destination.exists():raise FileExistsError(destination)
+    report=read(run/'summary.json');raw=read(run/'goal-recovery-rows.json')
+    data=torch.load(run/'trajectory.pt',map_location='cpu')
+    weights=torch.load(checkpoint,map_location='cpu')
+    assert report['controller']=='steve1_planned_goal_conditioning'
+    assert report['rl_updates']==0 and not report['rl_training_eligible']
+    actual_llm_calls=report['actual_llm_calls'];broker=None
+    if report['planner_provider']=='windows_mailbox':
+        assert exchange is not None
+        exchange=exchange.resolve()
+        receipt=read(exchange/'api-receipt.json') if (exchange/'api-receipt.json').exists() else None
+        actual_llm_calls=receipt['network_calls'] if receipt else 0
+        assert actual_llm_calls in (0,1)
+        if not report['planner_live']:assert actual_llm_calls==0
+        if report['planner_calls']:
+            broker=read(exchange/'broker-result.json')
+            assert broker['provider_invocations']<=1 and broker['retries']==0
+            assert not broker['execution_authorized'] and broker['new_game_actions']==0
+            if report['planner_live'] and broker['status']=='delivered':assert actual_llm_calls==1
+    else:
+        assert report['planner_provider']=='fixed_local_fixture' and actual_llm_calls==0
+    assert data['scope']=='planning_goal_conditioning_diagnostic' and not data['eligible'] and data['split']=='eval'
+    fingerprints={k:state_fingerprint(weights[k]) for k in ('actor','value','backbone_tail','backbone_temporal')}
+    assert fingerprints==data['initial_head_fingerprints']==report['initial_head_fingerprints']
+    assert state_fingerprint(data['initial_recurrent_state'])==data['condition']['initial_recurrent_sha256']
+    assert report['release']=='neutral_command_sent' and not report['process_cleanup']['remaining_live_pids']
+    release=read(run/'input-release-state.json');assert release['verified'] and release['held_key_count']==0
+    assert len(raw)==len(data['rows'])==report['steps']>0
+    decisions=read(run/'stall-decisions.json');assert len(decisions)==len(raw)
+    initial=read(run/'initial-state.json');previous=start=initial['server']
+    reward=SHAPED_REWARDS[data['reward_config']['name']](start)
+    detector=StallDetector();detector.update(wood_sample(start,{},str(run)))
+    sys.path.insert(0,str(root/'external/steve1'))
+    from gym3.types import DictType
+    from steve1.VPT.lib.action_mapping import CameraHierarchicalMapping
+    from steve1.VPT.lib.action_head import make_action_head
+    from steve1.VPT.lib.actions import ActionTransformer
+    from steve1.VPT.agent import ACTION_TRANSFORMER_KWARGS
+    mapper=CameraHierarchicalMapping(n_camera_bins=11);transformer=ActionTransformer(**ACTION_TRANSFORMER_KWARGS)
+    actor=make_action_head(DictType(**mapper.get_action_space_update()),data['rows'][0]['features'].shape[-1],
+        **model_kwargs(root/'weights/steve1/2x.model')[1]).cuda()
+    actor.load_state_dict(weights['actor']);actor.requires_grad_(False);del weights
+    embeds={mode:hashlib.sha256(np.load(run/name,allow_pickle=False).tobytes()).hexdigest()
+            for mode,name in (('wood','goal-embed.npy'),('intervention','intervention-embed.npy'))}
+    n=neural=neutral=policy_dispatches=control_dispatches=0;max_error=0.
+    stopped=accepted=waiting=False;started=None;wait_started=None;wait_s=None
+    blocked_activity=[];sums={k:0. for k in ('task','shaping','time_cost','failure')};dispatch_times=[]
+    for line in (run/'events.jsonl').open(encoding='utf-8'):
+        e=json.loads(line);kind=e['event']
+        if kind=='episode_started':started=e['monotonic_s']
+        if kind=='planner_wait_started':
+            assert not waiting;waiting=True;wait_started=e['monotonic_s']
+        if kind in ('planner_response_received','planner_paused','stop_acknowledged') and waiting:
+            waiting=False;wait_s=e['monotonic_s']-wait_started
+        if kind=='stop_acknowledged':stopped=True
+        if kind=='target_reached':accepted=True
+        if kind in ('inference_started','context_encoding_started','policy_dispatch_started','control_dispatch_started'):
+            assert not stopped and not accepted
+            if waiting:blocked_activity.append(e)
+        if kind in ('policy_dispatch_started','control_dispatch_started'):
+            dispatch_times.append(e['monotonic_s']-started)
+            policy_dispatches+=kind=='policy_dispatch_started';control_dispatches+=kind=='control_dispatch_started'
+        if kind!='transition':continue
+        row=raw[n];feature=data['rows'][n];n+=1
+        assert not stopped and not accepted and e['step']==n
+        assert row['server_before']==previous and row['server_after']==e['info']['workshop']
+        assert row['action']==feature['env_action']==e['action'] and row['owner']==e['controller']
+        assert row['reward_context']==feature['reward_context']==reward.context()
+        expected=torch.tensor(reward.context(),dtype=feature['features'].dtype)
+        assert torch.equal(feature['features'][0,0,-6:],expected) and torch.equal(feature['features'][1,0,-6:],expected)
+        assert feature['goal_conditioning']==dict(mode=row['mode'],embedding_sha256=embeds[row['mode']])
+        assert not row['loss_eligible']
+        if row['owner']=='planner_neutral':
+            neutral+=1
+            assert row['context_only'] and feature['context_only'] and feature['old_logp'] is None and feature['action'] is None
+            assert all(np.count_nonzero(v)==0 for v in row['action'].values())
+            assert row['server_after']['held_key_count']==0 and e['inference_ms'] is None
+            assert len(row['memory_before'])==len(row['memory_after'])==64
+        else:
+            neural+=1
+            assert row['owner']=='steve1_'+row['mode']
+            with torch.no_grad():
+                action={k:v.cuda() for k,v in feature['action'].items()}
+                actual=actor.logprob(action,guided(actor,feature['features'].cuda())).item()
+            max_error=max(max_error,abs(actual-feature['old_logp']))
+            converted=transformer.policy2env(mapper.to_factored({k:v[:,0].numpy() for k,v in feature['action'].items()}))
+            assert jsonable(converted)==row['action']
+        server=row['server_after'];assert tick_delta(previous,server)==1
+        parts=reward.advance(server,terminal=e['done'])
+        assert jsonable(parts)==jsonable(row['reward_components'])==jsonable(feature['reward_components'])==jsonable(e['info']['rl_reward'])
+        assert parts['total']==row['reward']==feature['reward']==e['reward']
+        assert row['terminal']==feature['terminal']==bool(e['done'] or reward.completed)
+        for key in sums:sums[key]+=parts[key]
+        decision=detector.update(wood_sample(server,e['action'],str(run),previous=previous,terminal=row['terminal']))
+        decision['step']=n;assert jsonable(decision)==decisions[n-1]
+        previous=server
+    assert stopped and not blocked_activity and n==neural+neutral==policy_dispatches+control_dispatches
+    assert neural==policy_dispatches and neutral==control_dispatches==report['neutral_control_transitions']
+    assert max_error<=2e-4 and max(dispatch_times)<180
+    assert report['server_tick_deltas']==[1]*n and sums==report['reward_component_sums']
+    switches=read(run/'goal-switches.json');planner=read(run/'planner-events.json')
+    if broker is not None:
+        request=read(exchange/'request.json')
+        started_request=next(e for e in planner if e['event']=='wait_started')
+        assert request['packet']==started_request['packet']
+        assert digest(exchange/'request.json')==broker['request_sha256']
+        responses=[e for e in planner if e['event']=='response_received']
+        if responses:
+            assert len(responses)==1 and broker['status']=='delivered'
+            assert read(exchange/'response.json')['proposal']==broker['proposal']==responses[0]['reply']
+        assert read(exchange/'closed.json')['closed']
+    history=PlanHistory(run/'planner-history.json').snapshot()
+    assert len(history['requests'])==report['planner_calls']<=1
+    gains=log_count(previous)-log_count(start)
+    assert bool(gains>0)==reward.completed==accepted==report['server_target_reached']
+    intervention=[r for r in raw if r['mode']=='intervention'];assert len(intervention)<=200
+    neutral_rows=[r for r in raw if r['owner']=='planner_neutral']
+    if report['planner_calls']==0:
+        assert not switches and not intervention
+        if report['status']=='error':
+            assert report['error']=='ValueError: invalid release evidence' and neutral==1
+            assert not report['execution_valid']
+        elif report['status']=='planning_paused':
+            assert neutral==1 and not report['execution_valid']
+            assert any(e.get('reason') in ('insufficient_remaining_time','neutral_release_unverified') for e in planner)
+        else:
+            assert report['execution_valid'] and report['worker_exit_code']==0 and neutral==0
+    elif report['status']=='cancelled':
+        assert not report['execution_valid']
+        if switches:
+            assert neutral==2 and history['requests'][0]['consumed']
+        else:
+            assert neutral==1 and not intervention and not history['requests'][0]['consumed']
+            assert not any(e['event']=='response_received' for e in planner)
+    elif report['status']=='planning_paused':
+        assert neutral in (1,2) and not report['execution_valid'] and report['worker_exit_code']==2
+        assert any(e['event']=='paused' for e in planner)
+        if intervention:
+            assert neutral==2 and len(switches)>=1
+            assert history['requests'][0]['consumed'] and history['decisions'][0]['accepted']
+        else:
+            assert not switches and not any(e['accepted'] for e in history['decisions'])
+    else:
+        assert report['execution_valid'] and report['worker_exit_code']==0
+        assert neutral==2 and neutral_rows[0]['memory_after']==neutral_rows[1]['memory_before']
+        assert len(history['decisions'])==1 and history['decisions'][0]['accepted']
+        assert history['requests'][0]['consumed'] and len(switches)>=1
+        assert switches[0]['reason']=='planner_review_accepted'
+        assert 0<=wait_s<20
+    from PIL import Image
+    attempts=report['recovery_attempts']
+    if attempts:
+        assert len(attempts)==1 and attempts==read(run/'recovery-attempts.json')
+        receipt=attempts[0];window=raw[receipt['start_step']-1:receipt['end_step']]
+        assert window==intervention
+        assert receipt['committed_transitions']==len(window)
+        before=window[0]['server_before'] if window else switches[0]['server_before']
+        assessment=assess_attempt(before,[r['server_after'] for r in window],
+            reason=receipt['assessment']['boundary_reason'],baseline_count=log_count(start),budget_ticks=200)
+        assert assessment==receipt['assessment']
+        assert receipt['root_reference']==history['requests'][0]['snapshot']['goal_ref']
+        assert receipt['remaining_calls']==receipt['remaining_interventions']==0
+        assessed=[e for e in planner if e['event']=='recovery_assessed']
+        assert len(assessed)==1 and all(assessed[0][k]==v for k,v in receipt.items())
+        if receipt['next_phase']=='paused':
+            assert report['status']=='planning_paused' and receipt['end_step']==len(raw) and len(switches)==1
+        elif receipt['next_phase']=='resumed':
+            assert assessment['current_target_observed']
+            assert (assessment['classification']=='interaction_ready' or assessment['current_same_target_approach_progress']
+                    or assessment['target_became_observed'])
+    else:assert not intervention
+    resumed=read(run/'resumed-stall-decisions.json');expected_resumed=[]
+    if attempts and attempts[0]['next_phase']=='resumed':
+        end=attempts[0]['end_step'];monitor=StallDetector()
+        monitor.update(wood_sample(raw[end-1]['server_after'],{},str(run)+':resumed'))
+        for i,row in enumerate(raw[end:],end+1):
+            if row['terminal'] or decisions[i-1].get('event')=='stop':continue
+            result=monitor.update(wood_sample(row['server_after'],row['action'],str(run)+':resumed',previous=row['server_before']))
+            result['step']=i;expected_resumed.append(result)
+        if report['status']=='planning_paused':
+            assert expected_resumed[-1]['event']=='stalled'
+            assert len(history['failures'])==2
+    assert jsonable(expected_resumed)==resumed
+    for switch in switches:
+        assert switch['committed']==(switch['before_action']<=n)
+        pixels=np.asarray(Image.open(run/switch['frame']))
+        assert hashlib.sha256(pixels.tobytes()).hexdigest()==switch['input_image_sha256']
+        if switch['committed']:
+            row=raw[switch['before_action']-1]
+            assert row['server_before']==switch['server_before'] and row['mode']==switch['mode']
+    result=dict(verified=True,steps=n,neural_steps=neural,neutral_steps=neutral,status=report['status'],
+        log_gain=gains,goal_completed=accepted,intervention_steps=len(intervention),
+        planner_wait_s=wait_s,action_head_logp_max_error=max_error,policy_dispatches_during_wait=0,
+        post_stop_dispatches=0,post_stop_inferences=0,held_keys_after_release=0,remaining_owned_pids=[],
+        worker_exit_code=report['worker_exit_code'],actual_llm_calls=actual_llm_calls,optimizer_updates=0,
+        planner_provider=report['planner_provider'],broker_status=broker['status'] if broker else None,
+        runtime_error=report.get('error'),handoff_exercised=bool(intervention),
+        recovery_attempts=attempts,
+        resumed_collection_transitions=len(resumed),
+        last_dispatch_s=max(dispatch_times),inference_ms=report['inference_ms'],control_cycle_ms=report['control_cycle_ms'],
+        context_encoding_ms=report['context_encoding_ms'],gpu=report['gpu'],device_vram=report['device_vram'],
+        checkpoint_sha256=digest(checkpoint),source_sha256={name:digest(run/name) for name in (
+            'summary.json','trajectory.pt','events.jsonl','goal-recovery-rows.json','planner-events.json','planner-history.json',
+            'recovery-attempts.json','resumed-stall-decisions.json') if (run/name).exists()},
+        scope='Actual planning handoff integration; no causal performance or optimizer improvement claim')
+    write_json(destination,result)
+    print(json.dumps({k:v for k,v in result.items() if k not in ('source_sha256','device_vram','gpu')}))
+
+
+if __name__=='__main__':
+    p=argparse.ArgumentParser();p.add_argument('run',type=Path);p.add_argument('checkpoint',type=Path)
+    p.add_argument('--exchange',type=Path)
+    a=p.parse_args();audit(a.run,a.checkpoint,a.exchange)

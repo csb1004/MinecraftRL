@@ -1,0 +1,21 @@
+{
+  "status": "blocked",
+  "execution_valid": false,
+  "steps": 0,
+  "problems": [
+    "candidate baseline requires Python 3.9",
+    "package unavailable: torch",
+    "package unavailable: gym",
+    "package unavailable: gym3",
+    "package unavailable: minerl",
+    "package unavailable: opencv-python",
+    "nvidia-smi unavailable or failed",
+    "candidate MineRL baseline requires JDK 8",
+    "DISPLAY unset; launch under WSLg or xvfb-run",
+    "source missing: vpt",
+    "source missing: minerl",
+    "source missing: gym",
+    "artifact/receipt missing: weights/vpt/foundation-model-1x.model",
+    "artifact/receipt missing: weights/vpt/foundation-model-1x.weights"
+  ]
+}

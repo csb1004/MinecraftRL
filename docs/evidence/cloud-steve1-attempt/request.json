@@ -1,0 +1,19 @@
+{
+  "policy": "steve1",
+  "condition": {
+    "policy": "steve1",
+    "name": "wood",
+    "goal": "collect wood",
+    "target_items": [
+      "oak_log",
+      "birch_log",
+      "spruce_log",
+      "jungle_log",
+      "acacia_log",
+      "dark_oak_log"
+    ]
+  },
+  "seed": 104729,
+  "limit_s": 180,
+  "controller": "policy"
+}

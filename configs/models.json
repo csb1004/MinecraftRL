@@ -1,0 +1,36 @@
+{
+  "artifacts": [
+    {
+      "policy": "vpt",
+      "file": "weights/vpt/foundation-model-1x.model",
+      "url": "https://openaipublic.blob.core.windows.net/minecraft-rl/models/foundation-model-1x.model"
+    },
+    {
+      "policy": "vpt",
+      "file": "weights/vpt/foundation-model-1x.weights",
+      "url": "https://openaipublic.blob.core.windows.net/minecraft-rl/models/foundation-model-1x.weights"
+    },
+    {
+      "policy": "steve1",
+      "file": "weights/steve1/2x.model",
+      "url": "https://openaipublic.blob.core.windows.net/minecraft-rl/models/2x.model"
+    },
+    {
+      "policy": "steve1",
+      "file": "weights/steve1/steve1.weights",
+      "gdrive_id": "1E3fd_-H1rRZqMkUKHfiMhx-ppLLehQPI"
+    },
+    {
+      "policy": "steve1",
+      "file": "weights/steve1/attn.pth",
+      "gdrive_id": "1uaZM1ZLBz2dZWcn85rZmjP7LV6Sg5PZW",
+      "official_md5": "b5ece9198337cfd117a3bfbd921e56da"
+    },
+    {
+      "policy": "steve1",
+      "file": "weights/steve1/steve1_prior.pt",
+      "gdrive_id": "1OdX5wiybK8jALVfP5_dEo0CWm9BQbDES"
+    }
+  ],
+  "source": "Pinned official VPT README and STEVE-1 download_weights.sh. No training dataset downloads."
+}

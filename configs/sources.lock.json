@@ -1,0 +1,54 @@
+{
+  "retrieved_utc": "2026-10-03",
+  "sources": {
+    "vpt": {
+      "repository": "https://github.com/openai/Video-Pre-Training",
+      "commit": "095519fbd4ee0e9281d19f19601e45629de9ac3f",
+      "retrieved_utc": "2026-10-03",
+      "readme_sha256": "d99c56ff758873b142b6b6fe6566afddfddea62c52dbbf5750840e9e54d64b06"
+    },
+    "steve1": {
+      "repository": "https://github.com/Shalev-Lifshitz/STEVE-1",
+      "commit": "903b244796322f4d0073a8f62c05f51eac3aed52",
+      "retrieved_utc": "2026-10-03",
+      "readme_sha256": "79dd69affc8e23c67e806ee660c8680569506a610d8644cf645d35137d98938a"
+    },
+    "minerl": {
+      "repository": "https://github.com/minerllabs/minerl",
+      "commit": "c0c9baa03b5306ffc3acddc849ec4141b6deb98e",
+      "ref": "v1.0.1"
+    },
+    "mineclip": {
+      "repository": "https://github.com/MineDojo/MineCLIP",
+      "commit": "e6c06a0245fac63dceb38bc9bd4fecd033dae735",
+      "ref": "HEAD"
+    },
+    "gym": {
+      "repository": "https://github.com/minerllabs/gym",
+      "commit": "1db8bb30c16704068ad63c7d8d3af0b2838ffe77",
+      "ref": "minerl-fix"
+    },
+    "minestudio": {
+      "repository": "https://github.com/CraftJarvis/MineStudio",
+      "commit": "278aa8553668d591339dbf30d281594ed06ee882",
+      "retrieved_utc": "2026-10-03",
+      "readme_sha256": "ccb3505c5c4fb61e7b5dec316063e9b096c7160f13a398dd53071ba859f4d8d2"
+    },
+    "mineflayer": {
+      "repository": "https://github.com/PrismarineJS/mineflayer",
+      "commit": "4fb62af5f8807adbf0c76c3d91221be246f40e8b",
+      "ref": "HEAD"
+    },
+    "mcp": {
+      "repository": "https://github.com/Hexeption/MCP-Reborn",
+      "commit": "1e71be5bd4c49bc4d6ab0ee559c31b298b7697a3",
+      "ref": "1.16.5-20210115"
+    },
+    "minedojo": {
+      "repository": "https://github.com/MineDojo/MineDojo",
+      "commit": "2731bc27394269643b43828d9db8ab3a364601f0",
+      "ref": "HEAD"
+    }
+  },
+  "status": "source pins only; runtime not validated"
+}

@@ -1,0 +1,650 @@
+{
+  "trials": {
+    "far/fixture": {
+      "steps": 1200,
+      "mode_steps": {
+        "root": 800,
+        "waypoint": 400,
+        "resumed": 0
+      },
+      "status": "planning_paused",
+      "recovery_evaluated": true,
+      "trigger_action": 800,
+      "trigger": {
+        "tick": 882.0,
+        "event": "stalled",
+        "stalled": true,
+        "reason": "no_goal_progress",
+        "progress": [],
+        "observation_valid": true,
+        "no_progress_ticks": 12.0,
+        "no_goal_progress_ticks": 800.0,
+        "window_ticks": 400,
+        "last_progress_reasons": [
+          "new_search_view"
+        ],
+        "cycle": null,
+        "graph_nodes": 55,
+        "graph_edges": 110,
+        "dominant_action": [
+          "attack"
+        ],
+        "action_fraction": 0.3266832917705736,
+        "position_span": [
+          5.142349050809372,
+          1.2522033402537147,
+          7.568829557382173
+        ],
+        "evidence_start_tick": 482.0
+      },
+      "local_escape": {
+        "success": true,
+        "first_offset": 47,
+        "verified_offset": 67,
+        "maximum_distance": 4.66114289815042
+      },
+      "wall_crossing": {
+        "success": false,
+        "status": "not_crossed",
+        "first_action": null,
+        "first_episode_crossing": null,
+        "already_on_far_side_at_stall": false,
+        "episode_origin_side": "left"
+      },
+      "root_success": false,
+      "inventory_delta": {},
+      "route_completed": false,
+      "actual_goal_arrivals": 0,
+      "route_failure": "waypoint_budget_exhausted",
+      "candidate_failures": [],
+      "goals": {
+        "0": {
+          "target": [
+            229.5,
+            201.0,
+            -790.5925494906662
+          ],
+          "actions": 400,
+          "forward": 194,
+          "attack": 47,
+          "yaw": 131,
+          "minimum_distance": 0.35766881765393727
+        }
+      },
+      "path_blocks": 99.16625401418469,
+      "navigation_path_blocks": 35.27767457180255,
+      "navigation_forward": 194,
+      "navigation_forward_heading_gt45": 82,
+      "navigation_attack": 47,
+      "elapsed_control_s": 154.40544505199998,
+      "inference_ms": {
+        "count": 1200,
+        "median": 43.24604299998214,
+        "p95": 52.88790925004463
+      },
+      "control_cycle_ms": {
+        "count": 1200,
+        "median": 111.13742250000769,
+        "p95": 208.11306505002267
+      },
+      "gpu": {
+        "torch_peak_allocated_mib": 1915.00146484375,
+        "torch_peak_reserved_mib": 2056.0,
+        "scope": "PyTorch process including model loading, not total device VRAM"
+      },
+      "device_vram": {
+        "sampled_peak_used_mib": 2748.0,
+        "sample_count": 1279,
+        "sampling_error": null,
+        "scope": "entire device 0 including other processes; sampled, may miss short peaks"
+      },
+      "stop_dispatches": 0,
+      "keys_remaining": 0,
+      "owned_pids_remaining": [],
+      "action_logp_max_error": 0.0,
+      "world_sha256": "5239e0ac8e769f75cbc064fd5dc0ecf42da07422b353d899dfd2f74478d5b798",
+      "checkpoint_sha256": "f1dee8013938deca68d87b6eda2c7db1bffa511eaf23528745bbc60bec2c282a"
+    },
+    "far/visit_memory": {
+      "steps": 1200,
+      "mode_steps": {
+        "root": 800,
+        "waypoint": 400,
+        "resumed": 0
+      },
+      "status": "planning_paused",
+      "recovery_evaluated": true,
+      "trigger_action": 800,
+      "trigger": {
+        "tick": 882.0,
+        "event": "stalled",
+        "stalled": true,
+        "reason": "no_goal_progress",
+        "progress": [],
+        "observation_valid": true,
+        "no_progress_ticks": 11.0,
+        "no_goal_progress_ticks": 800.0,
+        "window_ticks": 400,
+        "last_progress_reasons": [
+          "new_position_cell",
+          "new_search_view"
+        ],
+        "cycle": {
+          "nodes": [
+            [
+              [
+                225,
+                201,
+                -789
+              ],
+              2,
+              "search",
+              null
+            ],
+            [
+              [
+                226,
+                201,
+                -789
+              ],
+              2,
+              "search",
+              null
+            ],
+            [
+              [
+                225,
+                201,
+                -789
+              ],
+              2,
+              "search",
+              null
+            ]
+          ],
+          "count": 2
+        },
+        "graph_nodes": 25,
+        "graph_edges": 59,
+        "dominant_action": [
+          "attack"
+        ],
+        "action_fraction": 0.46384039900249374,
+        "position_span": [
+          4.046006882517304,
+          1.2522033402537147,
+          4.205893685186652
+        ],
+        "evidence_start_tick": 482.0
+      },
+      "local_escape": {
+        "success": true,
+        "first_offset": 27,
+        "verified_offset": 47,
+        "maximum_distance": 10.711175188310406
+      },
+      "wall_crossing": {
+        "success": true,
+        "status": "crossed_after_stall",
+        "first_action": 898,
+        "first_episode_crossing": 898,
+        "already_on_far_side_at_stall": false,
+        "episode_origin_side": "left"
+      },
+      "root_success": false,
+      "inventory_delta": {},
+      "route_completed": false,
+      "actual_goal_arrivals": 2,
+      "route_failure": "waypoint_budget_exhausted",
+      "candidate_failures": [
+        {
+          "index": 0,
+          "target": [
+            229.81127433705663,
+            201.0,
+            -789.0419254885064
+          ],
+          "sequence": 63,
+          "actions": 63,
+          "best_progress_distance": 1.206914678146531,
+          "reason": "candidate_no_progress"
+        },
+        {
+          "index": 3,
+          "target": [
+            237.0857572375052,
+            202.17675927506423,
+            -789.3000193487554
+          ],
+          "sequence": 188,
+          "actions": 76,
+          "best_progress_distance": 0.44251511105688535,
+          "reason": "candidate_no_progress"
+        },
+        {
+          "index": 4,
+          "target": [
+            239.43147015696235,
+            201.7531999805212,
+            -790.5727527299376
+          ],
+          "sequence": 288,
+          "actions": 100,
+          "best_progress_distance": 1.0423313810996013,
+          "reason": "candidate_budget"
+        },
+        {
+          "index": 5,
+          "target": [
+            241.66370142493795,
+            201.79673560066868,
+            -789.3649180512666
+          ],
+          "sequence": 328,
+          "actions": 40,
+          "best_progress_distance": 3.0,
+          "reason": "candidate_no_progress"
+        },
+        {
+          "index": 6,
+          "target": [
+            241.55637987247042,
+            201.7531999805212,
+            -790.6505491842291
+          ],
+          "sequence": 368,
+          "actions": 40,
+          "best_progress_distance": 3.0,
+          "reason": "candidate_no_progress"
+        }
+      ],
+      "goals": {
+        "0": {
+          "target": [
+            229.81127433705663,
+            201.0,
+            -789.0419254885064
+          ],
+          "actions": 63,
+          "forward": 33,
+          "attack": 2,
+          "yaw": 21,
+          "minimum_distance": 1.1219410957261442
+        },
+        "1": {
+          "target": [
+            231.611036685421,
+            201.0,
+            -790.5665445759092
+          ],
+          "actions": 30,
+          "forward": 23,
+          "attack": 2,
+          "yaw": 0,
+          "minimum_distance": 0.25352826063032724
+        },
+        "2": {
+          "target": [
+            234.44366054775918,
+            201.0,
+            -789.8842627365426
+          ],
+          "actions": 19,
+          "forward": 14,
+          "attack": 2,
+          "yaw": 0,
+          "minimum_distance": 0.3429065308423663
+        },
+        "3": {
+          "target": [
+            237.0857572375052,
+            202.17675927506423,
+            -789.3000193487554
+          ],
+          "actions": 76,
+          "forward": 40,
+          "attack": 14,
+          "yaw": 27,
+          "minimum_distance": 0.39579167185497766
+        },
+        "4": {
+          "target": [
+            239.43147015696235,
+            201.7531999805212,
+            -790.5727527299376
+          ],
+          "actions": 100,
+          "forward": 53,
+          "attack": 17,
+          "yaw": 17,
+          "minimum_distance": 1.0423313810996013
+        },
+        "5": {
+          "target": [
+            241.66370142493795,
+            201.79673560066868,
+            -789.3649180512666
+          ],
+          "actions": 40,
+          "forward": 28,
+          "attack": 1,
+          "yaw": 3,
+          "minimum_distance": 3.01297960254729
+        },
+        "6": {
+          "target": [
+            241.55637987247042,
+            201.7531999805212,
+            -790.6505491842291
+          ],
+          "actions": 40,
+          "forward": 30,
+          "attack": 0,
+          "yaw": 1,
+          "minimum_distance": 2.8566702302886124
+        },
+        "7": {
+          "target": [
+            238.23473254546067,
+            201.0,
+            -786.9208343866003
+          ],
+          "actions": 32,
+          "forward": 15,
+          "attack": 1,
+          "yaw": 11,
+          "minimum_distance": 0.457541228573631
+        }
+      },
+      "path_blocks": 84.03079640497663,
+      "navigation_path_blocks": 32.850411945562804,
+      "navigation_forward": 236,
+      "navigation_forward_heading_gt45": 69,
+      "navigation_attack": 39,
+      "elapsed_control_s": 125.08557974099995,
+      "inference_ms": {
+        "count": 1200,
+        "median": 42.39511949998587,
+        "p95": 51.979268650057975
+      },
+      "control_cycle_ms": {
+        "count": 1200,
+        "median": 101.87302200000659,
+        "p95": 116.24064099997895
+      },
+      "gpu": {
+        "torch_peak_allocated_mib": 1915.00146484375,
+        "torch_peak_reserved_mib": 2056.0,
+        "scope": "PyTorch process including model loading, not total device VRAM"
+      },
+      "device_vram": {
+        "sampled_peak_used_mib": 2745.0,
+        "sample_count": 939,
+        "sampling_error": null,
+        "scope": "entire device 0 including other processes; sampled, may miss short peaks"
+      },
+      "stop_dispatches": 0,
+      "keys_remaining": 0,
+      "owned_pids_remaining": [],
+      "action_logp_max_error": 0.0,
+      "world_sha256": "5239e0ac8e769f75cbc064fd5dc0ecf42da07422b353d899dfd2f74478d5b798",
+      "checkpoint_sha256": "f1dee8013938deca68d87b6eda2c7db1bffa511eaf23528745bbc60bec2c282a"
+    },
+    "corner/fixture": {
+      "steps": 1407,
+      "mode_steps": {
+        "root": 800,
+        "waypoint": 201,
+        "resumed": 406
+      },
+      "status": "target_reached",
+      "recovery_evaluated": true,
+      "trigger_action": 800,
+      "trigger": {
+        "tick": 882.0,
+        "event": "stalled",
+        "stalled": true,
+        "reason": "no_goal_progress",
+        "progress": [],
+        "observation_valid": true,
+        "no_progress_ticks": 140.0,
+        "no_goal_progress_ticks": 800.0,
+        "window_ticks": 400,
+        "last_progress_reasons": [
+          "new_position_cell",
+          "new_search_view"
+        ],
+        "cycle": {
+          "nodes": [
+            [
+              [
+                238,
+                201,
+                -799
+              ],
+              7,
+              "search",
+              null
+            ],
+            [
+              [
+                238,
+                202,
+                -799
+              ],
+              7,
+              "search",
+              null
+            ],
+            [
+              [
+                238,
+                201,
+                -799
+              ],
+              7,
+              "search",
+              null
+            ]
+          ],
+          "count": 14
+        },
+        "graph_nodes": 4,
+        "graph_edges": 10,
+        "dominant_action": [
+          "attack",
+          "left"
+        ],
+        "action_fraction": 0.22443890274314215,
+        "position_span": [
+          0.16024283387156402,
+          1.2491870787446828,
+          1.417002687103718
+        ],
+        "evidence_start_tick": 482.0
+      },
+      "local_escape": {
+        "success": true,
+        "first_offset": 47,
+        "verified_offset": 67,
+        "maximum_distance": 14.849915792887932
+      },
+      "wall_crossing": {
+        "success": null,
+        "status": "already_on_far_side_at_stall",
+        "first_action": 801,
+        "first_episode_crossing": 281,
+        "already_on_far_side_at_stall": true,
+        "episode_origin_side": "left"
+      },
+      "root_success": true,
+      "inventory_delta": {
+        "oak_log": 1
+      },
+      "route_completed": true,
+      "actual_goal_arrivals": 2,
+      "route_failure": null,
+      "candidate_failures": [],
+      "goals": {
+        "0": {
+          "target": [
+            233.5,
+            201.0,
+            -798.6999999880791
+          ],
+          "actions": 91,
+          "forward": 45,
+          "attack": 14,
+          "yaw": 32,
+          "minimum_distance": 0.32609941118099073
+        },
+        "1": {
+          "target": [
+            233.5,
+            201.0,
+            -787.5
+          ],
+          "actions": 110,
+          "forward": 63,
+          "attack": 2,
+          "yaw": 23,
+          "minimum_distance": 0.31255440995453526
+        }
+      },
+      "path_blocks": 84.88460690043362,
+      "navigation_path_blocks": 23.14150253503293,
+      "navigation_forward": 108,
+      "navigation_forward_heading_gt45": 18,
+      "navigation_attack": 16,
+      "elapsed_control_s": 147.612845085,
+      "inference_ms": {
+        "count": 1407,
+        "median": 41.947467999989385,
+        "p95": 51.32595559998663
+      },
+      "control_cycle_ms": {
+        "count": 1407,
+        "median": 102.08192200002486,
+        "p95": 119.01531699994622
+      },
+      "gpu": {
+        "torch_peak_allocated_mib": 1915.00146484375,
+        "torch_peak_reserved_mib": 2056.0,
+        "scope": "PyTorch process including model loading, not total device VRAM"
+      },
+      "device_vram": {
+        "sampled_peak_used_mib": 2745.0,
+        "sample_count": 1029,
+        "sampling_error": null,
+        "scope": "entire device 0 including other processes; sampled, may miss short peaks"
+      },
+      "stop_dispatches": 0,
+      "keys_remaining": 0,
+      "owned_pids_remaining": [],
+      "action_logp_max_error": 0.0,
+      "world_sha256": "cbd7890bc992accf4093d6d156f7187f0b03a0af484a40e822ec467f751698a3",
+      "checkpoint_sha256": "f1dee8013938deca68d87b6eda2c7db1bffa511eaf23528745bbc60bec2c282a"
+    },
+    "corner/visit_memory": {
+      "steps": 792,
+      "mode_steps": {
+        "root": 792,
+        "waypoint": 0,
+        "resumed": 0
+      },
+      "status": "target_reached",
+      "recovery_evaluated": false,
+      "trigger_action": null,
+      "trigger": null,
+      "local_escape": null,
+      "wall_crossing": null,
+      "root_success": true,
+      "inventory_delta": {
+        "oak_log": 2
+      },
+      "route_completed": false,
+      "actual_goal_arrivals": 0,
+      "route_failure": null,
+      "candidate_failures": [],
+      "goals": {},
+      "path_blocks": 39.84605748394445,
+      "navigation_path_blocks": 0,
+      "navigation_forward": 0,
+      "navigation_forward_heading_gt45": 0,
+      "navigation_attack": 0,
+      "elapsed_control_s": 81.63014966599985,
+      "inference_ms": {
+        "count": 792,
+        "median": 42.22575549999874,
+        "p95": 51.02002785010882
+      },
+      "control_cycle_ms": {
+        "count": 792,
+        "median": 101.31936849995782,
+        "p95": 114.13726030001499
+      },
+      "gpu": {
+        "torch_peak_allocated_mib": 1915.00146484375,
+        "torch_peak_reserved_mib": 2056.0,
+        "scope": "PyTorch process including model loading, not total device VRAM"
+      },
+      "device_vram": {
+        "sampled_peak_used_mib": 2746.0,
+        "sample_count": 760,
+        "sampling_error": null,
+        "scope": "entire device 0 including other processes; sampled, may miss short peaks"
+      },
+      "stop_dispatches": 0,
+      "keys_remaining": 0,
+      "owned_pids_remaining": [],
+      "action_logp_max_error": 0.0,
+      "world_sha256": "cbd7890bc992accf4093d6d156f7187f0b03a0af484a40e822ec467f751698a3",
+      "checkpoint_sha256": "f1dee8013938deca68d87b6eda2c7db1bffa511eaf23528745bbc60bec2c282a"
+    }
+  },
+  "root_prefix_comparison": {
+    "far": {
+      "compared_actions": 800,
+      "first_difference": {
+        "frame": 18,
+        "action": 20,
+        "pose": 22
+      },
+      "identical": false
+    },
+    "corner": {
+      "compared_actions": 792,
+      "first_difference": {
+        "frame": 4,
+        "action": 23,
+        "pose": 42
+      },
+      "identical": false
+    }
+  },
+  "source_sha256": {
+    "results/blind-recovery-20261012/far/fixture/run/summary.json": "3432cb7d4e8ac5dfa3f0fb3d16e518f0221b0942117fe7eac15af8ecb9186d7e",
+    "results/blind-recovery-20261012/far/fixture/run/waypoint-rows.json": "b70b256bc382c9050897039a20dd14da204e6a2647c5d4680952e09a5ee29326",
+    "results/blind-recovery-20261012/far/fixture/run/waypoint-audit.json": "c1a49fa415901a4769d5271379084bbb4e2a86ac4d0ba41517d690e004619295",
+    "results/blind-recovery-20261012/far/fixture/run/waypoint-switches.json": "fdba7b2ad4a23565b91465aaf72bce5928e3e2429e118a923a547b4ae58d4d44",
+    "results/blind-recovery-20261012/far/fixture/run/events.jsonl": "8f8d7b23876665f340bf2b97beb180d5601e94db55c2c846416605b0f5b0f303",
+    "results/blind-recovery-20261012/far/visit_memory/run/summary.json": "e11323115cce8000edb3af64ff0fd93bd9f91b25badff46fea50b16bc28294d8",
+    "results/blind-recovery-20261012/far/visit_memory/run/waypoint-rows.json": "bd3a949a08d5fb9b430c4babcfc27b52c8db02283d78c6fd5d39a947cc6266b0",
+    "results/blind-recovery-20261012/far/visit_memory/run/waypoint-audit.json": "edce2ea21988701074dd604123ffa6fd7ceec723b73f6e74ed52e905a1aa27c0",
+    "results/blind-recovery-20261012/far/visit_memory/run/waypoint-switches.json": "48a5fc5890e31f301504d9624c61debb92793af9aae208334736e4bd5107416d",
+    "results/blind-recovery-20261012/far/visit_memory/run/events.jsonl": "3d25effd89e0bad476539c91da3999b0752318b1b3e1da186a958426e6e08e6f",
+    "results/blind-recovery-20261012/corner/fixture/run/summary.json": "dfcb3883bb1ef402c9a901c80ad3ddcdbbb686e2ae9d6555cc9a46b692f786a9",
+    "results/blind-recovery-20261012/corner/fixture/run/waypoint-rows.json": "086715985cf04b8e68566e82590dc1ea935ec9189b6afd46442029d487ecb403",
+    "results/blind-recovery-20261012/corner/fixture/run/waypoint-audit.json": "1d5fc02a5b96fa9ff3be4d064438b5f245b4fd70ff50304832f9b2bbf3181687",
+    "results/blind-recovery-20261012/corner/fixture/run/waypoint-switches.json": "65bc9a79403b236651b077493fececddc31f844e48bfea8d822307f01f5f862b",
+    "results/blind-recovery-20261012/corner/fixture/run/events.jsonl": "b359d23da9487542a8829a35d52cf392f31a69d28c49b017330b7e28a4fea3ad",
+    "results/blind-recovery-20261012/corner/visit_memory/run/summary.json": "f9a1cb35e0da922bef74b8fab5913f9ee51f3463cc4ed3ae7010e05301cd658d",
+    "results/blind-recovery-20261012/corner/visit_memory/run/waypoint-rows.json": "f3add87f2b3b7b73844aeedc6bb397bfb951f96b42490df9efaec529ec5f3b94",
+    "results/blind-recovery-20261012/corner/visit_memory/run/waypoint-audit.json": "c58210c7673895144d878533be1bf1076ea659630db9a8a6da567ab191a7ca2c",
+    "results/blind-recovery-20261012/corner/visit_memory/run/waypoint-switches.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "results/blind-recovery-20261012/corner/visit_memory/run/events.jsonl": "471a6694a30c4298ec275414c8fcffcc9b64e7d6d525a3f5e432471b425ada7b"
+  },
+  "api_calls": 0,
+  "optimizer_updates": 0,
+  "scope": "Four development trials, known map vs pose/visit heuristic; privileged server pose and root RM, learned motor actions; not F3-only or LLM planning."
+}

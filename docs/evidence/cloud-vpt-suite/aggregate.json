@@ -1,0 +1,12 @@
+{
+  "spontaneous": {
+    "planned": 5,
+    "attempted": 1,
+    "unrun": 4,
+    "valid_gameplay_episodes": 0,
+    "technical_failures": 1,
+    "cancelled": 0,
+    "technical_failure_rate": 1.0,
+    "task_failure_rate": null
+  }
+}

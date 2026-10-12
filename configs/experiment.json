@@ -1,0 +1,42 @@
+{
+  "seeds": [
+    104729,
+    130363,
+    155921,
+    196613,
+    262147
+  ],
+  "limit_s": 180,
+  "startup_limit_s": 600,
+  "shutdown_grace_s": 10,
+  "conditions": [
+    {
+      "policy": "vpt",
+      "name": "spontaneous",
+      "goal": null,
+      "target_items": []
+    },
+    {
+      "policy": "steve1",
+      "name": "wood",
+      "goal": "collect wood",
+      "target_items": [
+        "oak_log",
+        "birch_log",
+        "spruce_log",
+        "jungle_log",
+        "acacia_log",
+        "dark_oak_log"
+      ]
+    },
+    {
+      "policy": "steve1",
+      "name": "dirt",
+      "goal": "collect dirt",
+      "target_items": [
+        "dirt"
+      ]
+    }
+  ],
+  "target_count": 1
+}

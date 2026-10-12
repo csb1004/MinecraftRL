@@ -1,0 +1,195 @@
+{
+  "version": 1,
+  "scope": "Known archived traces; no blind/final evaluation, no new gameplay",
+  "excluded_final_seeds": [
+    3000017,
+    3000029,
+    3000047,
+    3000061,
+    3000073
+  ],
+  "runs": [
+    {
+      "id": "teacher-0",
+      "run": "results/rl-train-104743-20261008T035427136726Z/run",
+      "seed": 104743,
+      "split": "diagnostic_train",
+      "role": "scripted_teacher",
+      "reference": "successful_detour_reference",
+      "sha256": {
+        "events.jsonl": "ca3afc1ed457175d5cb26f75207aac241ef68f0927359a516af3510272ad9f76",
+        "initial-state.json": "6ddd7d77832e764d40efa639d920a197beee2c087add4edd0fd4a170f7df8c33",
+        "summary.json": "079141001041fec181898e4b303432866f4fc25bc61fbdb0049daf2f46b379df"
+      }
+    },
+    {
+      "id": "teacher-1",
+      "run": "results/rl-train-104743-20261008T035731620149Z/run",
+      "seed": 104743,
+      "split": "diagnostic_train",
+      "role": "scripted_teacher",
+      "reference": "successful_detour_reference",
+      "sha256": {
+        "events.jsonl": "ce77f6bb7ebc83275b851cafe423ad9fad8198569da1b19a992e3e42d37d8474",
+        "initial-state.json": "d98bc221a72a06d08dc153c9078b0cd7654e4152f14badbff8a888dcd315869a",
+        "summary.json": "d0d8535814c210f979125788a72a3349bbe986c8d6df8cf657972a798122d573"
+      }
+    },
+    {
+      "id": "teacher-2",
+      "run": "results/rl-train-104743-20261008T040005408780Z/run",
+      "seed": 104743,
+      "split": "diagnostic_train",
+      "role": "scripted_teacher",
+      "reference": "successful_detour_reference",
+      "sha256": {
+        "events.jsonl": "0236b505c987ec68f6071e4df428dafe27b783bfc6fae366b3c7779ffd299668",
+        "initial-state.json": "c7087e9f4268247af407c7afaa7b078f56825da7abe488a4a92b5be44fe41be4",
+        "summary.json": "3eec3358416132211c557266d150fe57b25c0f8e73dc62aa949558b4daf784a5"
+      }
+    },
+    {
+      "id": "teacher-3",
+      "run": "results/rl-train-104759-20261008T040246978176Z/run",
+      "seed": 104759,
+      "split": "diagnostic_train",
+      "role": "scripted_teacher",
+      "reference": "successful_detour_reference",
+      "sha256": {
+        "events.jsonl": "32a36edf28491b782d2c7b92c9871aafde2a21dcec62af056c6484b7db2498de",
+        "initial-state.json": "0298f8a9cff4813de098c5a9656804296a10cbc2538b60773fb446209c3d84ea",
+        "summary.json": "8b2275a331f4ac01463fd484bde0e331994b1a5760de077e6dc02f61113afe94"
+      }
+    },
+    {
+      "id": "teacher-4",
+      "run": "results/rl-train-104759-20261008T040527380929Z/run",
+      "seed": 104759,
+      "split": "diagnostic_train",
+      "role": "scripted_teacher",
+      "reference": "successful_detour_reference",
+      "sha256": {
+        "events.jsonl": "bc31bd72b0f62cdb650403469017c57bdada478c04a4c2daa5576c590645aa67",
+        "initial-state.json": "1b7efe6ff48240b4f92987c77a6e99199c93f3c740a02a3e29c101cb7d616c9b",
+        "summary.json": "12c0ab98977c49cd6fcf132e6d1dc602fabac89c3fa1c0f77a7ed433c28e5a02"
+      }
+    },
+    {
+      "id": "teacher-5",
+      "run": "results/rl-train-104759-20261008T040821907069Z/run",
+      "seed": 104759,
+      "split": "diagnostic_train",
+      "role": "scripted_teacher",
+      "reference": "successful_detour_reference",
+      "sha256": {
+        "events.jsonl": "0c73a04dc4982757bc370fc70ae5133c6ec33c3c59786553734b8837ef71c2ef",
+        "initial-state.json": "bd55385e49caa08eb926eff7335b92c3ffe6484908d620a0f0ad19f351d00bce",
+        "summary.json": "0ed9aaf69d706c22dae8f070acb99a20898f52bbf7575607566591308bffca32"
+      }
+    },
+    {
+      "id": "teacher-6",
+      "run": "results/rl-eval-104761-20261008T041125549271Z/run",
+      "seed": 104761,
+      "split": "development",
+      "role": "scripted_teacher",
+      "reference": "successful_detour_reference",
+      "sha256": {
+        "events.jsonl": "562e4a5764ac0075c835f21fa61ce24586c7b1ab4a3f48856a50e711996df5f5",
+        "initial-state.json": "3fa5e7eb4aa280baee7702c963fa8f23f433d36fb0250d9ad9d1939f66f7e01a",
+        "summary.json": "e527083fd2b170a8785656999bbad65b7dd555d4a02a404dc960fad02e7bfbd0"
+      }
+    },
+    {
+      "id": "teacher-7",
+      "run": "results/rl-eval-104761-20261008T041427892630Z/run",
+      "seed": 104761,
+      "split": "development",
+      "role": "scripted_teacher",
+      "reference": "successful_detour_reference",
+      "sha256": {
+        "events.jsonl": "33401bbfccdaaf4c1fb04a180da4f3c0c32cf2be43c932d8a6d311ea4902fa19",
+        "initial-state.json": "389371e93ec36683f7c4fd397ff06982ab949824d60d027e0f28ca99641c247e",
+        "summary.json": "111bf29cedc0fd9942630a385e4aee6ea71fa3a7af843b72b8ff7155f5a1e896"
+      }
+    },
+    {
+      "id": "blocked-0",
+      "run": "results/rl-train-104743-20261007T183534962608Z/run",
+      "seed": 104743,
+      "split": "diagnostic_train",
+      "role": "learned_policy",
+      "reference": "blocked_failure_reference",
+      "sha256": {
+        "events.jsonl": "778c4d1e91afc3e3bb664d0a2d6e5f2cea19ba200a07642b9233c0581b85708e",
+        "initial-state.json": "5a263cbe33021b3606c5117f358c4a10572628db7bf920bda129d705645517e6",
+        "summary.json": "ddd48a30766dad985e2a8424b1f06dc7b459e95ab31335363a123f9dab72cd2c"
+      }
+    },
+    {
+      "id": "blocked-1",
+      "run": "results/rl-train-104759-20261007T184410452965Z/run",
+      "seed": 104759,
+      "split": "diagnostic_train",
+      "role": "learned_policy",
+      "reference": "blocked_failure_reference",
+      "sha256": {
+        "events.jsonl": "87d4ae38778d37164cc7f819b47b0ce4ef0293ee086d711d2234bd4cf958aba1",
+        "initial-state.json": "6417088b7ea77e26869e5d943464bded4df88d76d548ccc9e2438623eee44b7d",
+        "summary.json": "af810d614cb8228b8995fd1abea80713bb23e7b4b80c42e4f48934714369eebd"
+      }
+    },
+    {
+      "id": "long_wall-parent",
+      "run": "results/rl-eval-2000003-20261008T094416159086Z/run",
+      "seed": 2000003,
+      "split": "development",
+      "role": "learned_policy",
+      "reference": "stationary_wall_reference",
+      "sha256": {
+        "events.jsonl": "3dc9bcaa1d8fa7f2f370c5e933fac5b98fb8b1d157092f99a191d8dbab0ceb90",
+        "initial-state.json": "24483bed167ca7855c5a14fb9a85647a6612f48826fcd6b3fe310eb749c4a2de",
+        "summary.json": "b4127b2e128b03ebdf65e8bc43b7208ba971db00ab019a33e32495df9b45b626"
+      }
+    },
+    {
+      "id": "long_wall-candidate",
+      "run": "results/rl-eval-2000003-20261008T095140210805Z/run",
+      "seed": 2000003,
+      "split": "development",
+      "role": "learned_policy",
+      "reference": "stationary_wall_reference",
+      "sha256": {
+        "events.jsonl": "1599dcfe6b7def96fe9407ba79bb337925bdfc7f2648818c8d17677c93f6d689",
+        "initial-state.json": "24483bed167ca7855c5a14fb9a85647a6612f48826fcd6b3fe310eb749c4a2de",
+        "summary.json": "036b91b0c7aaef86ce140e526549325dcceee6c97a2f0854af4bfccb189dd569"
+      }
+    },
+    {
+      "id": "natural-candidate",
+      "run": "results/rl-eval-2000029-20261008T095842577280Z/run",
+      "seed": 2000029,
+      "split": "development",
+      "role": "learned_policy",
+      "reference": "successful_natural_reference",
+      "sha256": {
+        "events.jsonl": "41d29cc36c1ec036915333d88f13d92e9dbfaed36093bc4e0bff4ff24373e1b6",
+        "initial-state.json": "be420fda307c3ffa9c884ccdb91bc3d325719b3097ecdabd28d885d68b97754d",
+        "summary.json": "2dc383529e088dd3a8192a01cb9e1614d91d06fd0a3c4ce90df25c1798453970"
+      }
+    },
+    {
+      "id": "natural-parent",
+      "run": "results/rl-eval-2000029-20261008T100323057671Z/run",
+      "seed": 2000029,
+      "split": "development",
+      "role": "learned_policy",
+      "reference": "successful_natural_reference",
+      "sha256": {
+        "events.jsonl": "b2f971e965dc2d6be68cda0e504a7486edc5dcfe2d4cfb4b060852bdd6c79adf",
+        "initial-state.json": "be420fda307c3ffa9c884ccdb91bc3d325719b3097ecdabd28d885d68b97754d",
+        "summary.json": "d1e8bf5b87038dfc9edb1baacbc40f1320c9d8ea0b05acc184caa67e1bd674c5"
+      }
+    }
+  ]
+}

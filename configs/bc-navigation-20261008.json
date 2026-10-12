@@ -1,0 +1,15 @@
+{
+  "goal": "find a cave",
+  "frame_offset": 0,
+  "rm_context": "unobserved_frozen",
+  "goal_source": "Official BASALT FindCave task; not relabeled as collect wood",
+  "scope": "Terrain edge navigation transfer pilot; no assertion of expert long-wall recovery",
+  "data_directory": "data/bc-navigation-20261008",
+  "alignment_report": "results/bc-alignment-20261008.json",
+  "parent": "results/recovery-gap-20261007/train-gap-epochs2/checkpoint.pt",
+  "sessions": [
+    {"id": "cheeky-cornflower-setter-00467564a5cd-20220715-094908", "split": "train", "context_start": 40, "start": 300, "end": 720, "review": "Hill and ledge encounter, turning and travel around terrain; storyboard frames 300..700"},
+    {"id": "cheeky-cornflower-setter-00c9a1c015d6-20220715-100525", "split": "train", "context_start": 40, "start": 90, "end": 315, "review": "Travel around a shallow pit rim and approach a ground opening; storyboard frames 90..315"},
+    {"id": "cheeky-cornflower-setter-00da340bd489-20220714-133713", "split": "development", "context_start": 40, "start": 300, "end": 720, "review": "Separate session terrain traversal; no expert success claim"}
+  ]
+}

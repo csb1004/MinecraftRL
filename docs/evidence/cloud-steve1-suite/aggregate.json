@@ -1,0 +1,22 @@
+{
+  "wood": {
+    "planned": 5,
+    "attempted": 1,
+    "unrun": 4,
+    "valid_gameplay_episodes": 0,
+    "technical_failures": 1,
+    "cancelled": 0,
+    "technical_failure_rate": 1.0,
+    "task_failure_rate": null
+  },
+  "dirt": {
+    "planned": 5,
+    "attempted": 0,
+    "unrun": 5,
+    "valid_gameplay_episodes": 0,
+    "technical_failures": 0,
+    "cancelled": 0,
+    "technical_failure_rate": null,
+    "task_failure_rate": null
+  }
+}

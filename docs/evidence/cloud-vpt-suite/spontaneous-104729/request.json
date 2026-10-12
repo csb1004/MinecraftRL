@@ -1,0 +1,12 @@
+{
+  "policy": "vpt",
+  "condition": {
+    "policy": "vpt",
+    "name": "spontaneous",
+    "goal": null,
+    "target_items": []
+  },
+  "seed": 104729,
+  "limit_s": 180,
+  "controller": "policy"
+}

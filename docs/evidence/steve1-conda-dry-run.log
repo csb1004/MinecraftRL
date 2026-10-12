@@ -1,0 +1,169 @@
+pytorch/linux-64                                            Using cache
+pytorch/noarch                                              Using cache
+conda-forge/linux-64                                        Using cache
+conda-forge/noarch                                          Using cache
+
+
+Transaction
+
+  Prefix: /workspace/MinecraftRL-delivery/tooling/steve1-env
+
+  Updating specs:
+
+   - python=3.10
+   - pytorch=2.0.1
+   - torchvision=0.15.2
+   - torchaudio=2.0.2
+   - pytorch-cuda=11.7
+   - openjdk=8
+   - pip=23.0.1
+   - setuptools=65.5.0
+   - wheel=0.38.4
+   - numpy=1.23.5
+   - libgl
+   - libglu
+
+
+  Package                    Version  Build                         Channel          Size
+───────────────────────────────────────────────────────────────────────────────────────────
+  Install:
+───────────────────────────────────────────────────────────────────────────────────────────
+
+  + _openmp_mutex                4.5  8_kmp_llvm                    conda-forge       8kB
+  + _python_abi3_support         1.0  hd8ed1ab_3                    conda-forge       8kB
+  + blas                       2.137  mkl                           conda-forge      17kB
+  + blas-devel                 3.9.0  37_hcf00494_mkl               conda-forge      17kB
+  + brotli-python              1.2.0  py310h25d4438_3               conda-forge     367kB
+  + bzip2                      1.0.8  hda65f42_10                   conda-forge     258kB
+  + ca-certificates        2026.7.22  hbd8a1cb_0                    conda-forge     132kB
+  + certifi                2026.7.22  pyhd8ed1ab_0                  conda-forge     137kB
+  + cffi                       2.1.1  py310hd4ea0ea_2               conda-forge     250kB
+  + charset-normalizer         3.5.2  h1114479_0                    conda-forge     217kB
+  + cpython                  3.10.21  py310hd8ed1ab_0               conda-forge      50kB
+  + cuda-cudart              11.7.99  0                             nvidia          199kB
+  + cuda-cupti              11.7.101  0                             nvidia           24MB
+  + cuda-libraries            11.7.1  0                             nvidia            2kB
+  + cuda-nvrtc               11.7.99  0                             nvidia           18MB
+  + cuda-nvtx                11.7.91  0                             nvidia           58kB
+  + cuda-runtime              11.7.1  0                             nvidia            1kB
+  + cuda-version                13.3  hcbadf70_4                    nvidia           22kB
+  + ffmpeg                       4.3  hf484d3e_0                    pytorch          10MB
+  + filelock                  3.32.5  pyhd8ed1ab_0                  conda-forge      79kB
+  + freetype                  2.12.1  h267a509_2                    conda-forge     635kB
+  + gmp                        6.3.0  hfd2156b_3                    conda-forge     493kB
+  + gmpy2                      2.3.1  py310haf1ad51_0               conda-forge     312kB
+  + gnutls                    3.6.13  h85f3911_1                    conda-forge       2MB
+  + h2                         4.4.1  pyhcf101f3_0                  conda-forge     101kB
+  + hpack                      4.2.0  pyhd8ed1ab_0                  conda-forge      33kB
+  + hyperframe                 6.1.0  pyhd8ed1ab_0                  conda-forge      17kB
+  + icu                         73.2  h59595ed_0                    conda-forge      12MB
+  + idna                        3.19  pyhcf101f3_0                  conda-forge     177kB
+  + jinja2                     3.1.6  pyhcf101f3_1                  conda-forge     121kB
+  + jpeg                          9e  h0b41bf4_3                    conda-forge     240kB
+  + lame                       3.100  h166bdaf_1003                 conda-forge     508kB
+  + lcms2                       2.12  hddcbb42_0                    conda-forge     453kB
+  + ld_impl_linux-64          2.46.1  bootstrap_ha15bf96_2          conda-forge     745kB
+  + lerc                         3.0  h9c3ff4c_0                    conda-forge     222kB
+  + libblas                    3.9.0  37_h5875eb1_mkl               conda-forge      18kB
+  + libcap                      2.78  h084b8d7_1                    conda-forge     124kB
+  + libcblas                   3.9.0  37_hfef963f_mkl               conda-forge      17kB
+  + libcublas             11.10.3.66  0                             nvidia          300MB
+  + libcufft              10.7.2.124  h4fbf590_0                    nvidia           98MB
+  + libcufile               1.18.1.6  hfa86176_0                    nvidia            1MB
+  + libcurand              10.4.3.29  h7a5d6f9_0                    nvidia           44MB
+  + libcusolver             11.4.0.1  0                             nvidia           83MB
+  + libcusparse            11.7.4.91  0                             nvidia          158MB
+  + libdeflate                  1.25  hd45a770_1                    conda-forge      74kB
+  + libffi                     3.7.0  h81df57d_1                    conda-forge      68kB
+  + libgcc                    16.2.0  ha9f2e26_7                    conda-forge       1MB
+  + libgcc-ng                 16.2.0  h69a702a_7                    conda-forge      29kB
+  + libgl                      1.7.0  ha4b6fd6_5                    conda-forge     132kB
+  + libglu                     9.0.3  h5888daf_1                    conda-forge     325kB
+  + libglvnd                   1.7.0  ha4b6fd6_5                    conda-forge     134kB
+  + libglx                     1.7.0  ha4b6fd6_5                    conda-forge      80kB
+  + libhwloc                  2.11.2  default_he43201b_1000         conda-forge       2MB
+  + libiconv                    1.18  h0cb94f2_3                    conda-forge     789kB
+  + liblapack                  3.9.0  37_h5e43f62_mkl               conda-forge      18kB
+  + liblapacke                 3.9.0  37_hdba1596_mkl               conda-forge      18kB
+  + liblzma                    5.8.3  hb03c661_1                    conda-forge     113kB
+  + liblzma-devel              5.8.3  hb03c661_1                    conda-forge     492kB
+  + libnl                     3.11.0  hb03c661_1                    conda-forge     735kB
+  + libnpp                 11.7.4.75  0                             nvidia          136MB
+  + libnsl                     2.0.1  hb9d3cd8_1                    conda-forge      34kB
+  + libnvjpeg               11.8.0.2  0                             nvidia            2MB
+  + libopengl                  1.7.0  ha4b6fd6_5                    conda-forge      51kB
+  + libpng                    1.6.43  h2797004_0                    conda-forge     288kB
+  + libsqlite                 3.46.0  hde9e2c9_0                    conda-forge     865kB
+  + libstdcxx                 16.2.0  h934c35e_7                    conda-forge       7MB
+  + libstdcxx-ng              16.2.0  hdf11a46_7                    conda-forge      29kB
+  + libsystemd0                  262  h26e0ef7_2                    conda-forge     573kB
+  + libtiff                    4.3.0  h0fcbabc_4                    conda-forge     651kB
+  + libudev1                     262  h26e0ef7_2                    conda-forge     185kB
+  + libuuid                   2.42.4  hcfc3c73_0                    conda-forge      34kB
+  + libwebp-base               1.6.0  hd42ef1d_1                    conda-forge     428kB
+  + libxcb                    1.17.0  hb83e432_2                    conda-forge     395kB
+  + libxcrypt                 4.4.38  h280c20c_0                    conda-forge     102kB
+  + libxml2                   2.12.7  hc051c1a_1                    conda-forge     705kB
+  + libzlib                   1.2.13  h4ab18f5_6                    conda-forge      62kB
+  + llvm-openmp               23.1.2  h7148c6a_0                    conda-forge       6MB
+  + markupsafe                 3.0.3  py310h3406613_1               conda-forge      24kB
+  + mkl                     2024.2.2  ha770c72_17                   conda-forge     125MB
+  + mkl-devel               2024.2.2  ha770c72_17                   conda-forge      36kB
+  + mkl-include             2024.2.2  ha770c72_17                   conda-forge     811kB
+  + mpc                        1.4.0  ha2cb11d_1                    conda-forge     101kB
+  + mpfr                       4.2.2  ha2cb11d_1                    conda-forge     730kB
+  + mpmath                     1.4.1  pyhd8ed1ab_0                  conda-forge     465kB
+  + ncurses                      6.6  hdb14827_1                    conda-forge     911kB
+  + nettle                       3.6  he412f7d_0                    conda-forge       7MB
+  + networkx                     3.4  pyhd8ed1ab_0                  conda-forge       1MB
+  + numpy                     1.23.5  py310h53a5b5f_0               conda-forge       6MB
+  + olefile                     0.47  pyhd8ed1ab_1                  conda-forge      39kB
+  + openh264                   2.1.1  h780b84a_0                    conda-forge       2MB
+  + openjdk                  8.0.472  h4d9bdce_0                    conda-forge      93MB
+  + openjpeg                   2.5.0  h7d73246_0                    conda-forge     527kB
+  + openssl                    3.6.4  h781a0a9_0                    conda-forge       3MB
+  + pillow                     8.4.0  py310h07f4688_0               conda-forge       1MB
+  + pip                       23.0.1  pyhd8ed1ab_0                  conda-forge       1MB
+  + pthread-stubs                0.4  h7cc23a3_1004                 conda-forge      10kB
+  + pycparser                    3.0  pyhcf101f3_0                  conda-forge      56kB
+  + pysocks                    1.7.1  pyha55dd90_7                  conda-forge      21kB
+  + python                   3.10.14  hd12c33a_0_cpython            conda-forge      26MB
+  + python-gil               3.10.21  hd8ed1ab_0                    conda-forge      50kB
+  + python_abi                  3.10  9_cp310                       conda-forge       7kB
+  + pytorch                    2.0.1  py3.10_cuda11.7_cudnn8.5.0_0  pytorch           1GB
+  + pytorch-cuda                11.7  h778d358_5                    pytorch           4kB
+  + pytorch-mutex                1.0  cuda                          pytorch           3kB
+  + rdma-core                   65.0  h7b4f2e6_0                    conda-forge       1MB
+  + readline                     8.3  hd6e31c0_1                    conda-forge     349kB
+  + requests                  2.34.2  pyhcf101f3_0                  conda-forge      69kB
+  + setuptools                65.5.0  pyhd8ed1ab_0                  conda-forge     787kB
+  + sympy                     1.14.0  pyh2585a3b_106                conda-forge       5MB
+  + tbb                    2021.13.0  hceb3a55_1                    conda-forge     176kB
+  + tk                        8.6.13  noxft_h4845f30_101            conda-forge       3MB
+  + torchaudio                 2.0.2  py310_cu117                   pytorch           8MB
+  + torchtriton                2.0.0  py310                         pytorch          66MB
+  + torchvision               0.15.2  py310_cu117                   pytorch           8MB
+  + typing_extensions         4.16.0  pyhcf101f3_0                  conda-forge      53kB
+  + tzdata                     2026c  h151e31d_0                    conda-forge     119kB
+  + urllib3                    2.5.0  pyhd8ed1ab_0                  conda-forge     102kB
+  + wheel                     0.38.4  pyhd8ed1ab_0                  conda-forge      33kB
+  + xorg-libx11               1.8.13  he1eb515_1                    conda-forge     840kB
+  + xorg-libxau               1.0.12  h7cc23a3_2                    conda-forge      19kB
+  + xorg-libxdmcp              1.1.5  h7cc23a3_2                    conda-forge      23kB
+  + xz                         5.8.3  ha02ee65_1                    conda-forge      24kB
+  + xz-gpl-tools               5.8.3  ha02ee65_1                    conda-forge      40kB
+  + xz-tools                   5.8.3  hb03c661_1                    conda-forge      96kB
+  + zlib                      1.2.13  h4ab18f5_6                    conda-forge      93kB
+  + zstandard                 0.23.0  py310h7c4b9e2_3               conda-forge     478kB
+  + zstd                       1.5.6  ha6fb4c9_0                    conda-forge     555kB
+
+  Summary:
+
+  Install: 127 packages
+
+  Total download: 3GB
+
+───────────────────────────────────────────────────────────────────────────────────────────
+
+
+Dry run. Not executing the transaction.

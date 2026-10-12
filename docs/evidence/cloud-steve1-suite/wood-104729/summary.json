@@ -1,0 +1,26 @@
+{
+  "status": "blocked",
+  "execution_valid": false,
+  "steps": 0,
+  "problems": [
+    "candidate baseline requires Python 3.10",
+    "package unavailable: torch",
+    "package unavailable: gym",
+    "package unavailable: gym3",
+    "package unavailable: minerl",
+    "package unavailable: opencv-python",
+    "package unavailable: mineclip",
+    "nvidia-smi unavailable or failed",
+    "candidate MineRL baseline requires JDK 8",
+    "DISPLAY unset; launch under WSLg or xvfb-run",
+    "source missing: steve1",
+    "source missing: minerl",
+    "source missing: gym",
+    "source missing: mineclip",
+    "source missing: minedojo",
+    "artifact/receipt missing: weights/steve1/2x.model",
+    "artifact/receipt missing: weights/steve1/steve1.weights",
+    "artifact/receipt missing: weights/steve1/attn.pth",
+    "artifact/receipt missing: weights/steve1/steve1_prior.pt"
+  ]
+}

@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=61,<76"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "minecraftrl-policy-probe"
+version = "0.1.0"
+description = "Evidence-first VPT / STEVE-1 execution probe"
+requires-python = ">=3.8"
+dependencies = []
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+minecraftrl = ["*.java"]

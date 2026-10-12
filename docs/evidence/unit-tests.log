@@ -1,0 +1,42 @@
+test_blocked_suite_keeps_other_condition_as_unrun (test_reporting.ReportingTests.test_blocked_suite_keeps_other_condition_as_unrun) ... ok
+test_empty_sample_has_null_rates (test_reporting.ReportingTests.test_empty_sample_has_null_rates) ... ok
+test_foundation_has_no_instruction_success_rate (test_reporting.ReportingTests.test_foundation_has_no_instruction_success_rate) ... ok
+test_unrun_and_blocked_are_not_task_failures (test_reporting.ReportingTests.test_unrun_and_blocked_are_not_task_failures) ... ok
+test_deadline_during_inference_drops_action (test_runtime.RuntimeTests.test_deadline_during_inference_drops_action) ... ok
+test_failure_releases_and_records_traceback (test_runtime.RuntimeTests.test_failure_releases_and_records_traceback) ... ok
+test_initial_inventory_is_not_acquisition (test_runtime.RuntimeTests.test_initial_inventory_is_not_acquisition) ... ok
+test_inventory_proves_acquisition_and_resets_policy (test_runtime.RuntimeTests.test_inventory_proves_acquisition_and_resets_policy) ... ok
+test_inventory_validation_and_quantiles (test_runtime.RuntimeTests.test_inventory_validation_and_quantiles) ... ok
+test_missing_inventory_is_failure_not_zero_success (test_runtime.RuntimeTests.test_missing_inventory_is_failure_not_zero_success) ... ok
+test_stop_during_inference_drops_action (test_runtime.RuntimeTests.test_stop_during_inference_drops_action) ... ok
+test_stop_is_latched_and_never_dispatches_again (test_runtime.RuntimeTests.test_stop_is_latched_and_never_dispatches_again) ... ok
+test_hard_timeout_kills_setsid_descendant_preserves_unrelated_child (test_supervision.SupervisorTests.test_hard_timeout_kills_setsid_descendant_preserves_unrelated_child) ... ok
+test_normal_deadlines_do_not_latch_user_stop_across_five_seeds (test_supervision.SupervisorTests.test_normal_deadlines_do_not_latch_user_stop_across_five_seeds) ... ok
+test_terminal_cleanup_does_not_step_finished_minerl (test_supervision.SupervisorTests.test_terminal_cleanup_does_not_step_finished_minerl) ... ok
+
+----------------------------------------------------------------------
+Ran 15 tests in 2.155s
+
+OK
+{
+  "wood": {
+    "planned": 5,
+    "attempted": 1,
+    "unrun": 4,
+    "valid_gameplay_episodes": 0,
+    "technical_failures": 1,
+    "cancelled": 0,
+    "technical_failure_rate": 1.0,
+    "task_failure_rate": null
+  },
+  "dirt": {
+    "planned": 5,
+    "attempted": 0,
+    "unrun": 5,
+    "valid_gameplay_episodes": 0,
+    "technical_failures": 0,
+    "cancelled": 0,
+    "technical_failure_rate": null,
+    "task_failure_rate": null
+  }
+}

@@ -1,0 +1,6 @@
+2026-10-03
+Portable PowerShell 7.6.6 on Linux.
+Parser: Install-MinecraftRL.ps1, Get-OfficialSources.ps1, Invoke-PolicyProbe.ps1, Stop-PolicyProbe.ps1, Test-LocalEnvironment.ps1: PASS.
+Installer with temporary D: PSDrive: copy/hash/idempotence/conflict preflight/no overwrite: PASS.
+NOT a Windows PC installation or PowerShell 5.1 runtime test.
+Full staged project: 57 files copied and SHA256-verified by the actual installer in a second temporary Linux D: PSDrive. No access to user D: drive.

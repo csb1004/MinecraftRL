@@ -1,0 +1,994 @@
+[
+  {
+    "id": "historical_future_paused",
+    "kind": "exact_historical_context",
+    "context": {
+      "current_utterance": "우리 나중에 나무를 모아 멋진 집을 만들면 좋겠다.",
+      "recent_dialogue": [
+        {
+          "role": "user",
+          "content": "합성 과거 대화 7"
+        },
+        {
+          "role": "user",
+          "content": "합성 과거 대화 8"
+        },
+        {
+          "role": "user",
+          "content": "합성 과거 대화 9"
+        },
+        {
+          "role": "user",
+          "content": "합성 과거 대화 10"
+        },
+        {
+          "role": "user",
+          "content": "합성 과거 대화 11"
+        },
+        {
+          "role": "user",
+          "content": "합성 과거 대화 12"
+        },
+        {
+          "role": "user",
+          "content": "합성 과거 대화 13"
+        },
+        {
+          "role": "user",
+          "content": "흙 좀 모아줄래?"
+        },
+        {
+          "role": "assistant",
+          "content": "원목과 흙 중 무엇을 몇 개 모을까요? (1–64개)"
+        },
+        {
+          "role": "user",
+          "content": "예순네 개만 부탁해."
+        },
+        {
+          "role": "assistant",
+          "content": "실행 제안: {\"command_id\": \"00dca7603ba640019686d07f89ab3c7f\", \"task_id\": \"gather\", \"op\": \"request\", \"goal\": \"dirt\", \"count\": 64}. 실행하려면 확인 17cc98109e3d"
+        },
+        {
+          "role": "user",
+          "content": "잠시 멈춰줘"
+        }
+      ],
+      "dialogue_summary": [
+        {
+          "source_id": "c6b853a8a47e426bb2ed4760c0aa4758",
+          "role": "user",
+          "category": "preference",
+          "authority": "dialogue_only",
+          "excerpt": "나는 작은 집이 좋아",
+          "truncated": false
+        },
+        {
+          "source_id": "100bb6503c95438aa2c0e274b765f4f9",
+          "role": "user",
+          "category": "unconfirmed_proposal",
+          "authority": "dialogue_only",
+          "excerpt": "나중에 나무 네 개를 모아보자",
+          "truncated": false
+        },
+        {
+          "source_id": "a39d2bd47dc247cf84640fa197e864a0",
+          "role": "user",
+          "category": "context",
+          "authority": "dialogue_only",
+          "excerpt": "합성 과거 대화 3",
+          "truncated": false
+        },
+        {
+          "source_id": "39f62980301e4c698c43ad709e2c825d",
+          "role": "user",
+          "category": "context",
+          "authority": "dialogue_only",
+          "excerpt": "합성 과거 대화 4",
+          "truncated": false
+        },
+        {
+          "source_id": "c6df3e5970954d31ac094cfaffd7ccbe",
+          "role": "user",
+          "category": "context",
+          "authority": "dialogue_only",
+          "excerpt": "합성 과거 대화 5",
+          "truncated": false
+        },
+        {
+          "source_id": "a5c6cbe9d9394661bf54ab50e76688f4",
+          "role": "user",
+          "category": "context",
+          "authority": "dialogue_only",
+          "excerpt": "합성 과거 대화 6",
+          "truncated": false
+        }
+      ],
+      "current_task": {
+        "task_id": "gather",
+        "revision": 1,
+        "status": "paused",
+        "goal": "dirt",
+        "policy_goal": "collect dirt",
+        "target_items": [
+          "dirt"
+        ],
+        "target_count": 64,
+        "baseline": 0,
+        "progress": 2,
+        "_epoch": 0,
+        "previous_goals": []
+      }
+    },
+    "input_sha256": "a1ef5aff81a098f82d1e213fdff145b0bbc1fac873183c1e67ca4ad3b1078d68",
+    "expected": {
+      "intent": "TASK_PROPOSAL",
+      "goal": "wood",
+      "count": null
+    }
+  },
+  {
+    "id": "future_without_replacing",
+    "kind": "new_wording",
+    "context": {
+      "current_utterance": "지금 하던 건 그대로 두고, 다음번에는 원목 여섯 개를 모아보면 어떨까.",
+      "recent_dialogue": [
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 0"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 1"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 2"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 3"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 4"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 5"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 6"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 7"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 8"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 9"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 10"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 11"
+        }
+      ],
+      "dialogue_summary": [
+        {
+          "source_id": "c6b853a8a47e426bb2ed4760c0aa4758",
+          "role": "user",
+          "category": "preference",
+          "authority": "dialogue_only",
+          "excerpt": "나는 작은 집이 좋아",
+          "truncated": false
+        },
+        {
+          "source_id": "100bb6503c95438aa2c0e274b765f4f9",
+          "role": "user",
+          "category": "unconfirmed_proposal",
+          "authority": "dialogue_only",
+          "excerpt": "나중에 나무 네 개를 모아보자",
+          "truncated": false
+        },
+        {
+          "source_id": "a39d2bd47dc247cf84640fa197e864a0",
+          "role": "user",
+          "category": "context",
+          "authority": "dialogue_only",
+          "excerpt": "합성 과거 대화 3",
+          "truncated": false
+        },
+        {
+          "source_id": "39f62980301e4c698c43ad709e2c825d",
+          "role": "user",
+          "category": "context",
+          "authority": "dialogue_only",
+          "excerpt": "합성 과거 대화 4",
+          "truncated": false
+        },
+        {
+          "source_id": "c6df3e5970954d31ac094cfaffd7ccbe",
+          "role": "user",
+          "category": "context",
+          "authority": "dialogue_only",
+          "excerpt": "합성 과거 대화 5",
+          "truncated": false
+        },
+        {
+          "source_id": "a5c6cbe9d9394661bf54ab50e76688f4",
+          "role": "user",
+          "category": "context",
+          "authority": "dialogue_only",
+          "excerpt": "합성 과거 대화 6",
+          "truncated": false
+        },
+        {
+          "source_id": "synthetic-old-goal",
+          "role": "user",
+          "category": "task_context",
+          "authority": "dialogue_only",
+          "excerpt": "이전에 원목 네 개를 요청했지만 지금은 흙 과업으로 변경됐다.",
+          "truncated": false
+        }
+      ],
+      "current_task": {
+        "task_id": "gather",
+        "revision": 2,
+        "status": "paused",
+        "goal": "dirt",
+        "policy_goal": "collect dirt",
+        "target_items": [
+          "dirt"
+        ],
+        "target_count": 64,
+        "baseline": 0,
+        "progress": 2,
+        "_epoch": 0,
+        "previous_goals": [
+          {
+            "task_id": "gather",
+            "revision": 1,
+            "goal": "wood",
+            "target_count": 4,
+            "status": "superseded"
+          }
+        ]
+      }
+    },
+    "input_sha256": "602843f8e1350ddf6d526977f59d4e187c69987de02ffdfcf699b2a0c5217c6f",
+    "expected": {
+      "intent": "TASK_PROPOSAL",
+      "goal": "wood",
+      "count": 6
+    }
+  },
+  {
+    "id": "resume_current_not_old",
+    "kind": "new_wording",
+    "context": {
+      "current_utterance": "쉬었으니 방금 중단한 흙 수집부터 이어가 줘.",
+      "recent_dialogue": [
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 0"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 1"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 2"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 3"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 4"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 5"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 6"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 7"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 8"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 9"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 10"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 11"
+        }
+      ],
+      "dialogue_summary": [
+        {
+          "source_id": "c6b853a8a47e426bb2ed4760c0aa4758",
+          "role": "user",
+          "category": "preference",
+          "authority": "dialogue_only",
+          "excerpt": "나는 작은 집이 좋아",
+          "truncated": false
+        },
+        {
+          "source_id": "100bb6503c95438aa2c0e274b765f4f9",
+          "role": "user",
+          "category": "unconfirmed_proposal",
+          "authority": "dialogue_only",
+          "excerpt": "나중에 나무 네 개를 모아보자",
+          "truncated": false
+        },
+        {
+          "source_id": "a39d2bd47dc247cf84640fa197e864a0",
+          "role": "user",
+          "category": "context",
+          "authority": "dialogue_only",
+          "excerpt": "합성 과거 대화 3",
+          "truncated": false
+        },
+        {
+          "source_id": "39f62980301e4c698c43ad709e2c825d",
+          "role": "user",
+          "category": "context",
+          "authority": "dialogue_only",
+          "excerpt": "합성 과거 대화 4",
+          "truncated": false
+        },
+        {
+          "source_id": "c6df3e5970954d31ac094cfaffd7ccbe",
+          "role": "user",
+          "category": "context",
+          "authority": "dialogue_only",
+          "excerpt": "합성 과거 대화 5",
+          "truncated": false
+        },
+        {
+          "source_id": "a5c6cbe9d9394661bf54ab50e76688f4",
+          "role": "user",
+          "category": "context",
+          "authority": "dialogue_only",
+          "excerpt": "합성 과거 대화 6",
+          "truncated": false
+        },
+        {
+          "source_id": "synthetic-old-goal",
+          "role": "user",
+          "category": "task_context",
+          "authority": "dialogue_only",
+          "excerpt": "이전에 원목 네 개를 요청했지만 지금은 흙 과업으로 변경됐다.",
+          "truncated": false
+        }
+      ],
+      "current_task": {
+        "task_id": "gather",
+        "revision": 2,
+        "status": "paused",
+        "goal": "dirt",
+        "policy_goal": "collect dirt",
+        "target_items": [
+          "dirt"
+        ],
+        "target_count": 64,
+        "baseline": 0,
+        "progress": 2,
+        "_epoch": 0,
+        "previous_goals": [
+          {
+            "task_id": "gather",
+            "revision": 1,
+            "goal": "wood",
+            "target_count": 4,
+            "status": "superseded"
+          }
+        ]
+      }
+    },
+    "input_sha256": "5df4c564be9e6a8e961b604a46d55d360f14e2c4445284d058a8f52389e8555f",
+    "expected": {
+      "intent": "TASK_RESUME",
+      "goal": null,
+      "count": null
+    }
+  },
+  {
+    "id": "modify_current_quantity",
+    "kind": "new_wording",
+    "context": {
+      "current_utterance": "현재 흙 목표를 여덟 개로 조정해 줘.",
+      "recent_dialogue": [
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 0"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 1"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 2"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 3"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 4"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 5"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 6"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 7"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 8"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 9"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 10"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 11"
+        }
+      ],
+      "dialogue_summary": [
+        {
+          "source_id": "c6b853a8a47e426bb2ed4760c0aa4758",
+          "role": "user",
+          "category": "preference",
+          "authority": "dialogue_only",
+          "excerpt": "나는 작은 집이 좋아",
+          "truncated": false
+        },
+        {
+          "source_id": "100bb6503c95438aa2c0e274b765f4f9",
+          "role": "user",
+          "category": "unconfirmed_proposal",
+          "authority": "dialogue_only",
+          "excerpt": "나중에 나무 네 개를 모아보자",
+          "truncated": false
+        },
+        {
+          "source_id": "a39d2bd47dc247cf84640fa197e864a0",
+          "role": "user",
+          "category": "context",
+          "authority": "dialogue_only",
+          "excerpt": "합성 과거 대화 3",
+          "truncated": false
+        },
+        {
+          "source_id": "39f62980301e4c698c43ad709e2c825d",
+          "role": "user",
+          "category": "context",
+          "authority": "dialogue_only",
+          "excerpt": "합성 과거 대화 4",
+          "truncated": false
+        },
+        {
+          "source_id": "c6df3e5970954d31ac094cfaffd7ccbe",
+          "role": "user",
+          "category": "context",
+          "authority": "dialogue_only",
+          "excerpt": "합성 과거 대화 5",
+          "truncated": false
+        },
+        {
+          "source_id": "a5c6cbe9d9394661bf54ab50e76688f4",
+          "role": "user",
+          "category": "context",
+          "authority": "dialogue_only",
+          "excerpt": "합성 과거 대화 6",
+          "truncated": false
+        },
+        {
+          "source_id": "synthetic-old-goal",
+          "role": "user",
+          "category": "task_context",
+          "authority": "dialogue_only",
+          "excerpt": "이전에 원목 네 개를 요청했지만 지금은 흙 과업으로 변경됐다.",
+          "truncated": false
+        }
+      ],
+      "current_task": {
+        "task_id": "gather",
+        "revision": 2,
+        "status": "paused",
+        "goal": "dirt",
+        "policy_goal": "collect dirt",
+        "target_items": [
+          "dirt"
+        ],
+        "target_count": 64,
+        "baseline": 0,
+        "progress": 2,
+        "_epoch": 0,
+        "previous_goals": [
+          {
+            "task_id": "gather",
+            "revision": 1,
+            "goal": "wood",
+            "target_count": 4,
+            "status": "superseded"
+          }
+        ]
+      }
+    },
+    "input_sha256": "eca1c83889b25b411e36b8d6a60bde4392797dc836ef75348f2872b45c1b75e0",
+    "expected": {
+      "intent": "TASK_MODIFY",
+      "goal": "dirt",
+      "count": 8
+    }
+  },
+  {
+    "id": "quote_is_not_request",
+    "kind": "new_wording",
+    "context": {
+      "current_utterance": "친구가 '원목 일곱 개 모아줘'라고 말했대. 나는 그 말을 전하는 거야.",
+      "recent_dialogue": [
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 0"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 1"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 2"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 3"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 4"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 5"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 6"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 7"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 8"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 9"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 10"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 11"
+        }
+      ],
+      "dialogue_summary": [
+        {
+          "source_id": "c6b853a8a47e426bb2ed4760c0aa4758",
+          "role": "user",
+          "category": "preference",
+          "authority": "dialogue_only",
+          "excerpt": "나는 작은 집이 좋아",
+          "truncated": false
+        },
+        {
+          "source_id": "100bb6503c95438aa2c0e274b765f4f9",
+          "role": "user",
+          "category": "unconfirmed_proposal",
+          "authority": "dialogue_only",
+          "excerpt": "나중에 나무 네 개를 모아보자",
+          "truncated": false
+        },
+        {
+          "source_id": "a39d2bd47dc247cf84640fa197e864a0",
+          "role": "user",
+          "category": "context",
+          "authority": "dialogue_only",
+          "excerpt": "합성 과거 대화 3",
+          "truncated": false
+        },
+        {
+          "source_id": "39f62980301e4c698c43ad709e2c825d",
+          "role": "user",
+          "category": "context",
+          "authority": "dialogue_only",
+          "excerpt": "합성 과거 대화 4",
+          "truncated": false
+        },
+        {
+          "source_id": "c6df3e5970954d31ac094cfaffd7ccbe",
+          "role": "user",
+          "category": "context",
+          "authority": "dialogue_only",
+          "excerpt": "합성 과거 대화 5",
+          "truncated": false
+        },
+        {
+          "source_id": "a5c6cbe9d9394661bf54ab50e76688f4",
+          "role": "user",
+          "category": "context",
+          "authority": "dialogue_only",
+          "excerpt": "합성 과거 대화 6",
+          "truncated": false
+        },
+        {
+          "source_id": "synthetic-old-goal",
+          "role": "user",
+          "category": "task_context",
+          "authority": "dialogue_only",
+          "excerpt": "이전에 원목 네 개를 요청했지만 지금은 흙 과업으로 변경됐다.",
+          "truncated": false
+        }
+      ],
+      "current_task": {
+        "task_id": "gather",
+        "revision": 2,
+        "status": "paused",
+        "goal": "dirt",
+        "policy_goal": "collect dirt",
+        "target_items": [
+          "dirt"
+        ],
+        "target_count": 64,
+        "baseline": 0,
+        "progress": 2,
+        "_epoch": 0,
+        "previous_goals": [
+          {
+            "task_id": "gather",
+            "revision": 1,
+            "goal": "wood",
+            "target_count": 4,
+            "status": "superseded"
+          }
+        ]
+      }
+    },
+    "input_sha256": "4af71d9c2ab56ce5fb1bc7fde6b7ea544a726867246f5d91dd59622cc537cf95",
+    "expected": {
+      "intent": "INFORMATION",
+      "goal": "wood",
+      "count": 7
+    }
+  },
+  {
+    "id": "query_current_goal",
+    "kind": "new_wording",
+    "context": {
+      "current_utterance": "현재 목표가 무엇인지 설명해 줄래?",
+      "recent_dialogue": [
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 0"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 1"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 2"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 3"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 4"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 5"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 6"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 7"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 8"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 9"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 10"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 11"
+        }
+      ],
+      "dialogue_summary": [
+        {
+          "source_id": "c6b853a8a47e426bb2ed4760c0aa4758",
+          "role": "user",
+          "category": "preference",
+          "authority": "dialogue_only",
+          "excerpt": "나는 작은 집이 좋아",
+          "truncated": false
+        },
+        {
+          "source_id": "100bb6503c95438aa2c0e274b765f4f9",
+          "role": "user",
+          "category": "unconfirmed_proposal",
+          "authority": "dialogue_only",
+          "excerpt": "나중에 나무 네 개를 모아보자",
+          "truncated": false
+        },
+        {
+          "source_id": "a39d2bd47dc247cf84640fa197e864a0",
+          "role": "user",
+          "category": "context",
+          "authority": "dialogue_only",
+          "excerpt": "합성 과거 대화 3",
+          "truncated": false
+        },
+        {
+          "source_id": "39f62980301e4c698c43ad709e2c825d",
+          "role": "user",
+          "category": "context",
+          "authority": "dialogue_only",
+          "excerpt": "합성 과거 대화 4",
+          "truncated": false
+        },
+        {
+          "source_id": "c6df3e5970954d31ac094cfaffd7ccbe",
+          "role": "user",
+          "category": "context",
+          "authority": "dialogue_only",
+          "excerpt": "합성 과거 대화 5",
+          "truncated": false
+        },
+        {
+          "source_id": "a5c6cbe9d9394661bf54ab50e76688f4",
+          "role": "user",
+          "category": "context",
+          "authority": "dialogue_only",
+          "excerpt": "합성 과거 대화 6",
+          "truncated": false
+        },
+        {
+          "source_id": "synthetic-old-goal",
+          "role": "user",
+          "category": "task_context",
+          "authority": "dialogue_only",
+          "excerpt": "이전에 원목 네 개를 요청했지만 지금은 흙 과업으로 변경됐다.",
+          "truncated": false
+        }
+      ],
+      "current_task": {
+        "task_id": "gather",
+        "revision": 2,
+        "status": "paused",
+        "goal": "dirt",
+        "policy_goal": "collect dirt",
+        "target_items": [
+          "dirt"
+        ],
+        "target_count": 64,
+        "baseline": 0,
+        "progress": 2,
+        "_epoch": 0,
+        "previous_goals": [
+          {
+            "task_id": "gather",
+            "revision": 1,
+            "goal": "wood",
+            "target_count": 4,
+            "status": "superseded"
+          }
+        ]
+      }
+    },
+    "input_sha256": "55e2b8aeae5b2bc9226c6dfb3cedacc7a2fd6f626086082935b995218d987abb",
+    "expected": {
+      "intent": "QUESTION",
+      "goal": null,
+      "count": null
+    }
+  },
+  {
+    "id": "cancel_current",
+    "kind": "new_wording",
+    "context": {
+      "current_utterance": "이 흙 수집 작업은 취소해 줘. 더 진행하지 마.",
+      "recent_dialogue": [
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 0"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 1"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 2"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 3"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 4"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 5"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 6"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 7"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 8"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 9"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 10"
+        },
+        {
+          "role": "user",
+          "content": "과업 변경이 아닌 합성 잡담 11"
+        }
+      ],
+      "dialogue_summary": [
+        {
+          "source_id": "c6b853a8a47e426bb2ed4760c0aa4758",
+          "role": "user",
+          "category": "preference",
+          "authority": "dialogue_only",
+          "excerpt": "나는 작은 집이 좋아",
+          "truncated": false
+        },
+        {
+          "source_id": "100bb6503c95438aa2c0e274b765f4f9",
+          "role": "user",
+          "category": "unconfirmed_proposal",
+          "authority": "dialogue_only",
+          "excerpt": "나중에 나무 네 개를 모아보자",
+          "truncated": false
+        },
+        {
+          "source_id": "a39d2bd47dc247cf84640fa197e864a0",
+          "role": "user",
+          "category": "context",
+          "authority": "dialogue_only",
+          "excerpt": "합성 과거 대화 3",
+          "truncated": false
+        },
+        {
+          "source_id": "39f62980301e4c698c43ad709e2c825d",
+          "role": "user",
+          "category": "context",
+          "authority": "dialogue_only",
+          "excerpt": "합성 과거 대화 4",
+          "truncated": false
+        },
+        {
+          "source_id": "c6df3e5970954d31ac094cfaffd7ccbe",
+          "role": "user",
+          "category": "context",
+          "authority": "dialogue_only",
+          "excerpt": "합성 과거 대화 5",
+          "truncated": false
+        },
+        {
+          "source_id": "a5c6cbe9d9394661bf54ab50e76688f4",
+          "role": "user",
+          "category": "context",
+          "authority": "dialogue_only",
+          "excerpt": "합성 과거 대화 6",
+          "truncated": false
+        },
+        {
+          "source_id": "synthetic-old-goal",
+          "role": "user",
+          "category": "task_context",
+          "authority": "dialogue_only",
+          "excerpt": "이전에 원목 네 개를 요청했지만 지금은 흙 과업으로 변경됐다.",
+          "truncated": false
+        }
+      ],
+      "current_task": {
+        "task_id": "gather",
+        "revision": 2,
+        "status": "paused",
+        "goal": "dirt",
+        "policy_goal": "collect dirt",
+        "target_items": [
+          "dirt"
+        ],
+        "target_count": 64,
+        "baseline": 0,
+        "progress": 2,
+        "_epoch": 0,
+        "previous_goals": [
+          {
+            "task_id": "gather",
+            "revision": 1,
+            "goal": "wood",
+            "target_count": 4,
+            "status": "superseded"
+          }
+        ]
+      }
+    },
+    "input_sha256": "a4b257a112f15c2f9bf6c0ad2177cbf47f68fd22f743db94e82ad5925c16aaee",
+    "expected": {
+      "intent": "TASK_CANCEL",
+      "goal": null,
+      "count": null
+    }
+  }
+]
