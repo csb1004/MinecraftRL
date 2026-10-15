@@ -91,6 +91,24 @@ class ArtifactReleaseTests(unittest.TestCase):
         with zipfile.ZipFile(archive, 'w') as z: z.writestr('client.jar', 'bad')
         with self.assertRaisesRegex(ValueError, 'world_member'): inspect_public(archive, 'results/world.zip')
 
+    def test_original_world_dot_prefix_is_preserved_but_parent_escape_rejected(self):
+        archive = self.root/'world.zip'
+        with zipfile.ZipFile(archive, 'w') as z: z.writestr('./saves/world/DIM-1/data/raids.dat', b'NBT')
+        before = archive.read_bytes()
+        inspect_public(archive, 'results/world.zip')
+        self.assertEqual(archive.read_bytes(), before)
+        with zipfile.ZipFile(archive, 'a') as z: z.writestr('./../outside.dat', b'bad')
+        with self.assertRaises(ValueError): inspect_public(archive, 'results/world.zip')
+
+    def test_prepare_resumes_verified_local_bundle_after_missing_source_failure(self):
+        self.spec['groups'].append(dict(id='second', sources=[dict(path='results/missing.txt')]))
+        with self.assertRaises(FileNotFoundError): self.build()
+        archive = next((self.root/'out').glob('*.zip')); before = archive.stat().st_mtime_ns
+        (self.root/'results/missing.txt').write_text('now available')
+        manifest = self.build()
+        self.assertEqual(archive.stat().st_mtime_ns, before)
+        self.assertEqual(len(manifest['groups']), 2)
+
     def test_secret_scan_across_block_boundary(self):
         p = self.root/'secret.json'
         p.write_bytes(b' '*(1024**2-4)+b'sk-'+b'A'*40)

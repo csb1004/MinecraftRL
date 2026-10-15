@@ -80,6 +80,10 @@ def inspect_public(path, destination):
         with zipfile.ZipFile(path) as z:
             for member in z.infolist():
                 name = member.filename.rstrip('/')
+                # Historical start-world ZIPs use a harmless leading './'. This
+                # is inspection only: preserve the original world ZIP bytes.
+                while name.startswith('./'): name = name[2:]
+                if name == '.' and member.is_dir(): continue
                 if name: relative_path(name)
                 if Path(name).suffix.lower() not in {'', '.dat', '.dat_old', '.mca', '.mcc', '.json', '.lock'}:
                     raise ValueError('unexpected_world_member: ' + destination)
@@ -167,18 +171,19 @@ def prepare(root, spec, output, commit, previous=None):
         if prior:
             groups.append(prior); print('REUSE ' + group['id'], flush=True); continue
         archive = output/asset
-        with zipfile.ZipFile(archive, 'x', allowZip64=True) as z:
-            for row in rows:
-                info = zipfile.ZipInfo(row['path'], date_time=(1980, 1, 1, 0, 0, 0))
-                info.compress_type = zipfile.ZIP_STORED if sources[row['path']].suffix in {'.pt', '.png', '.zip'} else zipfile.ZIP_DEFLATED
-                info._compresslevel = 6
-                with sources[row['path']].open('rb') as src, z.open(info, 'w', force_zip64=True) as dst:
-                    shutil.copyfileobj(src, dst, 4*1024**2)
+        if not archive.exists():
+            with zipfile.ZipFile(archive, 'x', allowZip64=True) as z:
+                for row in rows:
+                    info = zipfile.ZipInfo(row['path'], date_time=(1980, 1, 1, 0, 0, 0))
+                    info.compress_type = zipfile.ZIP_STORED if sources[row['path']].suffix in {'.pt', '.png', '.zip'} else zipfile.ZIP_DEFLATED
+                    info._compresslevel = 6
+                    with sources[row['path']].open('rb') as src, z.open(info, 'w', force_zip64=True) as dst:
+                        shutil.copyfileobj(src, dst, 4*1024**2)
         entry = dict(id=group['id'], asset=asset, release_tag=spec['tag'], bytes=archive.stat().st_size,
                      sha256=digest(archive), files=rows)
         if entry['bytes'] >= LIMIT: raise ValueError('split_bundle_below_2GiB: ' + group['id'])
         verify_bundle(archive, entry)
-        groups.append(entry); print('PACKED ' + group['id'], flush=True)
+        groups.append(entry); print('VERIFIED BUNDLE ' + group['id'], flush=True)
     manifest = dict(schema=1, repository=spec['repository'], tag=spec['tag'], code_commit=commit,
                     groups=groups, experiments=spec['experiments'], base_models=spec.get('base_models', []),
                     runtime=spec.get('runtime', {}), scope=spec.get('scope', ''))
