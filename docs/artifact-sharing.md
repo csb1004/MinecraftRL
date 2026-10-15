@@ -4,6 +4,10 @@
 `git pull`은 Release 자산을 내려받지 않는다. 아래 동기화 명령을 별도로 사용한다.
 실험마다 코드·원목 정책·이동 정책·시작 월드·임베딩을 고정한다.
 
+현재 공개 버전은 [research-20261015](https://github.com/csb1004/MinecraftRL/releases/tag/research-20261015)다.
+8개 자료 묶음과 manifest의 합계는 약 871MB이며, 공개 다운로드로 5,631개 파일을 복원·검증했다.
+검증 범위와 결과는 [발행 영수증](reports/2026-10-15/artifact-sharing-publication.json)에 기록한다.
+
 ## 받는 PC
 
 PowerShell 7과 Windows Python 3.9 이상으로 자료를 동기화할 수 있다.

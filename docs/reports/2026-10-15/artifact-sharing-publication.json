@@ -1,0 +1,135 @@
+{
+  "verified_at_utc": "2026-10-15T12:16:23.1809044Z",
+  "status": "published_and_public_download_verified",
+  "repository": "csb1004/MinecraftRL",
+  "release_url": "https://github.com/csb1004/MinecraftRL/releases/tag/research-20261015",
+  "tag": "research-20261015",
+  "release_code_commit": "70d7f6202295643400c44010c13b09e86de120f7",
+  "draft": false,
+  "prerelease": true,
+  "assets_verified": 9,
+  "total_asset_bytes": 871424269.0,
+  "assets": [
+    {
+      "name": "artifact-manifest.json",
+      "size": 1333164,
+      "digest": "sha256:501872720fd2f7351511d4677cb973cc209f41288dc8d33382bdeaefd43ec547",
+      "state": "uploaded",
+      "browser_download_url": "https://github.com/csb1004/MinecraftRL/releases/download/research-20261015/artifact-manifest.json"
+    },
+    {
+      "name": "navigation-policy-8e4cb1a33f0922e7cc42.zip",
+      "size": 75326175,
+      "digest": "sha256:90e806a42b6bac081113c01a9377554add86bed38d80eb68193a973869d40992",
+      "state": "uploaded",
+      "browser_download_url": "https://github.com/csb1004/MinecraftRL/releases/download/research-20261015/navigation-policy-8e4cb1a33f0922e7cc42.zip"
+    },
+    {
+      "name": "oct12-fixture-records-3ed741501a127fcb5059.zip",
+      "size": 143491496,
+      "digest": "sha256:4c7e26e29127f500bffef392133d69aa05e27832b41647bf5ffc740fd702a513",
+      "state": "uploaded",
+      "browser_download_url": "https://github.com/csb1004/MinecraftRL/releases/download/research-20261015/oct12-fixture-records-3ed741501a127fcb5059.zip"
+    },
+    {
+      "name": "oct12-visit-records-d257c23f8db9d8a3a6f1.zip",
+      "size": 136441758,
+      "digest": "sha256:0b0e17683f02c074df2bdfc7ba6eb0fbd5c74089748aca1648b15a59463b30fb",
+      "state": "uploaded",
+      "browser_download_url": "https://github.com/csb1004/MinecraftRL/releases/download/research-20261015/oct12-visit-records-d257c23f8db9d8a3a6f1.zip"
+    },
+    {
+      "name": "oct15-motion-records-5180bb733cae48788a4b.zip",
+      "size": 138288335,
+      "digest": "sha256:dbd1804005126328c05f5b51dd782acbf6a65de1c4f3bd5c684872ffe221817e",
+      "state": "uploaded",
+      "browser_download_url": "https://github.com/csb1004/MinecraftRL/releases/download/research-20261015/oct15-motion-records-5180bb733cae48788a4b.zip"
+    },
+    {
+      "name": "reproduction-support-18bd59d653cfa876d0df.zip",
+      "size": 7229574,
+      "digest": "sha256:a365ce500642f8df13706b0ce13b6533c39c7aed9fb42d4f28128f931271b63f",
+      "state": "uploaded",
+      "browser_download_url": "https://github.com/csb1004/MinecraftRL/releases/download/research-20261015/reproduction-support-18bd59d653cfa876d0df.zip"
+    },
+    {
+      "name": "waypoint-policy-f1f2d72375ffed1b64b2.zip",
+      "size": 72242731,
+      "digest": "sha256:a152ea648524d138739d87e6b12195b0cad991d4c68d7dcb14507bee798bbf97",
+      "state": "uploaded",
+      "browser_download_url": "https://github.com/csb1004/MinecraftRL/releases/download/research-20261015/waypoint-policy-f1f2d72375ffed1b64b2.zip"
+    },
+    {
+      "name": "wood-policy-ae5238fcd6fb7106dcfa.zip",
+      "size": 291766323,
+      "digest": "sha256:df8989f8e72f352144f0d688c72c5d6be57214766778db8df1ec1cff2cbeb44a",
+      "state": "uploaded",
+      "browser_download_url": "https://github.com/csb1004/MinecraftRL/releases/download/research-20261015/wood-policy-ae5238fcd6fb7106dcfa.zip"
+    },
+    {
+      "name": "worlds-embeddings-e4b528cf89874ba0e5b5.zip",
+      "size": 5304713,
+      "digest": "sha256:be733e337e59d437b4339fb51bd1c5958af9c2150bb8613e81669ccd84f42cc4",
+      "state": "uploaded",
+      "browser_download_url": "https://github.com/csb1004/MinecraftRL/releases/download/research-20261015/worlds-embeddings-e4b528cf89874ba0e5b5.zip"
+    }
+  ],
+  "public_download": {
+    "access": "anonymous",
+    "experiment": "all",
+    "verification_directory": "results/release-download-verification-20261015",
+    "first": {
+      "files_verified": 5631,
+      "bundles_downloaded": 8,
+      "files_created": 5631
+    },
+    "repeat": {
+      "files_verified": 5631,
+      "bundles_downloaded": 0,
+      "files_created": 0
+    },
+    "download_counts_source": "PowerShell host output observed during the two successful sync commands",
+    "logs": [
+      "results/release-sharing-public-download.log",
+      "results/release-sharing-public-repeat.log"
+    ]
+  },
+  "software_tests": {
+    "log": "results/release-sharing-windows-tests-publication.log",
+    "failed": 0,
+    "skipped": 21,
+    "passed": 643,
+    "run": 664,
+    "command": "$env:PYTHONPATH=Join-Path $PWD 'src'; python -m unittest discover -s tests -v"
+  },
+  "packaging_fixes": [
+    "Preserve original world ZIP bytes while accepting harmless leading ./ member paths",
+    "Retain selected experiment diagnostic logs while excluding unrelated root logs",
+    "Enumerate REST JSON arrays explicitly for empty and paginated release/asset lists"
+  ],
+  "preservation": {
+    "stop_last_write_utc": "2026-10-15T05:01:46.3295760Z",
+    "original_evidence_and_delivery_zips_preserved": true,
+    "stop_bytes": 58,
+    "research_spec_sha256": "4af3ad00c5bab9b9d08b2e23fe768e140944118aa85cf412c45a67bb032275ad"
+  },
+  "scope": {
+    "training_runs": 0,
+    "new_pc_gameplay_verified": false,
+    "colab_connections": 0,
+    "gameplay_runs": 0,
+    "llm_api_calls": 0,
+    "historical_failed_games_reclassified": false
+  },
+  "excluded_public_assets": [
+    "Minecraft JARs",
+    "Minecraft-containing MineRL wheels",
+    "Upstream base-model copies",
+    "Credentials and unselected local data"
+  ],
+  "limitations": [
+    "This verifies public artifact transport and hashes, not new-machine environment installation or policy success",
+    "Archived games remain planning_paused, root success false, and execution_valid false",
+    "The release tag identifies the current code/tooling; historical Python is preserved in source-at-game"
+  ]
+}
