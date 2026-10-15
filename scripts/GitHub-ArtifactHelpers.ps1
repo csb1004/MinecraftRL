@@ -48,7 +48,8 @@ function Get-ArtifactRelease {
     param([string]$Repository,[string]$Tag,[hashtable]$Headers)
     # Listing also finds drafts, so a failed upload can resume without a second release.
     for ($page=1; ; $page++) {
-        $items=@(Invoke-RestMethod -Uri "https://api.github.com/repos/$Repository/releases?per_page=100&page=$page" -Headers $Headers)
+        # REST JSON arrays are one pipeline object; enumerate before counting pages.
+        $items=@(Invoke-RestMethod -Uri "https://api.github.com/repos/$Repository/releases?per_page=100&page=$page" -Headers $Headers | ForEach-Object { $_ })
         foreach ($item in $items) { if ($item.tag_name -ceq $Tag) { return $item } }
         if ($items.Count -lt 100) { return $null }
     }
@@ -57,7 +58,7 @@ function Get-ArtifactRelease {
 function Get-ArtifactAssets {
     param([string]$Repository,[long]$ReleaseId,[hashtable]$Headers)
     for ($page=1; ; $page++) {
-        $items=@(Invoke-RestMethod -Uri "https://api.github.com/repos/$Repository/releases/$ReleaseId/assets?per_page=100&page=$page" -Headers $Headers)
+        $items=@(Invoke-RestMethod -Uri "https://api.github.com/repos/$Repository/releases/$ReleaseId/assets?per_page=100&page=$page" -Headers $Headers | ForEach-Object { $_ })
         foreach ($item in $items) { Write-Output $item }
         if ($items.Count -lt 100) { break }
     }
