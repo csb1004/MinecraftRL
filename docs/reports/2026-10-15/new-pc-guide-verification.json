@@ -1,0 +1,72 @@
+{
+  "checked_at_utc": "2026-10-15T12:32:51.6519619Z",
+  "scope": "Installation documentation checked against current scripts and archived execution snapshots; no fresh installation or gameplay",
+  "source_commit_before_docs": "6d0882c8c98fff2269c1dcc850e0e39253026bb7",
+  "artifact_release": "research-20261015",
+  "guide_sha256": "152589cb25de7846f836474869f116d9cd8295cf09f0ce3954a6d50c39c8ec3c",
+  "command_checks": {
+    "powershell_code_blocks": 15,
+    "stop_last_write_utc": "2026-10-15T05:01:46.329576Z",
+    "historical_base_jar_sha256": "f7a1e0aa8bee8a0ff9479856e807be6d8aa30373db8934d5b093342690ae9a48",
+    "base_model_sha256_checks": 4,
+    "new_install_executed": false,
+    "preview_checks": [
+      {
+        "execution_inputs_exist": true,
+        "executed": false,
+        "new_output": true,
+        "historical_arguments_preserved": true,
+        "run": "oct12-fixture"
+      },
+      {
+        "execution_inputs_exist": true,
+        "executed": false,
+        "new_output": true,
+        "historical_arguments_preserved": true,
+        "run": "oct12-visit-memory"
+      },
+      {
+        "execution_inputs_exist": true,
+        "executed": false,
+        "new_output": true,
+        "historical_arguments_preserved": true,
+        "run": "oct15-motion-corner"
+      }
+    ],
+    "gameplay_executed": false
+  },
+  "historical_parser_checks": [
+    {
+      "run": "oct12-fixture",
+      "historical_cli_flags_recognized": 17,
+      "java_sources_present": true
+    },
+    {
+      "run": "oct12-visit-memory",
+      "historical_cli_flags_recognized": 17,
+      "java_sources_present": true
+    },
+    {
+      "run": "oct15-motion-corner",
+      "historical_cli_flags_recognized": 21,
+      "java_sources_present": true
+    }
+  ],
+  "research_spec_sha256": "4af3ad00c5bab9b9d08b2e23fe768e140944118aa85cf412c45a67bb032275ad",
+  "manual_review": [
+    "Install before Sync and preserve three setup receipt names that collide with archived evidence",
+    "Separate base policy episode from historical trained-policy/world reproduction",
+    "Document fixed project/distro paths and strict upstream Minecraft JAR hash requirement",
+    "Require shutdown review before explicit STOP rearm; do not execute commands from preview automatically"
+  ],
+  "known_limits": [
+    "No clean-PC installation or new Minecraft run was performed",
+    "Historical world patch rejects a rebuilt base JAR with a different SHA256",
+    "Original execution paths require D:/DATA/Desktop/MinecraftRL and Ubuntu-24.04",
+    "Some pip transitive dependencies are not a complete reproducible lock"
+  ],
+  "evidence_logs": [
+    "results/new-pc-guide-command-checks-20261015.json",
+    "results/new-pc-guide-path-checks-20261015.json"
+  ]
+}

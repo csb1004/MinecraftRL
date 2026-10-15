@@ -10,6 +10,11 @@
 
 ## 받는 PC
 
+프로젝트가 없는 사람의 설치 시작점은 [새 PC 설치·실행 안내](new-pc-setup.md)다.
+코드 clone부터 공식 기본 모델과 추가 학습 checkpoint의 차이, 설치 기록 보존,
+CUDA/렌더링·과거 JAR 해시 확인, 실제 실행 명령까지 순서대로 설명한다.
+아래 명령은 **이미 clone한 저장소에서 자료를 동기화하는 절차**이며 환경 설치 명령이 아니다.
+
 PowerShell 7과 Windows Python 3.9 이상으로 자료를 동기화할 수 있다.
 정책 실행은 기존 문서대로 별도 WSL Python 3.10 환경에서 수행한다.
 
@@ -44,11 +49,14 @@ git pull --ff-only
 - `Get-OfficialSources.ps1`로 `configs/sources.lock.json`의 외부 소스를 받는다.
   새 환경은 `Invoke-PolicyProbe.ps1 -Policy steve1 -Operation setup`으로 프로젝트 내부에서 생성/빌드한다.
   기존 환경에는 setup을 반복하지 않는다. 초기 설치 기록과 conda explicit 목록도 자산에 포함한다.
+  새 설치 기록과 과거 환경 기록의 파일명 충돌은 [새 PC 안내](new-pc-setup.md)의 순서로 처리한다.
   이는 인터넷에서 의존성을 받으며 새 PC에서 검증된 설치 결과를 뜻하지 않는다.
 - `world_save_patch.py`와 보충 Java 소스가 별도 패치 JAR를 로컬 생성한다.
   당시 JAR SHA256은 `afeb88a9dd572bad19f25cf8d0a7346c08ef17ab5993e9de5b9da1ebee40688c`,
   patch source SHA256은 `58b912b13fbd74933c510c70ba14f9bc911266ce97eb8bc02196422f96e2fc49`이다.
   다른 환경에서 재빌드한 JAR가 byte 단위로 같다고 가정하지 않는다.
+  과거 실행 코드가 허용하는 기본 JAR 해시는 `f7a1e0aa8bee8a0ff9479856e807be6d8aa30373db8934d5b093342690ae9a48`이다.
+  새 빌드가 다르면 `unsupported_upstream_world_jar`로 차단된다. 해시 검사를 제거하지 않고 호환성을 검토해야 한다.
 
 기본 모델 출처: [STEVE-1](https://github.com/Shalev-Lifshitz/STEVE-1),
 [VPT](https://github.com/openai/Video-Pre-Training), [MineCLIP](https://github.com/MineDojo/MineCLIP).

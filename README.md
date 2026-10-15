@@ -5,6 +5,11 @@
 현재 초점은 **실제 게임에서 정체를 감지하고 새로운 경로로 탈출하는 능력**이다.
 원래 [연구 명세 20개 항목](docs/research-spec.md)과 장기 목표를 유지한다.
 
+**처음 받는 사람은 [새 PC 설치·가중치 다운로드·실패 실험 실행 안내](docs/new-pc-setup.md)부터 시작한다.**
+Git clone, Windows/WSL 준비, 격리 환경 설치, 공식 기본 모델 4개와 추가 학습 checkpoint,
+월드/기록 복원, 해시 확인, 실행·중단 순서를 제공한다. 새 PC 전체 설치·게임 실행은 아직 미검증이며,
+과거 실패 재현은 특정 Minecraft JAR 해시를 요구한다. 안내의 실행 전 확인 단계를 따른다.
+
 ## 현재 결과
 
 최신 기록은 [진행 상황](docs/progress.md), [남은 작업 단위](docs/next-task-units.md)에서 확인한다.
@@ -92,17 +97,10 @@
 Linux 정책 실행은 WSL Ubuntu-24.04를 사용한다. 시스템 Python/Java/드라이버 대신
 프로젝트 안의 격리 환경을 구성한다. `pip install`만으로 MineRL/CUDA/Java가 준비되지는 않는다.
 
-현재 연구 PC에는 설치가 완료돼 있다. 다음은 새 설치의 시작 절차이며,
+현재 연구 PC에는 설치가 완료돼 있다. 새 PC는 [설치 안내](docs/new-pc-setup.md)의 순서를 따른다.
+설치기가 쓰는 환경 기록과 릴리스의 과거 기록에 동일 파일명이 있으므로 새 설치 기록을 별도
+보존한 뒤 자료를 동기화한다. 기존 환경에 setup을 반복하지 않는다.
 과거 클라우드 전달 ZIP 검사와 이후 로컬 실게임 검증은 [설치 기록](docs/local-validation-2026-10-03.md)에 구분했다.
-
-```powershell
-Set-Location -LiteralPath 'D:\DATA\Desktop\MinecraftRL'
-.\scripts\Test-LocalEnvironment.ps1
-.\scripts\Get-OfficialSources.ps1 -Policy steve1
-.\scripts\Invoke-PolicyProbe.ps1 -Policy steve1 -Operation setup
-.\scripts\Invoke-PolicyProbe.ps1 -Policy steve1 -Operation download
-.\scripts\Invoke-PolicyProbe.ps1 -Policy steve1 -Operation preflight
-```
 
 VPT는 `-Policy vpt`로 별도 환경을 사용한다. [공식 출처와 라이선스/제약](docs/policy-sources.md),
 [소스 pin](configs/sources.lock.json)을 먼저 확인한다. 외부 모델·Minecraft 자산을 이 저장소에
@@ -115,6 +113,10 @@ STEVE-1의 알려진 gym 메타데이터 충돌 예외는 설치 receipt에 남�
 ```powershell
 .\scripts\Invoke-PolicyProbe.ps1 -Policy steve1 -Operation episode -Condition wood -Seconds 180
 ```
+
+위 명령은 기본 STEVE-1의 새 월드 실행이며 추가 학습 checkpoint나 벽 월드를 자동 사용하지 않는다.
+보관된 실패 실험은 [새 PC 안내의 8단계](docs/new-pc-setup.md#8-기본-정책-확인과-보관된-실패-실험-실행)에 따라
+`reproduction/Show-ReproductionCommand.ps1`로 당시 명령을 출력해 새 결과 경로에서 실행한다.
 
 별도 PowerShell에서 중단할 수 있다.
 
