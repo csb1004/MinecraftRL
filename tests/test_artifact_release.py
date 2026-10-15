@@ -114,6 +114,11 @@ class ArtifactReleaseTests(unittest.TestCase):
         p.write_bytes(b' '*(1024**2-4)+b'sk-'+b'A'*40)
         with self.assertRaisesRegex(ValueError, 'potential_credential'): inspect_public(p, 'results/secret.json')
 
+    def test_selected_run_diagnostic_logs_are_allowed_but_global_logs_are_not(self):
+        p = self.root/'watcher.log'; p.write_text('child process exited')
+        inspect_public(p, 'results/run/watcher-runtime/logs/watcher.log')
+        with self.assertRaisesRegex(ValueError, 'excluded_public_path'): inspect_public(p, 'logs/watcher.log')
+
     def test_link_destination_rejected(self):
         outside = self.root/'outside'; outside.mkdir()
         link = self.root/'linked'

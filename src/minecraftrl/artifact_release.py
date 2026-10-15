@@ -71,7 +71,7 @@ def confined(root, relative):
 def inspect_public(path, destination):
     relative_path(destination)
     parts = PurePosixPath(destination).parts
-    if any(p in {'.runtime', '.cache', 'external', '.venv', 'data', 'logs'} for p in parts):
+    if parts[0] in {'data', 'logs'} or any(p in {'.runtime', '.cache', 'external', '.venv'} for p in parts):
         raise ValueError('excluded_public_path: ' + destination)
     if path.suffix.lower() in {'.jar', '.whl', '.exe', '.dll', '.pem', '.key', '.bundle'}:
         raise ValueError('excluded_public_binary: ' + destination)
