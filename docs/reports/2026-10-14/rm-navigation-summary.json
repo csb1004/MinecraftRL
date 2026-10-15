@@ -1,0 +1,140 @@
+{
+  "games": [
+    {
+      "revision": 1,
+      "steps": 932,
+      "status": "planning_paused",
+      "pause_reasons": [
+        "approach_requires_known_target"
+      ],
+      "planner_calls": 2,
+      "navigation": [
+        {
+          "outcome": "failed",
+          "diagnosis": "unresolved_navigation_failure",
+          "steps": 100,
+          "evidence": {
+            "start_distance": 3.00041192514016,
+            "end_distance": 1.6745249588878572,
+            "minimum_distance": 1.6658789864643015,
+            "path_blocks": 2.9586610113057,
+            "movement_commands": 70,
+            "misaligned_commands": 6,
+            "aligned_low_motion_streak": 8
+          }
+        },
+        {
+          "outcome": "completed",
+          "diagnosis": "observed_arrival",
+          "steps": 28,
+          "evidence": {
+            "start_distance": 2.9999999999999996,
+            "end_distance": 0.20758224821929,
+            "minimum_distance": 0.20758224821929,
+            "path_blocks": 2.896968309358499,
+            "movement_commands": 20,
+            "misaligned_commands": 2,
+            "aligned_low_motion_streak": 1
+          }
+        }
+      ],
+      "subgoals": [],
+      "log_gain": 0,
+      "actual_llm_calls": 0,
+      "optimizer_updates": 0,
+      "inference_ms": {
+        "count": 928,
+        "median": 49.72862899998631,
+        "p95": 59.68476604999182
+      },
+      "control_cycle_ms": {
+        "count": 932,
+        "median": 109.5657479999943,
+        "p95": 196.13465294998477
+      },
+      "gpu": {
+        "torch_peak_allocated_mib": 1915.00146484375,
+        "torch_peak_reserved_mib": 2056.0,
+        "scope": "PyTorch process including model loading, not total device VRAM"
+      },
+      "device_vram": {
+        "sampled_peak_used_mib": 2804.0,
+        "sample_count": 1112,
+        "sampling_error": null,
+        "scope": "entire device 0 including other processes; sampled, may miss short peaks"
+      },
+      "logp_error": 0.0
+    },
+    {
+      "revision": 2,
+      "steps": 1004,
+      "status": "planning_paused",
+      "pause_reasons": [
+        "planning_request_budget_exhausted"
+      ],
+      "planner_calls": 2,
+      "navigation": [
+        {
+          "outcome": "failed",
+          "diagnosis": "unresolved_navigation_failure",
+          "steps": 100,
+          "evidence": {
+            "start_distance": 2.974671567483383,
+            "end_distance": 1.6780104666993039,
+            "minimum_distance": 1.0820849999272615,
+            "path_blocks": 9.324016760994636,
+            "movement_commands": 69,
+            "misaligned_commands": 33,
+            "aligned_low_motion_streak": 1
+          }
+        },
+        {
+          "outcome": "failed",
+          "diagnosis": "arrival_precision",
+          "steps": 100,
+          "evidence": {
+            "start_distance": 3.0197754701513144,
+            "end_distance": 1.039260467717142,
+            "minimum_distance": 0.5079741507813355,
+            "path_blocks": 9.755593842231631,
+            "movement_commands": 72,
+            "misaligned_commands": 27,
+            "aligned_low_motion_streak": 2
+          }
+        }
+      ],
+      "subgoals": [],
+      "log_gain": 0,
+      "actual_llm_calls": 0,
+      "optimizer_updates": 0,
+      "inference_ms": {
+        "count": 1000,
+        "median": 49.36204849997239,
+        "p95": 60.29960080000194
+      },
+      "control_cycle_ms": {
+        "count": 1004,
+        "median": 109.98846599997592,
+        "p95": 133.47647865001022
+      },
+      "gpu": {
+        "torch_peak_allocated_mib": 1915.00146484375,
+        "torch_peak_reserved_mib": 2056.0,
+        "scope": "PyTorch process including model loading, not total device VRAM"
+      },
+      "device_vram": {
+        "sampled_peak_used_mib": 2804.0,
+        "sample_count": 982,
+        "sampling_error": null,
+        "scope": "entire device 0 including other processes; sampled, may miss short peaks"
+      },
+      "logp_error": 0.0
+    }
+  ],
+  "prefix_check": {
+    "first_pixels_equal": true,
+    "first_different_action": 42,
+    "common_prefix_checked": 800
+  },
+  "scope": "Different observed prefixes; no causal comparison. Server observations, no live LLM; no wall map in plot."
+}

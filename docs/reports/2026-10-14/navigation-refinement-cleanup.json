@@ -1,0 +1,5 @@
+{
+  "remaining_project_workers_or_java": [],
+  "scope": "same-user readable WSL process table; per-run owned PID audit is separate",
+  "stop_exists": true
+}

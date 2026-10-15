@@ -1,0 +1,265 @@
+{
+  "verified": false,
+  "safety_and_inventory_verified": true,
+  "paused_by_user": true,
+  "games": [
+    {
+      "world": "far",
+      "steps": 1004,
+      "neural_steps": 1000,
+      "log_gain": 0,
+      "status": "planning_paused",
+      "runtime_error": null,
+      "full_trajectory_audit": true,
+      "navigation": [
+        {
+          "outcome": "failed",
+          "steps": 100,
+          "diagnosis": "arrival_precision",
+          "evidence": {
+            "start_distance": 2.9978552666211904,
+            "end_distance": 0.8438941721326776,
+            "minimum_distance": 0.3693743488225073,
+            "path_blocks": 6.129694309558554,
+            "movement_commands": 38,
+            "misaligned_commands": 11,
+            "aligned_low_motion_streak": 3
+          }
+        },
+        {
+          "outcome": "failed",
+          "steps": 100,
+          "diagnosis": "unresolved_navigation_failure",
+          "evidence": {
+            "start_distance": 3.000000000000017,
+            "end_distance": 2.41504706112363,
+            "minimum_distance": 2.41504706112363,
+            "path_blocks": 1.7795200557370618,
+            "movement_commands": 76,
+            "misaligned_commands": 3,
+            "aligned_low_motion_streak": 8
+          }
+        }
+      ],
+      "nodes": [
+        {
+          "revision": 1,
+          "id": "move",
+          "status": "failed",
+          "classification": "arrival_precision"
+        },
+        {
+          "revision": 1,
+          "id": "locate",
+          "status": "superseded",
+          "classification": null
+        },
+        {
+          "revision": 1,
+          "id": "approach",
+          "status": "superseded",
+          "classification": null
+        },
+        {
+          "revision": 1,
+          "id": "root",
+          "status": "superseded",
+          "classification": null
+        },
+        {
+          "revision": 2,
+          "id": "move",
+          "status": "failed",
+          "classification": "unresolved_navigation_failure"
+        },
+        {
+          "revision": 2,
+          "id": "locate",
+          "status": "pending",
+          "classification": null
+        },
+        {
+          "revision": 2,
+          "id": "approach",
+          "status": "pending",
+          "classification": null
+        },
+        {
+          "revision": 2,
+          "id": "root",
+          "status": "pending",
+          "classification": null
+        }
+      ],
+      "post_stop_activity": 0,
+      "held_keys": 0,
+      "owned_pids": [],
+      "inference_ms": {
+        "count": 1000,
+        "median": 54.649064500011946,
+        "p95": 65.58923139998569
+      },
+      "control_cycle_ms": {
+        "count": 1004,
+        "median": 118.0189490000032,
+        "p95": 147.0413148500142
+      },
+      "gpu": {
+        "torch_peak_allocated_mib": 1915.00146484375,
+        "torch_peak_reserved_mib": 2126.0,
+        "scope": "PyTorch process including model loading, not total device VRAM"
+      },
+      "device_vram": {
+        "sampled_peak_used_mib": 2821.0,
+        "sample_count": 1150,
+        "sampling_error": null,
+        "scope": "entire device 0 including other processes; sampled, may miss short peaks"
+      },
+      "source_sha256": {
+        "summary.json": "8c156f28b20237bf29a829ab2410a977d98577cc2711af465776f0d6b5230587",
+        "goal-recovery-rows.json": "cf6e557d22b9af2687b7e58af2c5cf1434567ffe14eb2ca5c74b9f8f4b1ca3c3",
+        "navigation-receipts.json": "74de2c128eed5afcf052e6c43a9adce2ea9524771ab44d02542778d9889663bf",
+        "rm-schedule.json": "d04a2589090c2251fb26fb58198c2834f90aab9a4cfaa79050d5153764c4739c",
+        "input-release-state.json": "789ed5fcf22197f10b7a900f8600ff6db5be7c28066f47d8934697dbaee8f920",
+        "events.jsonl": "e941bcf470e5eac5a1ff4c17d2e30c808928d6c5b2ae7916939053c255ecce2f"
+      }
+    },
+    {
+      "world": "corner",
+      "steps": 1052,
+      "neural_steps": 1048,
+      "log_gain": 0,
+      "status": "planning_paused",
+      "runtime_error": null,
+      "full_trajectory_audit": false,
+      "navigation": [
+        {
+          "outcome": "completed",
+          "steps": 48,
+          "diagnosis": "observed_arrival",
+          "evidence": {
+            "start_distance": 2.9635072585805378,
+            "end_distance": 0.3095245171479747,
+            "minimum_distance": 0.3095245171479747,
+            "path_blocks": 5.166103291353937,
+            "movement_commands": 22,
+            "misaligned_commands": 4,
+            "aligned_low_motion_streak": 0
+          }
+        },
+        {
+          "outcome": "failed",
+          "steps": 100,
+          "diagnosis": "unresolved_navigation_failure",
+          "evidence": {
+            "start_distance": 3.011032763087716,
+            "end_distance": 2.1127028865597035,
+            "minimum_distance": 2.0413939951819,
+            "path_blocks": 5.634025862029729,
+            "movement_commands": 57,
+            "misaligned_commands": 4,
+            "aligned_low_motion_streak": 5
+          }
+        }
+      ],
+      "nodes": [
+        {
+          "revision": 1,
+          "id": "move",
+          "status": "completed",
+          "classification": "observed_arrival"
+        },
+        {
+          "revision": 1,
+          "id": "locate",
+          "status": "failed",
+          "classification": "failed"
+        },
+        {
+          "revision": 1,
+          "id": "approach",
+          "status": "superseded",
+          "classification": null
+        },
+        {
+          "revision": 1,
+          "id": "root",
+          "status": "superseded",
+          "classification": null
+        },
+        {
+          "revision": 2,
+          "id": "move",
+          "status": "failed",
+          "classification": "unresolved_navigation_failure"
+        },
+        {
+          "revision": 2,
+          "id": "locate",
+          "status": "pending",
+          "classification": null
+        },
+        {
+          "revision": 2,
+          "id": "approach",
+          "status": "pending",
+          "classification": null
+        },
+        {
+          "revision": 2,
+          "id": "root",
+          "status": "pending",
+          "classification": null
+        }
+      ],
+      "post_stop_activity": 0,
+      "held_keys": 0,
+      "owned_pids": [],
+      "inference_ms": {
+        "count": 1048,
+        "median": 56.76236500005416,
+        "p95": 67.22882895002158
+      },
+      "control_cycle_ms": {
+        "count": 1052,
+        "median": 120.8788535000167,
+        "p95": 150.74772210002718
+      },
+      "gpu": {
+        "torch_peak_allocated_mib": 1915.00146484375,
+        "torch_peak_reserved_mib": 2126.0,
+        "scope": "PyTorch process including model loading, not total device VRAM"
+      },
+      "device_vram": {
+        "sampled_peak_used_mib": 2857.0,
+        "sample_count": 1185,
+        "sampling_error": null,
+        "scope": "entire device 0 including other processes; sampled, may miss short peaks"
+      },
+      "source_sha256": {
+        "summary.json": "e7e8143e130585143b2f1ca5d79feed42f7499e3a73d447eb6754168803d1126",
+        "goal-recovery-rows.json": "5fec41b5fd4d65df610899841fbbbcabae4fae5c1d01e5a01c64a78f9de57b84",
+        "navigation-receipts.json": "19250281b606a944222516f9bd542615d3724791d60bce5aed107503460be49e",
+        "rm-schedule.json": "b25498994b367e9b19028014e87731b10042de174f4f10a265fabae7d3f798a8",
+        "input-release-state.json": "740edf09697e6240e17c89fcf5e2d662f7ca318292ad78f1ac83c7f96953f2f6",
+        "events.jsonl": "6906d4bd2edcd32c8c409f25790044a63b6f31cae4fa9df77507957f288dc67f"
+      }
+    }
+  ],
+  "unresolved": "Corner full action-probability audit retry timed out after 180 seconds; not counted as passing",
+  "audit_recovery": {
+    "completed": false,
+    "exit_code": null,
+    "timeout_s": 180,
+    "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "original_failed_log_sha256": "ffaad3f0baa7c7f08fd49c65abb142f53e527defc5c6e6a8b9b2ce726a43eace",
+    "workflow_sha256": "56ac31bff8a96712bafe32018a0e9d195f5ae874920d66d5a8b30a4e9c882048",
+    "scope": "Saved trajectory audit only; no new gameplay",
+    "correction": "Neutral release/refresh restores root embedding after locate subgoal",
+    "remaining_audit_processes": []
+  },
+  "near_training_started": false,
+  "remaining_project_game_processes": [],
+  "remaining_audit_processes": [],
+  "automatic_stop_retained": true
+}

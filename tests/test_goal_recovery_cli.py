@@ -1,5 +1,6 @@
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from minecraftrl import cli
 
@@ -74,6 +75,22 @@ class GoalRecoveryCliTests(unittest.TestCase):
         with self.assertRaises(SystemExit):cli.validate_goal_recovery_args(args)
         args.rl_planner_exchange=args.root/'results/new-rm-mailbox'
         cli.validate_goal_recovery_args(args)
+
+    def test_rm_navigation_requires_bound_subgoal_planning_and_project_weights(self):
+        def args():
+            value=self.arguments();value.rl_rm_plan_fixture='subgoals'
+            value.rl_skill_catalogue=Path('results/catalogue.json')
+            value.rl_rm_navigation_actor=Path('results/navigation.pt')
+            return value
+        with patch('minecraftrl.subgoal_skills.load_catalogue'):
+            cli.validate_goal_recovery_args(args())
+            for key,value in [('rl_skill_catalogue',None),('rl_rm_plan_fixture','explore'),
+                              ('rl_waypoint_actor',Path('results/other.pt')),
+                              ('rl_rm_navigation_actor',Path('../outside.pt')),
+                              ('rl_recovery_embed',None),('rl_split','train')]:
+                with self.subTest(key=key):
+                    changed=args();setattr(changed,key,value)
+                    with self.assertRaises(SystemExit):cli.validate_goal_recovery_args(changed)
 
 
 if __name__ == '__main__':

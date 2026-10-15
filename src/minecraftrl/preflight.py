@@ -19,9 +19,9 @@ def sha256(path):
     return value.hexdigest()
 
 
-def command(args):
+def command(args,*,timeout_s=20):
     try:
-        result = subprocess.run(args, capture_output=True, text=True, timeout=20)
+        result = subprocess.run(args, capture_output=True, text=True, timeout=timeout_s)
         return {'exit_code': result.returncode, 'stdout': result.stdout.strip(), 'stderr': result.stderr.strip()}
     except (OSError, subprocess.TimeoutExpired) as exc: return {'error': str(exc)}
 
@@ -53,7 +53,8 @@ def inspect(root, policy):
             if not result['cuda_available']: problems.append('torch CUDA unavailable')
             else: result['gpu_capability'] = torch.cuda.get_device_capability(0)
         except Exception as exc: problems.append('torch import/CUDA check failed: ' + repr(exc))
-    result['java'] = command(['java', '-version'])
+    # A measured cold WSL/DrvFs start took 22.6 s; distinguish that from missing Java.
+    result['java'] = command(['java', '-version'],timeout_s=60)
     if result['java'].get('exit_code') != 0: problems.append('Java unavailable')
     elif '"1.8.' not in result['java']['stderr'] + result['java']['stdout']: problems.append('candidate MineRL baseline requires JDK 8')
     result['display_configured'] = bool(os.environ.get('DISPLAY'))

@@ -25,13 +25,13 @@ def validate_command(command):
         if not isinstance(command.get(key),str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,64}',command[key]):
             raise ValueError('invalid '+key)
     op=command.get('op')
-    if op not in ('request','modify','request_plan','modify_plan','pause','resume','cancel'): raise ValueError('unsupported command')
+    if op not in ('request','modify','request_plan','modify_plan','pause','resume','cancel','enqueue','reprioritize'): raise ValueError('unsupported command')
     allowed={'command_id','task_id','op'}
-    if op not in ('request','request_plan'):
+    if op not in ('request','request_plan','enqueue'):
         allowed.add('expected_revision')
         if type(command.get('expected_revision')) is not int or command['expected_revision']<1:
             raise ValueError('positive expected_revision required')
-    if op in ('request','modify'):
+    if op in ('request','modify','enqueue'):
         allowed.update(('goal','count'))
         if not isinstance(command.get('goal'),str) or command['goal'] not in GOALS:
             raise ValueError('unsupported collection goal')
@@ -39,6 +39,19 @@ def validate_command(command):
             raise ValueError('count must be an integer in [1,64]')
     if op in ('request_plan','modify_plan'):
         allowed.add('steps'); validate_steps(command.get('steps'))
+    if op in ('enqueue','reprioritize'):
+        from .priority_schedule import priority_value, nonnegative
+        allowed.add('priority'); priority_value(command.get('priority',50))
+        if op=='reprioritize' and 'priority' not in command: raise ValueError('priority required')
+        if op=='enqueue':
+            allowed.update(('depends_on','deadline_s'))
+            deps=command.get('depends_on',[])
+            if (not isinstance(deps,list) or len(deps)>64 or any(not isinstance(d,str) or
+                    not re.fullmatch(r'[A-Za-z0-9_-]{1,64}',d) for d in deps) or len(set(deps))!=len(deps)):
+                raise ValueError('invalid task dependencies')
+            deadline=command.get('deadline_s')
+            if deadline is not None and (not nonnegative(deadline) or not deadline):
+                raise ValueError('deadline_s must be a positive active-session lifetime')
     if set(command)-allowed: raise ValueError('unknown command fields')
 
 
@@ -57,6 +70,9 @@ class TaskState:
 
     @classmethod
     def restore(cls,value,world_id):
+        if isinstance(value,dict) and type(value.get('schema')) is int and value['schema']==4:
+            from .scheduled_tasks import ScheduledTasks
+            return ScheduledTasks.restore(value,world_id)
         if not isinstance(value,dict) or set(value)!={'schema','world_id','task','last_observation'} or type(value['schema']) is not int or value['schema'] not in (1,2,3) or value['world_id']!=world_id:
             raise ValueError('checkpoint schema or world mismatch')
         sequence=value['last_observation']
@@ -110,6 +126,7 @@ class TaskState:
     def check(self, command):
         validate_command(command)
         op=command['op']
+        if op in ('enqueue','reprioritize'): raise ValueError('command requires scheduled task session')
         if op in ('request','request_plan'):
             if self.task is not None and self.task['status'] not in ('completed','cancelled'):
                 raise ValueError('session already has a task')

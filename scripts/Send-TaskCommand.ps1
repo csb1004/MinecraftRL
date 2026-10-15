@@ -1,12 +1,15 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][string]$SessionPath,
-    [Parameter(Mandatory)][ValidateSet('request','modify','request_plan','modify_plan','pause','resume','cancel')][string]$Operation,
+    [Parameter(Mandatory)][ValidateSet('request','modify','request_plan','modify_plan','pause','resume','cancel','enqueue','reprioritize')][string]$Operation,
     [ValidatePattern('^[A-Za-z0-9_-]{1,64}$')][string]$TaskId='gather',
     [ValidateRange(1,2147483647)][int]$ExpectedRevision=1,
     [ValidateSet('wood','dirt')][string]$Goal='wood',
     [ValidateRange(1,64)][int]$Count=4,
-    [string]$StepsJson
+    [string]$StepsJson,
+    [ValidateRange(0,100)][int]$Priority=50,
+    [ValidatePattern('^[A-Za-z0-9_-]{1,64}$')][string[]]$DependsOn=@(),
+    [double]$DeadlineSeconds
 )
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent $PSScriptRoot
@@ -24,8 +27,16 @@ if (Test-Path -LiteralPath $commands) {
 } else { [void](New-Item -ItemType Directory -Path $commands) }
 $id=[guid]::NewGuid().ToString('N')
 $command=@{ command_id=$id; op=$Operation; task_id=$TaskId }
-if ($Operation -notin @('request','request_plan')) { $command.expected_revision=$ExpectedRevision }
-if ($Operation -in @('request','modify')) { $command.goal=$Goal; $command.count=$Count }
+if ($Operation -notin @('request','request_plan','enqueue')) { $command.expected_revision=$ExpectedRevision }
+if ($Operation -in @('request','modify','enqueue')) { $command.goal=$Goal; $command.count=$Count }
+if ($Operation -in @('enqueue','reprioritize')) { $command.priority=$Priority }
+if ($Operation -eq 'enqueue') {
+    $command.depends_on=@($DependsOn)
+    if ($PSBoundParameters.ContainsKey('DeadlineSeconds')) {
+        if (-not [double]::IsFinite($DeadlineSeconds) -or $DeadlineSeconds -le 0) { throw 'DeadlineSeconds must be finite and positive.' }
+        $command.deadline_s=$DeadlineSeconds
+    }
+}
 if ($Operation -in @('request_plan','modify_plan')) {
     $steps=ConvertFrom-Json -InputObject $StepsJson -NoEnumerate
     if ($steps -isnot [array] -or $steps.Count -lt 1 -or $steps.Count -gt 8) { throw 'StepsJson requires 1 to 8 stages.' }

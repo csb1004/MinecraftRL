@@ -6,9 +6,12 @@ param(
     [string]$Distribution = 'Ubuntu-24.04',
     [int]$Seed = 104729,
     [ValidateRange(1,180)][int]$Seconds = 180,
-    [ValidatePattern('^[A-Za-z0-9_-]{1,64}$')][string]$WorldSlot
+    [ValidatePattern('^[A-Za-z0-9_-]{1,64}$')][string]$WorldSlot,
+    [switch]$TaskPriorities
 )
 $ErrorActionPreference = 'Stop'
+if ($TaskPriorities -and ($Operation -ne 'session' -or $Policy -ne 'steve1')) { throw 'TaskPriorities requires a STEVE-1 session.' }
+if ($TaskPriorities -and -not $WorldSlot) { $WorldSlot='companion' }
 $root = Split-Path -Parent $PSScriptRoot
 # Forward slashes survive wsl.exe's argument forwarding without shell escapes.
 $resolved = & wsl.exe -d $Distribution -- wslpath -a $root.Replace('\','/')
@@ -20,5 +23,6 @@ if ($WorldSlot -and $Operation -ne 'session') { throw 'WorldSlot requires Operat
 if ($Condition) { $argsForWsl += $Condition }
 elseif ($WorldSlot) { $argsForWsl += 'wood' }
 if ($WorldSlot) { $argsForWsl += $WorldSlot }
+if ($TaskPriorities) { $argsForWsl += 'priorities' }
 & wsl.exe @argsForWsl
 if ($LASTEXITCODE -ne 0) { throw "Policy probe returned $LASTEXITCODE. Inspect results; no API fallback was used." }

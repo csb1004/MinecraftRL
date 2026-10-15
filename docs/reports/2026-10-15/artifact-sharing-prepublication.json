@@ -1,0 +1,41 @@
+{
+  "scope": "Current release tooling and staged public file set; existing research changes retain their recorded validations.",
+  "review_mode": "Sequential main-agent review; no subagents per project instruction",
+  "applied": [
+    "Check manifest commit against release tag",
+    "Reject project cache reparse points",
+    "Verify experiment frozen assets belong to selected bundles",
+    "Reject file/directory collisions and unsafe component names",
+    "Preserve old publication scan instead of overwriting completed experiment evidence"
+  ],
+  "actionable_findings": [],
+  "tests": [
+    {
+      "command": "python -m unittest discover -s tests",
+      "run": 657,
+      "skipped": 21,
+      "passed": 636,
+      "log": "results/release-sharing-windows-tests.log"
+    },
+    {
+      "command": "python -m unittest discover -s tests -p test_artifact*.py",
+      "run": 15,
+      "skipped": 0,
+      "passed": 15,
+      "log": "results/release-sharing-artifact-tests-reviewed.log"
+    }
+  ],
+  "powershell_syntax_files": 4,
+  "public_source_scan": {
+    "files": 716,
+    "findings": 0
+  },
+  "research_spec_sha256": "4af3ad00c5bab9b9d08b2e23fe768e140944118aa85cf412c45a67bb032275ad",
+  "gameplay_runs": 0,
+  "training_runs": 0,
+  "stop_unchanged": true,
+  "pending": [
+    "Release upload and GitHub asset digest verification",
+    "Public network download and repeat-sync verification"
+  ]
+}

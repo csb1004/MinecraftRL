@@ -25,7 +25,8 @@ def audit(run,checkpoint,exchange=None):
     report=read(run/'summary.json');raw=read(run/'goal-recovery-rows.json')
     rm_plan=report.get('condition',{}).get('planning',{}).get('protocol')=='rm_plan_v1'
     subgoals=report.get('condition',{}).get('planning',{}).get('abstract_navigation',False)
-    destination=run/('subgoal-audit.json' if subgoals else 'rm-plan-audit.json' if rm_plan else 'fresh-target-handoff-audit.json')
+    waypoint=report.get('condition',{}).get('planning',{}).get('waypoint_integration',False)
+    destination=run/('rm-navigation-audit.json' if waypoint else 'subgoal-audit.json' if subgoals else 'rm-plan-audit.json' if rm_plan else 'fresh-target-handoff-audit.json')
     if destination.exists():raise FileExistsError(destination)
     data=torch.load(run/'trajectory.pt',map_location='cpu')
     weights=torch.load(checkpoint,map_location='cpu')
@@ -48,7 +49,7 @@ def audit(run,checkpoint,exchange=None):
             assert not broker['execution_authorized'] and broker['new_game_actions']==0
             if report['planner_live'] and broker['status']=='delivered':assert actual_llm_calls==1
     else:
-        assert report['planner_provider'] in ('fixed_local_fixture','fixed_rm_plan_fixture','fixed_neural_subgoal_fixture') and actual_llm_calls==0
+        assert report['planner_provider'] in ('fixed_local_fixture','fixed_rm_plan_fixture','fixed_neural_subgoal_fixture','fixed_rm_navigation_fixture') and actual_llm_calls==0
     assert data['scope']=='planning_goal_conditioning_diagnostic' and not data['eligible'] and data['split']=='eval'
     fingerprints={k:state_fingerprint(weights[k]) for k in ('actor','value','backbone_tail','backbone_temporal')}
     assert fingerprints==data['initial_head_fingerprints']==report['initial_head_fingerprints']
@@ -70,6 +71,19 @@ def audit(run,checkpoint,exchange=None):
     actor=make_action_head(DictType(**mapper.get_action_space_update()),data['rows'][0]['features'].shape[-1],
         **model_kwargs(root/'weights/steve1/2x.model')[1]).cuda()
     actor.load_state_dict(weights['actor']);actor.requires_grad_(False);del weights
+    if waypoint:
+        from minecraftrl.waypoint_actor import append_goal
+        from minecraftrl.navigation_model import load_navigation,append_motion
+        from minecraftrl.navigation_refinement import motion_goal
+        from minecraftrl.waypoints import goal_features
+        planning=report['condition']['planning'];path=Path(planning['navigation_actor'])
+        assert digest(path)==planning['navigation_actor_sha256']
+        nav_saved=torch.load(path,map_location='cpu')
+        assert nav_saved['schema'] in ('waypoint_actor_v1','navigation_refinement_v1') and nav_saved['parent_sha256']==digest(checkpoint)
+        assert nav_saved['embedding_sha256']==digest(run/'goal-embed.npy')
+        navigation,refined=load_navigation(actor,nav_saved);navigation.requires_grad_(False)
+        if refined:assert planning['navigation_input']=='motion_goal_10' and nav_saved['motion_dim']==10
+        nav_counts={};schedule=read(run/'rm-schedule.json')
     embeds={mode:hashlib.sha256(np.load(run/name,allow_pickle=False).tobytes()).hexdigest()
             for mode,name in (('wood','goal-embed.npy'),('intervention','intervention-embed.npy'))}
     skill_embeds={}
@@ -105,13 +119,28 @@ def audit(run,checkpoint,exchange=None):
         expected=torch.tensor(reward.context(),dtype=feature['features'].dtype)
         assert torch.equal(feature['features'][0,0,-6:],expected) and torch.equal(feature['features'][1,0,-6:],expected)
         expected_embed=embeds[row['mode']]
-        if subgoals:
+        is_waypoint=waypoint and 'waypoint_goal' in row
+        if is_waypoint:
+            if refined:
+                tag=row['rm_plan'];key=(tag['revision'],tag['node_id']);count=nav_counts.get(key,0)
+                plan=schedule['plans'][tag['revision']-1]
+                node=next(v for v in plan['proposal']['steps'] if v['id']==tag['node_id'])
+                prior=raw[n-2]['server_before'] if n>1 else None
+                expected_goal=motion_goal(previous,row['waypoint_target'],prior,remaining=node['budget_ticks']-count)
+                nav_counts[key]=count+1
+            else:expected_goal=goal_features(previous,row['waypoint_target'])
+            assert feature['waypoint_goal']==row['waypoint_goal']==expected_goal
+            expected_embed=embeds['wood']
+        elif subgoals:
             from minecraftrl.subgoal_skills import navigation_state
             tag=row['subgoal_context'];assert tag==feature['subgoal_context']
             observed=navigation_state(previous,log_count(start))
             if 'gui_open' not in tag['abstract_state']:observed.pop('gui_open')  # Preserved pre-fix failure, closed frames only.
             assert tag['abstract_state']==observed
             if tag['phase']=='subgoal':expected_embed=skill_embeds[tag['skill_id']]
+        # PlanningRecoveryController.act explicitly restores the root embedding
+        # for release/refresh, even after a text-conditioned subgoal fails.
+        if waypoint and row['owner']=='planner_neutral':expected_embed=embeds['wood']
         assert feature['goal_conditioning']==dict(mode=row['mode'],embedding_sha256=expected_embed)
         assert row['embedding_sha256']==expected_embed
         assert not row['loss_eligible']
@@ -126,7 +155,12 @@ def audit(run,checkpoint,exchange=None):
             assert row['owner']=='steve1_'+row['mode']
             with torch.no_grad():
                 action={k:v.cuda() for k,v in feature['action'].items()}
-                actual=actor.logprob(action,guided(actor,feature['features'].cuda())).item()
+                head=navigation if is_waypoint else actor
+                features=feature['features'].cuda()
+                assert torch.isfinite(features).all() and torch.isfinite(torch.tensor(feature['old_logp']))
+                if is_waypoint:features=(append_motion if refined else append_goal)(features,row['waypoint_goal'])
+                pd=guided(head,features);assert all(torch.isfinite(v).all() for v in pd.values())
+                actual=head.logprob(action,pd).item();assert np.isfinite(actual)
             max_error=max(max_error,abs(actual-feature['old_logp']))
             converted=transformer.policy2env(mapper.to_factored({k:v[:,0].numpy() for k,v in feature['action'].items()}))
             assert jsonable(converted)==row['action']

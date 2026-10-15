@@ -46,7 +46,7 @@ class RMPlanningController(PlanningRecoveryController):
         self.scheduler=self.scheduler_type(self.output/'rm-schedule.json',self.snapshot())
         self.root_reward_object=self.environment.reward
         self.condition_metadata['planning'].update(protocol='rm_plan_v1',maximum_calls=self.max_requests,
-            schedule='dependency_ready_priority',unsupported_concepts='retained_without_execution')
+            schedule='dependency_ready_aging_with_inheritance',unsupported_concepts='retained_without_execution')
         self.condition_metadata['intervention']['max_interventions']=self.max_requests
 
     def create_request(self,s):

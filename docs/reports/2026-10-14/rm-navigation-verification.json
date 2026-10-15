@@ -1,0 +1,80 @@
+{
+  "verified": true,
+  "tests": {
+    "windows": {
+      "total": 582,
+      "skipped": 21,
+      "log_sha256": "cb0e56adddf422a024a143d0fe350ffef4eaf9d8f51874aa3c1e8531cc41192e"
+    },
+    "wsl": {
+      "total": 61,
+      "skipped": 0,
+      "log_sha256": "286f20865ed7fd7034f51cb3ab56a7e347a141ee91c00d698f42722b423dbb7c"
+    }
+  },
+  "games": [
+    {
+      "revision": 1,
+      "steps": 932,
+      "status": "planning_paused",
+      "planner_calls": 2,
+      "installed_plans": 2,
+      "navigation_outcomes": [
+        "failed",
+        "completed"
+      ],
+      "subgoal_outcomes": [],
+      "log_gain": 0,
+      "goal_completed": false,
+      "action_logp_max_error": 0.0,
+      "post_stop_dispatches": 0,
+      "post_stop_inferences": 0,
+      "keys_remaining": 0,
+      "owned_pids_remaining": [],
+      "prior_failed_directions_blocked": 1
+    },
+    {
+      "revision": 2,
+      "steps": 1004,
+      "status": "planning_paused",
+      "planner_calls": 2,
+      "installed_plans": 2,
+      "navigation_outcomes": [
+        "failed",
+        "failed"
+      ],
+      "subgoal_outcomes": [],
+      "log_gain": 0,
+      "goal_completed": false,
+      "action_logp_max_error": 0.0,
+      "post_stop_dispatches": 0,
+      "post_stop_inferences": 0,
+      "keys_remaining": 0,
+      "owned_pids_remaining": [],
+      "prior_failed_directions_blocked": 0
+    }
+  ],
+  "stored_trace_replay": {
+    "total_steps": 4814,
+    "navigation_steps": 1000,
+    "outcomes": {
+      "completed": 2,
+      "interrupted": 5,
+      "failed": 10
+    },
+    "diagnoses": {
+      "observed_arrival": 2,
+      "subgoal_handoff": 2,
+      "heading_misaligned": 2,
+      "control_budget": 3,
+      "unresolved_navigation_failure": 3,
+      "arrival_precision": 4,
+      "blocked_direction_suspected": 1
+    }
+  },
+  "paid_calls": 0,
+  "optimizer_updates": 0,
+  "original_assets_preserved": true,
+  "automatic_stop_retained": true,
+  "scope": "Local fixed-plan integration and stored-trace replay; no actual LLM integration effectiveness claim"
+}

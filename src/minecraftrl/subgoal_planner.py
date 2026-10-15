@@ -80,6 +80,7 @@ class SubgoalScheduler(RMPlanScheduler):
         if (reason=='already_satisfied' and (count or not satisfied)) or (
                 reason=='predicate_satisfied' and (not count or not satisfied)):
             raise ValueError('unproven subgoal completion')
+        self.update_timing(after)
         interrupted=reason in ('stop','environment_done')
         outcome=('interrupted' if interrupted else 'completed' if satisfied else
                  'unrun' if not count else 'failed')
@@ -98,8 +99,9 @@ class SubgoalScheduler(RMPlanScheduler):
         """Only this saved runtime receipt, not a model claim, can open another request."""
         validate_snapshot(snapshot)
         receipts=[n['receipt'] for n in self.state['plans'][-1]['nodes'] if n.get('receipt')]
-        receipt=receipts[-1] if receipts else None
-        if (not receipt or receipt.get('type')!='neural_subgoal' or receipt['outcome']!='failed'
+        # Proposal listing order need not match dependency/execution order.
+        receipt=max(receipts,key=lambda item:item['end_sequence'],default=None)
+        if (not receipt or receipt.get('type') not in ('neural_subgoal','neural_waypoint') or receipt['outcome']!='failed'
                 or not receipt['committed_steps'] or retry_scope(receipt['after'])!=retry_scope(snapshot)
                 or not 0<=snapshot['tick']-receipt['after']['tick']<=4
                 or snapshot['sequence']<receipt['after']['sequence']):

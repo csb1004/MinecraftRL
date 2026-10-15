@@ -1,0 +1,194 @@
+{
+  "evaluator_only": true,
+  "supplied_to_policy": false,
+  "geometry": "Archived NBT enclosing bedrock walls y201..204 verified",
+  "cases": [
+    {
+      "batch": "rm-refined-navigation-20261015",
+      "world": "far",
+      "attempt": 1,
+      "target": [
+        225.11978505799559,
+        201.0,
+        -786.8705790962865
+      ],
+      "outcome": "failed",
+      "minimum_distance_from_enclosure_interior": 0.1802149420044259,
+      "arrival_circle_misses_interior": false,
+      "player_half_width_assumption": 0.3,
+      "arrival_radius": 0.35,
+      "world_sha256": "5239e0ac8e769f75cbc064fd5dc0ecf42da07422b353d899dfd2f74478d5b798",
+      "scope": "Necessary enclosure-interior condition only; inside does not imply a clear path"
+    },
+    {
+      "batch": "rm-refined-navigation-20261015",
+      "world": "far",
+      "attempt": 2,
+      "target": [
+        223.12200897700785,
+        201.0,
+        -784.2565406886696
+      ],
+      "outcome": "failed",
+      "minimum_distance_from_enclosure_interior": 2.4150470452221997,
+      "arrival_circle_misses_interior": true,
+      "player_half_width_assumption": 0.3,
+      "arrival_radius": 0.35,
+      "world_sha256": "5239e0ac8e769f75cbc064fd5dc0ecf42da07422b353d899dfd2f74478d5b798",
+      "scope": "Necessary enclosure-interior condition only; inside does not imply a clear path"
+    },
+    {
+      "batch": "rm-refined-navigation-20261015",
+      "world": "corner",
+      "attempt": 1,
+      "target": [
+        234.4511797223001,
+        201.0,
+        -795.0403945706411
+      ],
+      "outcome": "completed",
+      "minimum_distance_from_enclosure_interior": 0.0,
+      "arrival_circle_misses_interior": false,
+      "player_half_width_assumption": 0.3,
+      "arrival_radius": 0.35,
+      "world_sha256": "cbd7890bc992accf4093d6d156f7187f0b03a0af484a40e822ec467f751698a3",
+      "scope": "Necessary enclosure-interior condition only; inside does not imply a clear path"
+    },
+    {
+      "batch": "rm-refined-navigation-20261015",
+      "world": "corner",
+      "attempt": 2,
+      "target": [
+        233.83951273023231,
+        202.24918707874468,
+        -800.7298623766671
+      ],
+      "outcome": "failed",
+      "minimum_distance_from_enclosure_interior": 2.029862376667097,
+      "arrival_circle_misses_interior": true,
+      "player_half_width_assumption": 0.3,
+      "arrival_radius": 0.35,
+      "world_sha256": "cbd7890bc992accf4093d6d156f7187f0b03a0af484a40e822ec467f751698a3",
+      "scope": "Necessary enclosure-interior condition only; inside does not imply a clear path"
+    },
+    {
+      "batch": "exploration-coverage-20261015",
+      "world": "far",
+      "attempt": 1,
+      "target": [
+        225.62214051752974,
+        201.0,
+        -799.7877921220907
+      ],
+      "outcome": "failed",
+      "minimum_distance_from_enclosure_interior": 1.0877921220906046,
+      "arrival_circle_misses_interior": true,
+      "player_half_width_assumption": 0.3,
+      "arrival_radius": 0.35,
+      "world_sha256": "5239e0ac8e769f75cbc064fd5dc0ecf42da07422b353d899dfd2f74478d5b798",
+      "scope": "Necessary enclosure-interior condition only; inside does not imply a clear path"
+    },
+    {
+      "batch": "exploration-coverage-20261015",
+      "world": "far",
+      "attempt": 2,
+      "target": [
+        225.22131333287476,
+        201.0,
+        -795.7224979566835
+      ],
+      "outcome": "completed",
+      "minimum_distance_from_enclosure_interior": 0.07868666712525396,
+      "arrival_circle_misses_interior": false,
+      "player_half_width_assumption": 0.3,
+      "arrival_radius": 0.35,
+      "world_sha256": "5239e0ac8e769f75cbc064fd5dc0ecf42da07422b353d899dfd2f74478d5b798",
+      "scope": "Necessary enclosure-interior condition only; inside does not imply a clear path"
+    },
+    {
+      "batch": "exploration-coverage-20261015",
+      "world": "corner",
+      "attempt": 1,
+      "target": [
+        226.10907138528052,
+        201.0,
+        -801.4300023235241
+      ],
+      "outcome": "failed",
+      "minimum_distance_from_enclosure_interior": 2.730002323524104,
+      "arrival_circle_misses_interior": true,
+      "player_half_width_assumption": 0.3,
+      "arrival_radius": 0.35,
+      "world_sha256": "cbd7890bc992accf4093d6d156f7187f0b03a0af484a40e822ec467f751698a3",
+      "scope": "Necessary enclosure-interior condition only; inside does not imply a clear path"
+    },
+    {
+      "batch": "exploration-coverage-20261015",
+      "world": "corner",
+      "attempt": 2,
+      "target": [
+        222.47742201465752,
+        201.0,
+        -798.21973985252
+      ],
+      "outcome": "failed",
+      "minimum_distance_from_enclosure_interior": 2.822577985342491,
+      "arrival_circle_misses_interior": true,
+      "player_half_width_assumption": 0.3,
+      "arrival_radius": 0.35,
+      "world_sha256": "cbd7890bc992accf4093d6d156f7187f0b03a0af484a40e822ec467f751698a3",
+      "scope": "Necessary enclosure-interior condition only; inside does not imply a clear path"
+    },
+    {
+      "batch": "exploration-motion-20261015",
+      "world": "corner",
+      "attempt": 1,
+      "target": [
+        240.03602431399065,
+        201.0,
+        -797.9818829066678
+      ],
+      "outcome": "failed",
+      "minimum_distance_from_enclosure_interior": 1.336024313990663,
+      "arrival_circle_misses_interior": true,
+      "player_half_width_assumption": 0.3,
+      "arrival_radius": 0.35,
+      "world_sha256": "cbd7890bc992accf4093d6d156f7187f0b03a0af484a40e822ec467f751698a3",
+      "scope": "Necessary enclosure-interior condition only; inside does not imply a clear path"
+    },
+    {
+      "batch": "exploration-motion-20261015",
+      "world": "corner",
+      "attempt": 2,
+      "target": [
+        237.97458470423598,
+        201.0,
+        -800.7689984242218
+      ],
+      "outcome": "failed",
+      "minimum_distance_from_enclosure_interior": 2.068998424221718,
+      "arrival_circle_misses_interior": true,
+      "player_half_width_assumption": 0.3,
+      "arrival_radius": 0.35,
+      "world_sha256": "cbd7890bc992accf4093d6d156f7187f0b03a0af484a40e822ec467f751698a3",
+      "scope": "Necessary enclosure-interior condition only; inside does not imply a clear path"
+    },
+    {
+      "batch": "exploration-motion-20261015",
+      "world": "corner",
+      "attempt": 3,
+      "target": [
+        234.63471363399918,
+        201.4952008770059,
+        -798.749804138782
+      ],
+      "outcome": "completed",
+      "minimum_distance_from_enclosure_interior": 0.049804138781951224,
+      "arrival_circle_misses_interior": false,
+      "player_half_width_assumption": 0.3,
+      "arrival_radius": 0.35,
+      "world_sha256": "cbd7890bc992accf4093d6d156f7187f0b03a0af484a40e822ec467f751698a3",
+      "scope": "Necessary enclosure-interior condition only; inside does not imply a clear path"
+    }
+  ]
+}

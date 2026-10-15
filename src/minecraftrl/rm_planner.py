@@ -8,11 +8,13 @@ import json
 import re
 
 from .memory import atomic_json
+from .priority_schedule import PriorityLedger
 from .replanning import (active, blocked_method, context, fingerprint, goal_satisfied,
                          integer, number, validate_snapshot, collection_capability,
                          goal_conditioning_capability)
 from .semantic import OpenAISemantic, response_text
 from .subgoal_skills import SKILLS, validate_capability
+from .waypoint_skill import NAMES as WAYPOINTS,COMPLETION as WAYPOINT_COMPLETE,validate_capability as validate_waypoint
 
 
 def object_schema(properties):
@@ -23,7 +25,7 @@ STEP_SCHEMA=object_schema(dict(
     id={'type':'string'},objective={'type':'string'},skill_id={'type':'string'},
     priority={'type':'integer'},depends_on={'type':'array','items':{'type':'string'}},
     entry={'type':'string','enum':['active_root','fresh_handoff','unsupported']},
-    completion={'type':'string','enum':['goal_inventory','fresh_target_or_interaction','unsupported']+
+    completion={'type':'string','enum':['goal_inventory','fresh_target_or_interaction','unsupported',WAYPOINT_COMPLETE]+
                 [s['completion'] for s in SKILLS.values()]},
     budget_s={'type':'number'},budget_ticks={'type':'integer'},
     on_failure={'type':'string','enum':['replan','pause']}))
@@ -75,20 +77,33 @@ the existing inventory controls; no scripted GUI closing is substituted.
 Optional spatial_memory records observed cells and directed crossings, with its coordinate source.
 During exploration prefer less repeated routes; return-home and resource trips may use familiar routes.
 Landmarks persist independently of task success. Unknown directions are inspection hypotheses, NOT
-verified open passages. This registry has no coordinate-following skill: waypoint routes remain
-unsupported until an executor is registered. Never turn a visit count or 3-block displacement into
+verified open passages. Without registered navigate_waypoint_0..3 instances, coordinate routes remain
+unsupported. When present, each instance binds one candidate target to the same learned motor executor.
+Use active_root entry, waypoint_arrived completion, <=100 ticks/30 seconds. These are speculative
+targets, not verified paths. Never invent or edit target arguments, weights, or completion predicates.
+Use waypoint_context and previous_plans node receipts: diagnosis is an observed hypothesis, not terrain truth.
+Distinguish heading errors, arrival precision, suspected blockage, unknown observations, and interruption.
+Preserve successful segments in memory; revise the failed suffix. Familiar routes may be necessary
+for return trips. A changed node name is not a new method. Wood collection after a waypoint still
+requires current interaction readiness; mere arrival or a past success is insufficient. Never turn a visit count or displacement into
 proof of new territory, a path through a wall, or root inventory success.
+Scheduling context contains runtime-owned unfinished age, ready wait and verified service time.
+Preserve these records. Base priorities may be proposed; aging, overdue service and prerequisite
+priority inheritance are deterministic scheduler decisions, never rewards or completion claims.
+An old blocked goal needs a different supported method, not more attempts of the same failed method.
 '''
 
 
 def planning_packet(guard,request_id,scheduler):
     memory=guard.planner_input(request_id)
+    scheduler.update_timing(memory['snapshot'])
     request=next(r for r in guard.history.data['requests'] if r['request_id']==request_id)
     return dict(protocol='rm_plan_v1',mode='live_paused',request_id=request_id,evidence_id=request['evidence']['event_id'],
         root_id=fingerprint(memory['snapshot']['goal_ref']),runtime_binding=memory['snapshot'],
         evidence=deepcopy(request['evidence']),
         snapshot_sha256=fingerprint(memory['snapshot']),schedule_revision=scheduler.state['revision'],
         root=deepcopy(scheduler.state['root']),execution_registry=deepcopy(request['capabilities']),
+        scheduling=scheduler.timing_context(),
         memory={k:memory[k] for k in ('available_skills','blocked_methods','failed_attempts','attempts','omitted_failures')},
         previous_plans=deepcopy(scheduler.state['plans']),remaining_control_s=180.-memory['snapshot']['elapsed_s'],
         proposal_allowed=not request['consumed'],observation_source='privileged_server; no occupancy map or block hardness',
@@ -117,6 +132,10 @@ def validate_packet(packet):
             or root.get('episode_id')!=s['episode_id'] or root.get('baseline')!=s['baseline_count']):
         raise ValueError('root RM identity mismatch')
     registry=packet.get('execution_registry')
+    waypoint_names=set(registry or {})&set(WAYPOINTS)
+    if waypoint_names:
+        from .rm_navigation import validate_waypoint_context
+        validate_waypoint_context(packet)
     if 'spatial_memory' in packet:
         import math
         from .spatial_memory import CELL_SIZE
@@ -126,14 +145,14 @@ def validate_packet(packet):
                 space.get('dimension')!='overworld' or space.get('last_tick')!=s['tick'] or
                 space.get('cell_size')!=list(CELL_SIZE) or 'position' not in nav or
                 space.get('current')!=[math.floor(v/size) for v,size in zip(nav['position'],CELL_SIZE)] or
-                space.get('waypoint_execution_supported') is not False or
+                space.get('waypoint_execution_supported') is not bool(waypoint_names) or
                 space.get('frontier_status')!='unverified_without_local_passability'):
             raise ValueError('unbound spatial planning memory')
     if (not isinstance(registry,dict) or not {'collect_wood','explore_then_resume'}<=set(registry)
-            or set(registry)-{'collect_wood','explore_then_resume'}-set(SKILLS)):
+            or set(registry)-{'collect_wood','explore_then_resume'}-set(SKILLS)-set(WAYPOINTS)):
         raise ValueError('invalid RM execution registry')
     for name,cap in registry.items():
-        expected=(validate_capability(cap) if name in SKILLS else
+        expected=(validate_waypoint(cap) if name in WAYPOINTS else validate_capability(cap) if name in SKILLS else
                   collection_capability('wood',cap['policy_ref']) if name=='collect_wood' else
                   goal_conditioning_capability(cap['policy_ref'],**cap['arguments']))
         if cap!=expected or name!=cap['skill_id']:raise ValueError('unsupported RM execution binding')
@@ -202,7 +221,7 @@ def validate_plan(value,packet):
             elif node['skill_id']=='explore_then_resume':
                 expected=('active_root','fresh_target_or_interaction')
                 if node['id']=='root':raise ValueError('exploration cannot replace root')
-            elif node['skill_id'] in SKILLS:
+            elif node['skill_id'] in SKILLS or node['skill_id'] in WAYPOINTS:
                 expected=('active_root',cap['completion'])
                 if node['id']=='root':raise ValueError('subgoal cannot replace root')
                 if 'navigation' not in packet['runtime_binding']:
@@ -265,6 +284,8 @@ class RMPlanScheduler:
     """Bounded journal for one original RM and temporary plan nodes, not new rewards."""
     def __init__(self,path,snapshot):
         self.path=path;validate_snapshot(snapshot)
+        self.root_timing_id='root:'+fingerprint(snapshot['goal_ref'])
+        self.last_timing=dict(elapsed_s=snapshot['elapsed_s'],sequence=snapshot['sequence'])
         if path.exists():
             if path.stat().st_size>262144:raise ValueError('RM schedule journal too large')
             self.state=json.loads(path.read_text(encoding='utf-8'))
@@ -275,19 +296,82 @@ class RMPlanScheduler:
             self.state['paused_reason']='restored_paused'
             self.state['active_node']=None
             self.state['root']['status']='paused'
+            self.ledger=PriorityLedger.restore(self.state['priorities']) if 'priorities' in self.state else PriorityLedger()
+            if self.root_timing_id not in self.ledger.records:
+                self.ledger.register(self.root_timing_id,priority=self.state['root']['priority'])
             self.state['revision']+=1;self.save();return
         self.state=dict(schema=1,revision=0,active_node=None,paused_reason=None,plans=[],
             root=dict(reference=deepcopy(snapshot['goal_ref']),world_id=snapshot['world_id'],
                 episode_id=snapshot['episode_id'],baseline=snapshot['baseline_count'],
                 progress=max(0,snapshot['facts']['goal_inventory']-snapshot['baseline_count']),
                 completed=goal_satisfied(snapshot),priority=50,status='running'))
+        self.ledger=PriorityLedger();self.ledger.register(self.root_timing_id)
+        self.ledger.advance(snapshot['elapsed_s'])
+        self.state['priorities']=self.ledger.snapshot()
         path.parent.mkdir(parents=True,exist_ok=True)
         with path.open('x',encoding='utf-8') as stream:json.dump(self.state,stream)
 
     def save(self):
+        self.state['priorities']=self.ledger.snapshot()
         if len(json.dumps(self.state,ensure_ascii=False,allow_nan=False).encode('utf-8'))>262144:
             raise ValueError('RM schedule journal too large')
         atomic_json(self.path,self.state)
+
+    def timing_context(self):
+        return dict(ledger=self.ledger.snapshot(),scores=self.ledger.scores(),root_id=self.root_timing_id,
+            clock='active_session_seconds; no offline or user-paused accumulation',
+            service='committed execution; selection alone is not service',execution_authorized=False)
+
+    def update_timing(self,current):
+        validate_snapshot(current)
+        root=self.state['root']
+        if (current['goal_ref']!=root['reference'] or current['world_id']!=root['world_id'] or
+                current['episode_id']!=root['episode_id'] or current['baseline_count']!=root['baseline']):
+            raise ValueError('timing goal mismatch')
+        delta=current['elapsed_s']-self.last_timing['elapsed_s']
+        if delta<0 or current['sequence']<self.last_timing['sequence']: raise ValueError('nonmonotonic schedule clock')
+        serving=None
+        if self.state['plans'] and self.state['active_node']:
+            serving=self.state['plans'][-1].get('timing_ids',{}).get(self.state['active_node'])
+        service=delta if serving and current['sequence']>self.last_timing['sequence'] else 0.
+        if active(current) and self.state['paused_reason']!='restored_paused':
+            self.ledger.advance(delta,serving=serving,service_s=service)
+        self.last_timing=dict(elapsed_s=current['elapsed_s'],sequence=current['sequence'])
+        if self.state['plans']:
+            plan=self.state['plans'][-1]
+            for node in plan['nodes']:
+                key=plan.get('timing_ids',{}).get(node['id'])
+                if key is None: continue
+                status={'pending':'pending','active':'pending','completed':'completed',
+                        'failed':'blocked','blocked':'blocked'}.get(node['status'],'paused')
+                if self.ledger.records[key]['status'] not in ('completed','cancelled'):
+                    self.ledger.set_status(key,status)
+        if goal_satisfied(current): self.ledger.set_status(self.root_timing_id,'completed')
+        self.save()
+
+    def _bind_timing(self,plan):
+        ledger=PriorityLedger.restore(self.ledger.snapshot())
+        ids={}
+        for node in plan['proposal']['steps']:
+            if node['id']=='root': key=self.root_timing_id
+            else:
+                cap=deepcopy(plan['registry'].get(node['skill_id'],dict(skill_id=node['skill_id'])))
+                # Waypoint slots may be renamed; their bound arguments identify the method.
+                if node['skill_id'] in WAYPOINTS: cap['skill_id']='navigate_waypoint'
+                key='method:'+fingerprint(dict(root=self.root_timing_id,method=cap,completion=node['completion']))
+                if key in ledger.records and ledger.records[key]['status'] in ('completed','cancelled'):
+                    key+=':attempt-'+str(len(self.state['plans'])+1)
+            if key in ids.values(): raise ValueError('duplicate semantic method in schedule')
+            ids[node['id']]=key
+            if key not in ledger.records: ledger.register(key,priority=node['priority'])
+            else:
+                ledger.reprioritize(key,node['priority']);ledger.set_status(key,'pending')
+        for key,row in ledger.records.items():
+            if key not in ids.values() and row['status'] not in ('completed','cancelled'):
+                ledger.set_status(key,'paused')
+        ledger.dependencies({ids[n['id']]:[ids[d] for d in n['depends_on']] for n in plan['proposal']['steps']})
+        plan['timing_ids']=ids
+        return ledger
 
     def install(self,value,packet,current):
         value=validate_plan(value,packet);validate_snapshot(current)
@@ -304,17 +388,21 @@ class RMPlanScheduler:
             raise ValueError('stale, unreleased or inactive RM plan application')
         if self.state['root']['reference']!=current['goal_ref']:
             raise ValueError('cannot replace root RM')
+        self.update_timing(current)
+        new_plan=dict(proposal=value,applied_snapshot=deepcopy(current),
+            nodes=[dict(id=n['id'],status='pending',support='supported' if n['skill_id'] in packet['execution_registry']
+                        else 'unsupported',receipt=None) for n in value['steps']],
+            registry=deepcopy(packet['execution_registry']))
+        next_ledger=self._bind_timing(new_plan) if value['decision']=='plan' else self.ledger
         for plan in self.state['plans']:
             for node in plan['nodes']:
                 if node['status'] in ('pending','active','blocked'):node['status']='superseded'
-        self.state['plans'].append(dict(proposal=value,applied_snapshot=deepcopy(current),
-            nodes=[dict(id=n['id'],status='pending',support='supported' if n['skill_id'] in packet['execution_registry']
-                        else 'unsupported',receipt=None) for n in value['steps']],
-            registry=deepcopy(packet['execution_registry'])))
+        self.state['plans'].append(new_plan)
         self.state['revision']+=1;self.state['active_node']=None
         self.state['paused_reason']='provider_requested_pause' if value['decision']=='pause' else None
         if value['decision']=='plan':
             self.state['root']['priority']=next(n['priority'] for n in value['steps'] if n['id']=='root')
+            self.ledger=next_ledger
         self.save()
 
     def select(self,current,history):
@@ -333,19 +421,22 @@ class RMPlanScheduler:
             self.state['active_node']=None;root['status']='completed' if root['completed'] else 'paused'
             self.save();return dict(node=None,reason=reason)
         if not self.state['plans']:return self.pause('no_plan')
+        self.update_timing(current)
         plan=self.state['plans'][-1];nodes={n['id']:n for n in plan['nodes']}
         ready=[n for n in plan['proposal']['steps'] if nodes[n['id']]['status'] in ('pending','active')
                and all(nodes[d]['status']=='completed' for d in n['depends_on'])]
-        ready.sort(key=lambda n:(-n['priority'],n['id']))
         if not ready:return self.pause('unmet_dependencies')
-        node=ready[0];state=nodes[node['id']];cap=plan['registry'].get(node['skill_id'])
+        scheduling=self.ledger.select()
+        node=next((n for n in ready if plan['timing_ids'][n['id']]==scheduling['goal_id']),None)
+        if node is None:return self.pause('unmet_dependencies')
+        state=nodes[node['id']];cap=plan['registry'].get(node['skill_id'])
         if cap is None:
             state['status']='blocked';return self.pause('missing_capability')
         if blocked_method(current,cap,history):
             state['status']='blocked';return self.pause('same_failed_attempt')
         if node['entry']=='fresh_handoff':
             receipts=[nodes[d]['receipt'] for d in node['depends_on']]
-            neural_dependencies=any(n['id'] in node['depends_on'] and n['skill_id'] in SKILLS
+            neural_dependencies=any(n['id'] in node['depends_on'] and n['skill_id'] in (*SKILLS,*WAYPOINTS)
                                     for n in plan['proposal']['steps'])
             fresh=(current.get('navigation',{}).get('interaction_ready',False) if neural_dependencies else
                    any(r and r['classification'] in ('target_acquired','interaction_ready')
@@ -355,7 +446,7 @@ class RMPlanScheduler:
         root['status']='running' if node['id']=='root' else 'suspended'
         root['progress']=max(0,current['facts']['goal_inventory']-root['baseline'])
         state['status']='active';self.state['active_node']=node['id'];self.save()
-        return dict(node=deepcopy(node),reason='selected')
+        return dict(node=deepcopy(node),reason='selected',scheduling=scheduling)
 
     def pause(self,reason):
         self.state['active_node']=None;self.state['paused_reason']=reason
@@ -368,6 +459,7 @@ class RMPlanScheduler:
         if (current['goal_ref']!=root['reference'] or current['world_id']!=root['world_id']
                 or current['episode_id']!=root['episode_id'] or current['baseline_count']!=root['baseline']):
             raise ValueError('root observation belongs to another RM')
+        self.update_timing(current)
         root['progress']=max(0,current['facts']['goal_inventory']-root['baseline'])
         root['completed']=root['completed'] or goal_satisfied(current)
         if self.state['plans'] and (failure or root['completed']):
@@ -388,6 +480,7 @@ class RMPlanScheduler:
                 or assessment.get('execution_authorized') is not False
                 or assessment.get('rm_effect')!='preserve'):
             raise ValueError('unproven RM node execution outcome')
+        self.update_timing(current)
         completed=goal_satisfied(current)
         handoff=assessment['classification'] in ('target_acquired','interaction_ready')
         success=completed if node_id=='root' else handoff

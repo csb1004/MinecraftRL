@@ -1,0 +1,225 @@
+{
+  "repository": "csb1004/MinecraftRL",
+  "tag": "research-20261015",
+  "groups": [
+    {
+      "id": "wood-policy",
+      "sources": [
+        {
+          "path": "results/onset-coverage-training-20261009"
+        }
+      ],
+      "exclude_names": [
+        "bc-optimizer.pt"
+      ]
+    },
+    {
+      "id": "waypoint-policy",
+      "sources": [
+        {
+          "path": "results/waypoint-training-goal-focused-20261010"
+        }
+      ],
+      "exclude_names": [
+        "bc-optimizer.pt"
+      ]
+    },
+    {
+      "id": "navigation-policy",
+      "sources": [
+        {
+          "path": "results/navigation-refinement-20261014/ppo/mlp"
+        }
+      ],
+      "exclude_names": []
+    },
+    {
+      "id": "worlds-embeddings",
+      "sources": [
+        {
+          "path": "results/blind-recovery-20261012/worlds"
+        },
+        {
+          "path": "results/rl-train-104729-20261005T022109534595Z/run/goal-embed.npy"
+        },
+        {
+          "path": "results/goal-conditioning-diagnosis-20261009/explore_9711.npy"
+        },
+        {
+          "path": "results/subgoal-skills-20261010/embeddings"
+        }
+      ],
+      "exclude_names": []
+    },
+    {
+      "id": "oct12-fixture-records",
+      "sources": [
+        {
+          "path": "results/blind-recovery-20261012/far/fixture"
+        }
+      ],
+      "exclude_names": []
+    },
+    {
+      "id": "oct12-visit-records",
+      "sources": [
+        {
+          "path": "results/blind-recovery-20261012/far/visit_memory"
+        }
+      ],
+      "exclude_names": []
+    },
+    {
+      "id": "oct15-motion-records",
+      "sources": [
+        {
+          "path": "results/exploration-motion-20261015/game-corner"
+        }
+      ],
+      "exclude_names": []
+    },
+    {
+      "id": "reproduction-support",
+      "sources": [
+        {
+          "path": "reproduction"
+        },
+        {
+          "path": "results/conda-steve1-mkl2024-explicit.txt"
+        },
+        {
+          "path": "results/installed-packages-steve1.json"
+        },
+        {
+          "path": "results/setup-steve1.json"
+        },
+        {
+          "path": "results/build-steve1.patch"
+        },
+        {
+          "path": "results/pip-check-steve1.txt"
+        }
+      ],
+      "exclude_names": []
+    }
+  ],
+  "experiments": {
+    "oct12-fixture": {
+      "groups": [
+        "wood-policy",
+        "waypoint-policy",
+        "worlds-embeddings",
+        "oct12-fixture-records",
+        "reproduction-support"
+      ],
+      "record_directory": "results/blind-recovery-20261012/far/fixture",
+      "frozen_assets": {
+        "results/onset-coverage-training-20261009/checkpoint.pt": "473142f1283521eb4417d3b4c6f568af27ad4b1a83113c4b506c9f2f6da153dd",
+        "results/rl-train-104729-20261005T022109534595Z/run/goal-embed.npy": "810512d05a7f228d77aed45f29a21277156f934408e2387f2ae3fd6f4217be40",
+        "results/blind-recovery-20261012/worlds/far.zip": "5239e0ac8e769f75cbc064fd5dc0ecf42da07422b353d899dfd2f74478d5b798",
+        "results/waypoint-training-goal-focused-20261010/checkpoint.pt": "f1dee8013938deca68d87b6eda2c7db1bffa511eaf23528745bbc60bec2c282a"
+      },
+      "source_snapshot": "results/blind-recovery-20261012/far/fixture/source-at-game",
+      "code_commit_at_game": null,
+      "status": "planning_paused",
+      "root_success": false,
+      "execution_valid": false
+    },
+    "oct12-visit-memory": {
+      "groups": [
+        "wood-policy",
+        "waypoint-policy",
+        "worlds-embeddings",
+        "oct12-visit-records",
+        "reproduction-support"
+      ],
+      "record_directory": "results/blind-recovery-20261012/far/visit_memory",
+      "frozen_assets": {
+        "results/onset-coverage-training-20261009/checkpoint.pt": "473142f1283521eb4417d3b4c6f568af27ad4b1a83113c4b506c9f2f6da153dd",
+        "results/rl-train-104729-20261005T022109534595Z/run/goal-embed.npy": "810512d05a7f228d77aed45f29a21277156f934408e2387f2ae3fd6f4217be40",
+        "results/blind-recovery-20261012/worlds/far.zip": "5239e0ac8e769f75cbc064fd5dc0ecf42da07422b353d899dfd2f74478d5b798",
+        "results/waypoint-training-goal-focused-20261010/checkpoint.pt": "f1dee8013938deca68d87b6eda2c7db1bffa511eaf23528745bbc60bec2c282a"
+      },
+      "source_snapshot": "results/blind-recovery-20261012/far/visit_memory/source-at-game",
+      "code_commit_at_game": null,
+      "status": "planning_paused",
+      "root_success": false,
+      "execution_valid": false
+    },
+    "oct15-motion-corner": {
+      "groups": [
+        "wood-policy",
+        "navigation-policy",
+        "worlds-embeddings",
+        "oct15-motion-records",
+        "reproduction-support"
+      ],
+      "record_directory": "results/exploration-motion-20261015/game-corner",
+      "frozen_assets": {
+        "results/onset-coverage-training-20261009/checkpoint.pt": "473142f1283521eb4417d3b4c6f568af27ad4b1a83113c4b506c9f2f6da153dd",
+        "results/rl-train-104729-20261005T022109534595Z/run/goal-embed.npy": "810512d05a7f228d77aed45f29a21277156f934408e2387f2ae3fd6f4217be40",
+        "results/blind-recovery-20261012/worlds/corner.zip": "cbd7890bc992accf4093d6d156f7187f0b03a0af484a40e822ec467f751698a3",
+        "results/navigation-refinement-20261014/ppo/mlp/checkpoint.pt": "e033f1ef7902102569d01459d85cdd80252c141f4e1346bdb40832502e8acaea",
+        "results/goal-conditioning-diagnosis-20261009/explore_9711.npy": "f8839fa46c254dbb7d8834b97d59afd30b995c53b671d22ae64b1ba9ea397d55",
+        "results/subgoal-skills-20261010/embeddings/catalogue.json": "da42cbfadd0747b1d01d28c871c599891992bf9ee2659ef2f0238f847aedd811",
+        "docs/research-spec.md": "4af3ad00c5bab9b9d08b2e23fe768e140944118aa85cf412c45a67bb032275ad"
+      },
+      "source_snapshot": "results/exploration-motion-20261015/game-corner/source-at-game",
+      "code_commit_at_game": null,
+      "status": "planning_paused",
+      "root_success": false,
+      "execution_valid": false
+    }
+  },
+  "base_models": [
+    {
+      "policy": "steve1",
+      "file": "weights/steve1/2x.model",
+      "url": "https://openaipublic.blob.core.windows.net/minecraft-rl/models/2x.model",
+      "bytes": 4369,
+      "sha256": "89f9c5dc7c73484350a4055e842952ba5b70f524126fbc147edf7a4b6f27ccb8",
+      "download_url": "https://openaipublic.blob.core.windows.net/minecraft-rl/models/2x.model",
+      "provenance": "Pinned source download script/config and original local receipt; URLs not re-downloaded during packaging."
+    },
+    {
+      "policy": "steve1",
+      "file": "weights/steve1/steve1.weights",
+      "gdrive_id": "1E3fd_-H1rRZqMkUKHfiMhx-ppLLehQPI",
+      "bytes": 998232471,
+      "sha256": "20f57f58985d338f1fccfc54d7f6407db0468656b697492f3bfb46ffade5c4cf",
+      "download_url": "https://drive.google.com/uc?id=1E3fd_-H1rRZqMkUKHfiMhx-ppLLehQPI",
+      "provenance": "Pinned source download script/config and original local receipt; URLs not re-downloaded during packaging."
+    },
+    {
+      "policy": "steve1",
+      "file": "weights/steve1/attn.pth",
+      "gdrive_id": "1uaZM1ZLBz2dZWcn85rZmjP7LV6Sg5PZW",
+      "official_md5": "b5ece9198337cfd117a3bfbd921e56da",
+      "bytes": 634321445,
+      "sha256": "599cc7f51622fbcbab6db6517e6348ca36cab6ea89388b991d798a6ad68a1c24",
+      "download_url": "https://drive.google.com/uc?id=1uaZM1ZLBz2dZWcn85rZmjP7LV6Sg5PZW",
+      "provenance": "Pinned source download script/config and original local receipt; URLs not re-downloaded during packaging."
+    },
+    {
+      "policy": "steve1",
+      "file": "weights/steve1/steve1_prior.pt",
+      "gdrive_id": "1OdX5wiybK8jALVfP5_dEo0CWm9BQbDES",
+      "bytes": 9474805,
+      "sha256": "e6496c3d926b02d391e5a1d54cce2a07409cdef9febdc5008543ad2ffdc39630",
+      "download_url": "https://drive.google.com/uc?id=1OdX5wiybK8jALVfP5_dEo0CWm9BQbDES",
+      "provenance": "Pinned source download script/config and original local receipt; URLs not re-downloaded during packaging."
+    }
+  ],
+  "runtime": {
+    "distribution": "Ubuntu-24.04",
+    "prefix": ".runtime/steve1",
+    "instructions": "docs/artifact-sharing.md",
+    "not_distributed": [
+      "Minecraft runtime JAR",
+      "MineRL wheel containing game code",
+      "upstream source mirrors",
+      "base model copies"
+    ]
+  },
+  "scope": "Archived development failures and current code; no new gameplay or training; public redistribution excludes game binaries."
+}

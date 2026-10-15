@@ -99,13 +99,17 @@ class ProgressWatchdog:
 
 def run_task_session(policy, env, output, *, seed, limit_s=180., stop_file=None,no_progress_s=60.,
                      gate=None, bus=None, save_screen=save_png,
-                     synchronize=lambda:None, gpu_metrics=lambda:{},world_store=None,restore_bundle=None):
+                     synchronize=lambda:None, gpu_metrics=lambda:{},world_store=None,restore_bundle=None,
+                     scheduled_tasks=None):
     if not 0<limit_s<=180: raise ValueError('limit_s must be in (0,180]')
     watchdog=ProgressWatchdog(no_progress_s)
     output=Path(output); output.mkdir(parents=True,exist_ok=True)
     frames=output/'frames'; frames.mkdir(exist_ok=True)
     external_bus=bus is not None; bus=bus or CommandBus(); gate=gate or StopGate()
-    state=TaskState(); inbox=None; obs=None; sequence=0; started=None
+    from .scheduled_tasks import ScheduledTasks
+    state=scheduled_tasks if scheduled_tasks is not None else TaskState()
+    scheduled=isinstance(state,ScheduledTasks)
+    inbox=None; obs=None; sequence=0; started=None; accounted=None
     world_id=uuid.uuid4().hex; saved_task=object()
     world_verified=False
     restored_terminal=False
@@ -113,7 +117,8 @@ def run_task_session(policy, env, output, *, seed, limit_s=180., stop_file=None,
     report={'status':'initializing','execution_valid':False,'steps':0,'environment_resets':0,
             'worker_pid':os.getpid(),
             'seed':seed,'controller':'policy','session_kind':'revisable_collection',
-            'release':'not_attempted','no_progress_s':no_progress_s,'no_progress_events':0}
+            'release':'not_attempted','no_progress_s':no_progress_s,'no_progress_events':0,
+            'priority_scheduling':scheduled}
     log=(output/'events.jsonl').open('w',encoding='utf-8'); log_lock=threading.RLock()
     def emit(event, **fields):
         with log_lock:
@@ -125,10 +130,15 @@ def run_task_session(policy, env, output, *, seed, limit_s=180., stop_file=None,
         return gate.requested.is_set()
     def checkpoint(force=False):
         nonlocal saved_task
-        task=state.snapshot()
+        task=state.checkpoint(world_id) if scheduled else state.snapshot()
         if force or task!=saved_task:
             atomic_json(output/'task-checkpoint.json',state.checkpoint(world_id))
             saved_task=task
+    def account(service=False):
+        nonlocal accounted
+        if not scheduled or accounted is None: return
+        now=time.monotonic(); delta=max(0.,now-accounted); accounted=now
+        state.advance(delta,service_s=delta if service else 0.)
     def release(reason):
         nonlocal obs,sequence
         outcome=env.release()
@@ -146,7 +156,8 @@ def run_task_session(policy, env, output, *, seed, limit_s=180., stop_file=None,
             name=event.pop('event'); emit(name,**event,inventory=inventory_counts(obs))
             if name=='plan_stage_completed': release('stage_transition')
     def pause_if_stalled():
-        elapsed=watchdog.sample(state.snapshot(),time.monotonic())
+        elapsed=(state.stalled_s() if scheduled else watchdog.sample(state.snapshot(),time.monotonic()))
+        if scheduled and elapsed<watchdog.threshold_s: return False
         if elapsed is None: return False
         state.pause_for_no_progress(elapsed,watchdog.threshold_s)
         prepared_task=state.snapshot()
@@ -165,10 +176,15 @@ def run_task_session(policy, env, output, *, seed, limit_s=180., stop_file=None,
             report['world_restore']=validate_restored_observation(restore_bundle,obs)
             world_id=restore_bundle['world_id']
             state=TaskState.restore(restore_bundle['task_checkpoint'],world_id)
-            restored_terminal=bool(state.task and state.task['status'] in ('completed','cancelled'))
+            if scheduled and not isinstance(state,ScheduledTasks):
+                state=ScheduledTasks.from_legacy(state)
+            scheduled=isinstance(state,ScheduledTasks)
+            report['priority_scheduling']=scheduled
+            restored_terminal=(state.all_terminal() if scheduled else
+                               bool(state.task and state.task['status'] in ('completed','cancelled')))
             sequence=state.last_observation+1
         world_verified=True
-        baseline=inventory_counts(obs); started=time.monotonic()
+        baseline=inventory_counts(obs); started=time.monotonic(); accounted=started
         checkpoint(force=True)
         emit('episode_started',seed=seed,session_kind='revisable_collection',baseline_inventory=baseline,world_id=world_id,worker_pid=report['worker_pid'])
         if restore_bundle is not None:
@@ -177,22 +193,35 @@ def run_task_session(policy, env, output, *, seed, limit_s=180., stop_file=None,
             inbox=DirectoryInbox(output/'commands',bus,emit); inbox.start()
         emit('session_ready',commands=str(output/'commands'))
         while not halted():
+            account()
             if inbox and inbox.error: raise RuntimeError('command reader failed: '+inbox.error)
             for command in bus.drain():
                 if halted(): break
                 try: state.check(command)
                 except ValueError as exc:
                     emit('command_rejected',command_id=command['command_id'],error=str(exc)); continue
-                if command['op'] not in ('request','request_plan'): release(command['op'])
+                if command['op'] not in ('request','request_plan','enqueue'): release(command['op'])
                 if halted(): break
                 task=state.apply(command,inventory_counts(obs))
                 watchdog.reset()
                 restored_terminal=False
                 checkpoint()
-                if command['op'] in ('request','modify','request_plan','modify_plan','resume'): prepared=None
+                if command['op'] in ('request','modify','request_plan','modify_plan','resume','enqueue','reprioritize'): prepared=None
                 emit('command_acknowledged',command_id=command['command_id'],op=command['op'],task=task,
                      observation_sequence=sequence,inventory=inventory_counts(obs))
             if halted(): break
+            if scheduled:
+                previous=state.current_id
+                selected=state.select(inventory_counts(obs))
+                if previous!=state.current_id:
+                    if previous is not None: release('goal_switch')
+                    prepared=None; watchdog.reset()
+                    emit('goal_selected',selection=selected,priorities=state.ledger.snapshot())
+                checkpoint()
+                if state.all_terminal() and not restored_terminal:
+                    report['status']='task_completed' if all(s.task['status']=='completed' for s in state.states.values()) else 'cancelled'
+                    break
+                if halted() or bus.pending(): continue
             task=state.snapshot()
             if restored_terminal:
                 time.sleep(.01); continue
@@ -200,7 +229,9 @@ def run_task_session(policy, env, output, *, seed, limit_s=180., stop_file=None,
             if task is None or task['status']=='paused':
                 time.sleep(.01); continue
             observe(); task=state.snapshot()
-            if task['status']=='completed': report['status']='task_completed'; break
+            if task['status']=='completed':
+                if scheduled: continue
+                report['status']='task_completed'; break
             if bus.pending(): continue
             if pause_if_stalled():
                 prepared=None; continue
@@ -210,6 +241,7 @@ def run_task_session(policy, env, output, *, seed, limit_s=180., stop_file=None,
                 policy.reset(task['policy_goal']); prepared=key
                 emit('policy_reset_finished',task=task,condition=getattr(policy,'condition_metadata',None),worker_pid=report['worker_pid'])
                 if halted() or bus.pending(): continue
+            account()
             token=bus.token(); cycle_start=time.monotonic(); attempts+=1
             frame=frames/('%06d.png'%attempts); save_screen(obs['pov'],frame)
             synchronize()
@@ -239,6 +271,7 @@ def run_task_session(policy, env, output, *, seed, limit_s=180., stop_file=None,
                 emit('action_discarded',attempt=attempts,task=task,generation=token,reason='control_changed_at_dispatch')
                 prepared=None; continue
             if packed is None or not packed[0]: break
+            account(service=True)
             obs,reward,done,info=packed[1]; sequence+=1; report['steps']+=1
             inventory=inventory_counts(obs)
             emit('inventory_observed',task=task,observation_sequence=sequence,inventory=inventory,
@@ -249,7 +282,9 @@ def run_task_session(policy, env, output, *, seed, limit_s=180., stop_file=None,
             cycles.append((time.monotonic()-cycle_start)*1000)
             emit('cycle_timing',attempt=attempts,cycle_ms=cycles[-1])
             if done:
-                report['status']='task_completed' if state.snapshot()['status']=='completed' else 'environment_done'
+                complete=(all(s.task['status']=='completed' for s in state.states.values()) if scheduled
+                          else state.snapshot()['status']=='completed')
+                report['status']='task_completed' if complete else 'environment_done'
                 break
         if report['status']=='initializing':
             report['status']='time_limit' if gate.reason=='time_limit' else 'cancelled'
@@ -260,6 +295,9 @@ def run_task_session(policy, env, output, *, seed, limit_s=180., stop_file=None,
         (output/'traceback.txt').write_text(traceback.format_exc(),encoding='utf-8')
     finally:
         control_ended=time.monotonic(); gate.stop(report['status'])
+        try: account()
+        except Exception as exc:
+            report['schedule_accounting_error']=repr(exc); report['execution_valid']=False
         if inbox:
             try: inbox.close()
             except BaseException as exc: report['inbox_close_error']=repr(exc); report['execution_valid']=False
@@ -286,6 +324,10 @@ def run_task_session(policy, env, output, *, seed, limit_s=180., stop_file=None,
                       elapsed_control_s=None if started is None else control_ended-started,
                       elapsed_cleanup_s=time.monotonic()-control_ended,
                       inference_ms=distribution(inference),control_cycle_ms=distribution(cycles),gpu=gpu_metrics())
+        if scheduled:
+            report.update(goals={k:s.snapshot() for k,s in state.states.items()},priorities=state.ledger.snapshot(),
+                completed_goal_count=sum(s.task['status']=='completed' for s in state.states.values()),
+                task_completed=bool(state.states) and all(s.task['status']=='completed' for s in state.states.values()))
         emit('episode_finished',status=report['status']); log.close()
         write_json(output/'summary.json',report)
     return report

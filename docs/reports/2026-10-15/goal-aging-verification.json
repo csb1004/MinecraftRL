@@ -1,0 +1,52 @@
+{
+  "verified": true,
+  "scope": "Software scheduling and runtime-boundary validation; no Minecraft performance claim",
+  "verified_at": "2026-10-15T18:46:09.2979940+09:00",
+  "windows": {
+    "failed": 0,
+    "skipped": 21,
+    "passed": 625,
+    "total": 646
+  },
+  "wsl": {
+    "initial_passed": 72,
+    "note": "Three wall-clock-dependent tests corrected with a controlled clock; one restore regression added; original failure log preserved",
+    "unchanged_passed": 62,
+    "final_session_passed": 14,
+    "initial_total": 75,
+    "initial_failed": 3,
+    "final_session_tests": 14
+  },
+  "syntax": {
+    "bash": true,
+    "powershell": 2
+  },
+  "research_spec_sha256": "4af3ad00c5bab9b9d08b2e23fe768e140944118aa85cf412c45a67bb032275ad",
+  "stop_latched": true,
+  "actual_game_runs": 0,
+  "training_runs": 0,
+  "paid_api_calls": 0,
+  "colab_connections": 0,
+  "github_writes": 0,
+  "sha256": {
+    "src/minecraftrl/priority_schedule.py": "5d2e05d481ff5ea5795e558035201733d6b73f5b10d5758135cb449059acb7a9",
+    "src/minecraftrl/scheduled_tasks.py": "e56a530afaabb762d8f0c9e3dca41d1c29ccd7dc60ef4376936d8579bd16408f",
+    "src/minecraftrl/tasks.py": "e12c56ec041bda287183bfc26799e5ab4f84ec491dbded88093f6e8647c2f065",
+    "src/minecraftrl/task_runtime.py": "8363e0294a1fbcea693bcd22ecf972d66f4aec888677776acc65d8d051ce30fe",
+    "src/minecraftrl/rm_planner.py": "94774d9c84579b57ab436680eb18ba39fd5e4a79065dd4869fc953c423be85cf",
+    "src/minecraftrl/rm_planning_control.py": "a966600c5fb31c65f61736022df0224f19be96eb20e8ea6b380565f09301ec65",
+    "src/minecraftrl/subgoal_planner.py": "ead7d52760b1fad9f60c2ca1d42d398a4919256d27f20db1a5d4d4a6da12884b",
+    "src/minecraftrl/rm_navigation.py": "a1fbed2d9a66081f054fa24b465fd0c77203c03f9f4a45e64983e672c7c8eaee",
+    "src/minecraftrl/cli.py": "3f7ca4e34a17348ae0662aaccddf6332992c872138da37f3541675902694fef7",
+    "scripts/Send-TaskCommand.ps1": "0ab2ceaa6f2ee0812565dbef07c88364e3a837f9733c50b13853656ef1c462d8",
+    "scripts/Invoke-PolicyProbe.ps1": "93f8610330687797b6d5c842429aafa86f4a33237c12d2efeca569997cfcd53f",
+    "scripts/wsl-probe.sh": "ef5c279ca0298b037b6d76ccc38eb4031e6f80a1629be97e504e733e2482f6ac",
+    "tests/test_priority_schedule.py": "e1903af49b0c1c46b67eabf39600dd6e7d820da32e51f90b70beb146a0076a29",
+    "tests/test_scheduled_tasks.py": "837e80f6b3f2eb1d9aa4d0514da9ea40477dccd3fbdfa47c66491449f7a4a433",
+    "tests/test_rm_priority_aging.py": "34eab2b4aeb325c256c7c55da01ca99ba47ff67adda9f020c6c8b0fc23313db4",
+    "tests/test_priority_command_script.py": "37f66384ec37264f680feedf6e09c9ec1dcfa0936b80af39a84caedf11e99d8f",
+    "results/goal-aging-20261015/windows-tests-complete.log": "9dbbd551422d4cd2b190b8b0e6e8cb7d60245547f914aaaf1ecda51f87a123bc",
+    "results/goal-aging-20261015/wsl-tests.log": "13f8eb582c5320c51eb3bcaf9a120064be98582d23c2ea379130fdb2de4afe8e",
+    "results/goal-aging-20261015/wsl-session-tests-complete.log": "67a0c33c8aa5c08a568f709a7b1c05ef5e850c88b4ce94f0177c8363e4f5bf7d"
+  }
+}

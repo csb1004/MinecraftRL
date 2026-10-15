@@ -1,0 +1,168 @@
+{
+  "verified": true,
+  "training": {
+    "completed": true,
+    "error": null,
+    "method": "bc_continue",
+    "api_calls": 0,
+    "game_actions": 0,
+    "models": [
+      {
+        "kind": "mlp",
+        "before_train": {
+          "nll": 1.5928123855823382,
+          "labels": 519,
+          "kl": 0.0,
+          "stored_logp_max_error": 9.409340500831604
+        },
+        "before_development": {
+          "nll": 2.8091279159416445,
+          "labels": 136,
+          "kl": null,
+          "stored_logp_max_error": 8.410038828849792
+        },
+        "updates": 17,
+        "epochs": [
+          {
+            "epoch": 1,
+            "mean_loss": 1.4257395583040573,
+            "train": {
+              "nll": 1.4518537326035788,
+              "labels": 519,
+              "kl": 0.14289221702054275,
+              "stored_logp_max_error": 9.359645366668701
+            }
+          }
+        ],
+        "trainable_parameters": 638746,
+        "learning_rate": 0.0001,
+        "batch_size": 32,
+        "kl_coefficient": 0.01,
+        "initial_actor_state_sha256": "cd5d86b9c2bd63ffebb2405cd9f7dd0308ab2b2e8854aede9156aac811c74d1c",
+        "epoch_budget": 8,
+        "kl_guard_rollback_epoch": 1,
+        "after_train": {
+          "nll": 1.5928123855823382,
+          "labels": 519,
+          "kl": 0.0,
+          "stored_logp_max_error": 9.409340500831604
+        },
+        "after_development": {
+          "nll": 2.8091279159416445,
+          "labels": 136,
+          "kl": null,
+          "stored_logp_max_error": 8.410038828849792
+        },
+        "checkpoint_sha256": "3aa65e4f34bb848625e4aa7f09cee6470c66ee69f84612f3710fd63ccacc4375",
+        "reload_error": 0.0,
+        "actor_state_sha256": "cd5d86b9c2bd63ffebb2405cd9f7dd0308ab2b2e8854aede9156aac811c74d1c",
+        "value_state_sha256": "66172cbff42a62a3143922d3792760cc5f1e299cbe5bb8abc4a31b15dbb5127d",
+        "value_unchanged": true,
+        "actor_weights_changed": false,
+        "retained_updates": 0
+      }
+    ],
+    "train_labels": 519,
+    "development_labels": 136,
+    "source_sha256": "e033f1ef7902102569d01459d85cdd80252c141f4e1346bdb40832502e8acaea",
+    "inputs": {
+      "results/navigation-refinement-20261014/correction-train-104743/run": "ea9bfb64b6322ed6d4a8ae68a17a3b4d17538f00ab6dc0fc3a71ec42443656e7",
+      "results/navigation-refinement-20261014/correction-train-104759/run": "26af3e6fa8f38a9fb66026927bc39181e96f2d8f0fbb316a45d88d098a4cc03f",
+      "results/near-navigation-20261015/correction-104743/run": "d7893775d35e6e3b90d1a4d3a13e5c4531d4a9bf70dce01261e30e1660f34ed2",
+      "results/near-navigation-20261015/correction-104759/run": "ea0046d0f2fc3176aa3bed112436409a3f0d7651a3d4659fd751d62e1956ab10",
+      "results/navigation-refinement-20261014/correction-development/run": "d4608d8d8b19df87048e5c356f0b2f08b5d0fb599f9d548ccd9c2f567699631f"
+    },
+    "root_unchanged": true,
+    "elapsed_s": 33.78094461699999,
+    "peak_allocated_mib": 449.3095703125
+  },
+  "games": [
+    {
+      "label": "correction-104743",
+      "steps": 176,
+      "learned_arrivals": 0,
+      "teacher_arrivals": 6,
+      "owners": {
+        "student": 48,
+        "neutral": 6,
+        "teacher": 122
+      },
+      "inference_ms": {
+        "count": 176,
+        "median": 47.40668700000583,
+        "p95": 60.68929325000738
+      },
+      "control_cycle_ms": {
+        "count": 176,
+        "median": 114.89761799998632,
+        "p95": 141.36825274999865
+      },
+      "gpu": {
+        "torch_peak_allocated_mib": 1915.00146484375,
+        "torch_peak_reserved_mib": 2126.0,
+        "scope": "PyTorch process including model loading, not total device VRAM"
+      },
+      "device_vram": {
+        "sampled_peak_used_mib": 2685.0,
+        "sample_count": 561,
+        "sampling_error": null,
+        "scope": "entire device 0 including other processes; sampled, may miss short peaks"
+      },
+      "logp_error": 0.0,
+      "probability_audit_sha256": "9e678d811f1438fa9dc0fd65b2fd5ce116164408a0a9e168e6f317d91384bead"
+    },
+    {
+      "label": "correction-104759",
+      "steps": 181,
+      "learned_arrivals": 0,
+      "teacher_arrivals": 6,
+      "owners": {
+        "student": 48,
+        "neutral": 6,
+        "teacher": 127
+      },
+      "inference_ms": {
+        "count": 181,
+        "median": 47.53636599997435,
+        "p95": 61.360178000029464
+      },
+      "control_cycle_ms": {
+        "count": 181,
+        "median": 116.40205000003334,
+        "p95": 139.3576179999627
+      },
+      "gpu": {
+        "torch_peak_allocated_mib": 1915.00146484375,
+        "torch_peak_reserved_mib": 2126.0,
+        "scope": "PyTorch process including model loading, not total device VRAM"
+      },
+      "device_vram": {
+        "sampled_peak_used_mib": 2685.0,
+        "sample_count": 555,
+        "sampling_error": null,
+        "scope": "entire device 0 including other processes; sampled, may miss short peaks"
+      },
+      "logp_error": 0.0,
+      "probability_audit_sha256": "ff83e87d0681f7cbd86646ce059d1ab682f5094e051ff2601712f4334df43775"
+    }
+  ],
+  "selection": null,
+  "rm_followup": null,
+  "initial_comparisons": [],
+  "teacher_label_coverage": {
+    "old_train": {
+      "labels": 270,
+      "within_one_block": 36,
+      "beyond_135_degrees": 1
+    },
+    "new_train": {
+      "labels": 249,
+      "within_one_block": 67,
+      "beyond_135_degrees": 16
+    }
+  },
+  "api_calls": 0,
+  "default_promoted": false,
+  "final_seeds_used": false,
+  "scope": "Train-only teacher labels, frozen parent/value, reused development tasks; demonstrations are not learned success"
+}

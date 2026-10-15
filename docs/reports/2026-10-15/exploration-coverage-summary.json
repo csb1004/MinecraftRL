@@ -1,0 +1,687 @@
+{
+  "verified": true,
+  "games": [
+    {
+      "batch": "rm-refined-navigation-20261015",
+      "world": "far",
+      "strategy": "visited",
+      "steps": 1004,
+      "log_gain": 0,
+      "status": "planning_paused",
+      "execution_valid": false,
+      "worker_exit_code": 2,
+      "runtime_error": null,
+      "navigation_new_cells": 2,
+      "navigation_cell_entries": 7,
+      "repeated_navigation_entries": 5,
+      "planner_calls": 2,
+      "maximum_requests": 2,
+      "navigation": [
+        {
+          "outcome": "failed",
+          "reason": "budget_exhausted",
+          "steps": 100,
+          "diagnosis": "arrival_precision",
+          "exploration": null,
+          "evidence": {
+            "start_distance": 2.9978552666211904,
+            "end_distance": 0.8438941721326776,
+            "minimum_distance": 0.3693743488225073,
+            "path_blocks": 6.129694309558554,
+            "movement_commands": 38,
+            "misaligned_commands": 11,
+            "aligned_low_motion_streak": 3
+          }
+        },
+        {
+          "outcome": "failed",
+          "reason": "budget_exhausted",
+          "steps": 100,
+          "diagnosis": "unresolved_navigation_failure",
+          "exploration": null,
+          "evidence": {
+            "start_distance": 3.000000000000017,
+            "end_distance": 2.41504706112363,
+            "minimum_distance": 2.41504706112363,
+            "path_blocks": 1.7795200557370618,
+            "movement_commands": 76,
+            "misaligned_commands": 3,
+            "aligned_low_motion_streak": 8
+          }
+        }
+      ],
+      "subgoals": [],
+      "pending_nodes": [
+        {
+          "revision": 1,
+          "id": "locate",
+          "status": "superseded"
+        },
+        {
+          "revision": 1,
+          "id": "approach",
+          "status": "superseded"
+        },
+        {
+          "revision": 1,
+          "id": "root",
+          "status": "superseded"
+        },
+        {
+          "revision": 2,
+          "id": "locate",
+          "status": "pending"
+        },
+        {
+          "revision": 2,
+          "id": "approach",
+          "status": "pending"
+        },
+        {
+          "revision": 2,
+          "id": "root",
+          "status": "pending"
+        }
+      ],
+      "inference_ms": {
+        "count": 1000,
+        "median": 54.649064500011946,
+        "p95": 65.58923139998569
+      },
+      "control_cycle_ms": {
+        "count": 1004,
+        "median": 118.0189490000032,
+        "p95": 147.0413148500142
+      },
+      "gpu": {
+        "torch_peak_allocated_mib": 1915.00146484375,
+        "torch_peak_reserved_mib": 2126.0,
+        "scope": "PyTorch process including model loading, not total device VRAM"
+      },
+      "device_vram": {
+        "sampled_peak_used_mib": 2821.0,
+        "sample_count": 1150,
+        "sampling_error": null,
+        "scope": "entire device 0 including other processes; sampled, may miss short peaks"
+      },
+      "prefix_comparison": null,
+      "action_logp_error": 0.0,
+      "post_stop_actions": 0,
+      "held_keys": 0,
+      "owned_pids": [],
+      "source_audit_sha256": "1c8006a1ab483902c7ccf08bc4b34878db10432cc90bb874d84f7741b33c3652"
+    },
+    {
+      "batch": "rm-refined-navigation-20261015",
+      "world": "corner",
+      "strategy": "visited",
+      "steps": 1052,
+      "log_gain": 0,
+      "status": "planning_paused",
+      "execution_valid": false,
+      "worker_exit_code": 2,
+      "runtime_error": null,
+      "navigation_new_cells": 1,
+      "navigation_cell_entries": 7,
+      "repeated_navigation_entries": 6,
+      "planner_calls": 2,
+      "maximum_requests": 2,
+      "navigation": [
+        {
+          "outcome": "completed",
+          "reason": "predicate_satisfied",
+          "steps": 48,
+          "diagnosis": "observed_arrival",
+          "exploration": null,
+          "evidence": {
+            "start_distance": 2.9635072585805378,
+            "end_distance": 0.3095245171479747,
+            "minimum_distance": 0.3095245171479747,
+            "path_blocks": 5.166103291353937,
+            "movement_commands": 22,
+            "misaligned_commands": 4,
+            "aligned_low_motion_streak": 0
+          }
+        },
+        {
+          "outcome": "failed",
+          "reason": "budget_exhausted",
+          "steps": 100,
+          "diagnosis": "unresolved_navigation_failure",
+          "exploration": null,
+          "evidence": {
+            "start_distance": 3.011032763087716,
+            "end_distance": 2.1127028865597035,
+            "minimum_distance": 2.0413939951819,
+            "path_blocks": 5.634025862029729,
+            "movement_commands": 57,
+            "misaligned_commands": 4,
+            "aligned_low_motion_streak": 5
+          }
+        }
+      ],
+      "subgoals": [
+        {
+          "skill_id": "locate_wood",
+          "outcome": "failed",
+          "steps": 100
+        }
+      ],
+      "pending_nodes": [
+        {
+          "revision": 1,
+          "id": "approach",
+          "status": "superseded"
+        },
+        {
+          "revision": 1,
+          "id": "root",
+          "status": "superseded"
+        },
+        {
+          "revision": 2,
+          "id": "locate",
+          "status": "pending"
+        },
+        {
+          "revision": 2,
+          "id": "approach",
+          "status": "pending"
+        },
+        {
+          "revision": 2,
+          "id": "root",
+          "status": "pending"
+        }
+      ],
+      "inference_ms": {
+        "count": 1048,
+        "median": 56.76236500005416,
+        "p95": 67.22882895002158
+      },
+      "control_cycle_ms": {
+        "count": 1052,
+        "median": 120.8788535000167,
+        "p95": 150.74772210002718
+      },
+      "gpu": {
+        "torch_peak_allocated_mib": 1915.00146484375,
+        "torch_peak_reserved_mib": 2126.0,
+        "scope": "PyTorch process including model loading, not total device VRAM"
+      },
+      "device_vram": {
+        "sampled_peak_used_mib": 2857.0,
+        "sample_count": 1185,
+        "sampling_error": null,
+        "scope": "entire device 0 including other processes; sampled, may miss short peaks"
+      },
+      "prefix_comparison": null,
+      "action_logp_error": 0.0,
+      "post_stop_actions": 0,
+      "held_keys": 0,
+      "owned_pids": [],
+      "source_audit_sha256": "826ee3b51a9ebd4beb40dd66312f94f97b9ddc3dd50937b23b411873572718fc"
+    },
+    {
+      "batch": "exploration-coverage-20261015",
+      "world": "far",
+      "strategy": "coverage",
+      "steps": 1033,
+      "log_gain": 0,
+      "status": "planning_paused",
+      "execution_valid": false,
+      "worker_exit_code": 2,
+      "runtime_error": null,
+      "navigation_new_cells": 4,
+      "navigation_cell_entries": 4,
+      "repeated_navigation_entries": 0,
+      "planner_calls": 2,
+      "maximum_requests": 2,
+      "navigation": [
+        {
+          "outcome": "failed",
+          "reason": "budget_exhausted",
+          "steps": 100,
+          "diagnosis": "unresolved_navigation_failure",
+          "exploration": {
+            "new_cells": 2,
+            "new_directed_crossings": 2,
+            "cell_entries": 2,
+            "source": "privileged_server",
+            "root_success_claimed": false,
+            "scope": "Observed position coverage only; distinct from arrival, target discovery and inventory gain"
+          },
+          "evidence": {
+            "start_distance": 2.999999999999985,
+            "end_distance": 1.0900286982937808,
+            "minimum_distance": 1.0879534599555751,
+            "path_blocks": 3.136548380778187,
+            "movement_commands": 29,
+            "misaligned_commands": 1,
+            "aligned_low_motion_streak": 7
+          }
+        },
+        {
+          "outcome": "completed",
+          "reason": "predicate_satisfied",
+          "steps": 53,
+          "diagnosis": "observed_arrival",
+          "exploration": {
+            "new_cells": 2,
+            "new_directed_crossings": 2,
+            "cell_entries": 2,
+            "source": "privileged_server",
+            "root_success_claimed": false,
+            "scope": "Observed position coverage only; distinct from arrival, target discovery and inventory gain"
+          },
+          "evidence": {
+            "start_distance": 2.999999999999956,
+            "end_distance": 0.28413528966600465,
+            "minimum_distance": 0.28413528966600465,
+            "path_blocks": 2.8802456596850767,
+            "movement_commands": 16,
+            "misaligned_commands": 0,
+            "aligned_low_motion_streak": 2
+          }
+        }
+      ],
+      "subgoals": [
+        {
+          "skill_id": "locate_wood",
+          "outcome": "failed",
+          "steps": 100
+        }
+      ],
+      "pending_nodes": [
+        {
+          "revision": 1,
+          "id": "locate",
+          "status": "superseded"
+        },
+        {
+          "revision": 1,
+          "id": "approach",
+          "status": "superseded"
+        },
+        {
+          "revision": 1,
+          "id": "root",
+          "status": "superseded"
+        },
+        {
+          "revision": 2,
+          "id": "approach",
+          "status": "pending"
+        },
+        {
+          "revision": 2,
+          "id": "root",
+          "status": "pending"
+        }
+      ],
+      "inference_ms": {
+        "count": 1029,
+        "median": 46.403920999978254,
+        "p95": 58.2128804000149
+      },
+      "control_cycle_ms": {
+        "count": 1033,
+        "median": 110.45465000000831,
+        "p95": 196.6405251999958
+      },
+      "gpu": {
+        "torch_peak_allocated_mib": 1915.00146484375,
+        "torch_peak_reserved_mib": 2126.0,
+        "scope": "PyTorch process including model loading, not total device VRAM"
+      },
+      "device_vram": {
+        "sampled_peak_used_mib": 2686.0,
+        "sample_count": 1119,
+        "sampling_error": null,
+        "scope": "entire device 0 including other processes; sampled, may miss short peaks"
+      },
+      "prefix_comparison": {
+        "first_pixels_equal": true,
+        "first_different_action": 26,
+        "checked": 776,
+        "causal_comparison": false
+      },
+      "action_logp_error": 0.0,
+      "post_stop_actions": 0,
+      "held_keys": 0,
+      "owned_pids": [],
+      "source_audit_sha256": "8eb5b09fe3879eac8f4d5b8bf2fcf419f061cf84d3513dcddca9c51ed5ca32d9"
+    },
+    {
+      "batch": "exploration-coverage-20261015",
+      "world": "corner",
+      "strategy": "coverage",
+      "steps": 1004,
+      "log_gain": 0,
+      "status": "planning_paused",
+      "execution_valid": false,
+      "worker_exit_code": 2,
+      "runtime_error": null,
+      "navigation_new_cells": 0,
+      "navigation_cell_entries": 3,
+      "repeated_navigation_entries": 3,
+      "planner_calls": 2,
+      "maximum_requests": 2,
+      "navigation": [
+        {
+          "outcome": "failed",
+          "reason": "budget_exhausted",
+          "steps": 100,
+          "diagnosis": "unresolved_navigation_failure",
+          "exploration": {
+            "new_cells": 0,
+            "new_directed_crossings": 2,
+            "cell_entries": 2,
+            "source": "privileged_server",
+            "root_success_claimed": false,
+            "scope": "Observed position coverage only; distinct from arrival, target discovery and inventory gain"
+          },
+          "evidence": {
+            "start_distance": 3.000000000000044,
+            "end_distance": 2.803155344195555,
+            "minimum_distance": 2.7300027618841276,
+            "path_blocks": 1.8599426658311127,
+            "movement_commands": 67,
+            "misaligned_commands": 2,
+            "aligned_low_motion_streak": 6
+          }
+        },
+        {
+          "outcome": "failed",
+          "reason": "budget_exhausted",
+          "steps": 100,
+          "diagnosis": "unresolved_navigation_failure",
+          "exploration": {
+            "new_cells": 0,
+            "new_directed_crossings": 1,
+            "cell_entries": 1,
+            "source": "privileged_server",
+            "root_success_claimed": false,
+            "scope": "Observed position coverage only; distinct from arrival, target discovery and inventory gain"
+          },
+          "evidence": {
+            "start_distance": 2.9661255108902447,
+            "end_distance": 3.194583291667725,
+            "minimum_distance": 2.8225863745044384,
+            "path_blocks": 2.631620761831525,
+            "movement_commands": 76,
+            "misaligned_commands": 3,
+            "aligned_low_motion_streak": 5
+          }
+        }
+      ],
+      "subgoals": [],
+      "pending_nodes": [
+        {
+          "revision": 1,
+          "id": "locate",
+          "status": "superseded"
+        },
+        {
+          "revision": 1,
+          "id": "approach",
+          "status": "superseded"
+        },
+        {
+          "revision": 1,
+          "id": "root",
+          "status": "superseded"
+        },
+        {
+          "revision": 2,
+          "id": "locate",
+          "status": "pending"
+        },
+        {
+          "revision": 2,
+          "id": "approach",
+          "status": "pending"
+        },
+        {
+          "revision": 2,
+          "id": "root",
+          "status": "pending"
+        }
+      ],
+      "inference_ms": {
+        "count": 1000,
+        "median": 46.53324349999366,
+        "p95": 60.5892390499605
+      },
+      "control_cycle_ms": {
+        "count": 1004,
+        "median": 109.41375050003899,
+        "p95": 133.9117193999925
+      },
+      "gpu": {
+        "torch_peak_allocated_mib": 1915.00146484375,
+        "torch_peak_reserved_mib": 2126.0,
+        "scope": "PyTorch process including model loading, not total device VRAM"
+      },
+      "device_vram": {
+        "sampled_peak_used_mib": 2686.0,
+        "sample_count": 928,
+        "sampling_error": null,
+        "scope": "entire device 0 including other processes; sampled, may miss short peaks"
+      },
+      "prefix_comparison": {
+        "first_pixels_equal": true,
+        "first_different_action": 24,
+        "checked": 800,
+        "causal_comparison": false
+      },
+      "action_logp_error": 0.0,
+      "post_stop_actions": 0,
+      "held_keys": 0,
+      "owned_pids": [],
+      "source_audit_sha256": "0ac707e66002cabd753bc6ec7269d1166754e4efc11755e2011d3a0efe9561f9"
+    },
+    {
+      "batch": "exploration-motion-20261015",
+      "world": "corner",
+      "strategy": "coverage_motion",
+      "steps": 1193,
+      "log_gain": 0,
+      "status": "planning_paused",
+      "execution_valid": false,
+      "worker_exit_code": 2,
+      "runtime_error": null,
+      "navigation_new_cells": 3,
+      "navigation_cell_entries": 5,
+      "repeated_navigation_entries": 2,
+      "planner_calls": 3,
+      "maximum_requests": 3,
+      "navigation": [
+        {
+          "outcome": "failed",
+          "reason": "observed_blockage",
+          "steps": 82,
+          "diagnosis": "blocked_direction_suspected",
+          "exploration": {
+            "new_cells": 2,
+            "new_directed_crossings": 2,
+            "cell_entries": 2,
+            "source": "privileged_server",
+            "root_success_claimed": false,
+            "scope": "Observed position coverage only; distinct from arrival, target discovery and inventory gain"
+          },
+          "evidence": {
+            "start_distance": 2.9999999999999925,
+            "end_distance": 1.3417533500367003,
+            "minimum_distance": 1.3363476647031518,
+            "path_blocks": 2.261359477409333,
+            "movement_commands": 38,
+            "misaligned_commands": 2,
+            "aligned_low_motion_streak": 4,
+            "windowed_blockage": {
+              "position": [
+                238.69999998807907,
+                201.0,
+                -797.8580239025251
+              ],
+              "direction": [
+                0.9975724399596414,
+                -0.06963639158491508
+              ],
+              "support_actions": 12,
+              "sequence": 82,
+              "support_sequences": [
+                60,
+                68,
+                69,
+                71,
+                72,
+                73,
+                74,
+                76,
+                77,
+                78,
+                80,
+                82
+              ],
+              "window_actions": 24,
+              "status": "suspected",
+              "terrain_proven": false,
+              "scope": "At least 12 similarly directed low-displacement commands within 24 committed actions near one position"
+            }
+          }
+        },
+        {
+          "outcome": "failed",
+          "reason": "budget_exhausted",
+          "steps": 100,
+          "diagnosis": "unresolved_navigation_failure",
+          "exploration": {
+            "new_cells": 0,
+            "new_directed_crossings": 2,
+            "cell_entries": 2,
+            "source": "privileged_server",
+            "root_success_claimed": false,
+            "scope": "Observed position coverage only; distinct from arrival, target discovery and inventory gain"
+          },
+          "evidence": {
+            "start_distance": 3.000000000000013,
+            "end_distance": 2.093822091126679,
+            "minimum_distance": 2.069002390113109,
+            "path_blocks": 1.683828052415486,
+            "movement_commands": 21,
+            "misaligned_commands": 0,
+            "aligned_low_motion_streak": 2
+          }
+        },
+        {
+          "outcome": "completed",
+          "reason": "predicate_satisfied",
+          "steps": 35,
+          "diagnosis": "observed_arrival",
+          "exploration": {
+            "new_cells": 1,
+            "new_directed_crossings": 1,
+            "cell_entries": 1,
+            "source": "privileged_server",
+            "root_success_claimed": false,
+            "scope": "Observed position coverage only; distinct from arrival, target discovery and inventory gain"
+          },
+          "evidence": {
+            "start_distance": 2.983196943344189,
+            "end_distance": 0.2328590859476168,
+            "minimum_distance": 0.2328590859476168,
+            "path_blocks": 2.824496982355318,
+            "movement_commands": 17,
+            "misaligned_commands": 0,
+            "aligned_low_motion_streak": 2
+          }
+        }
+      ],
+      "subgoals": [
+        {
+          "skill_id": "locate_wood",
+          "outcome": "completed",
+          "steps": 70
+        },
+        {
+          "skill_id": "approach_wood",
+          "outcome": "failed",
+          "steps": 100
+        }
+      ],
+      "pending_nodes": [
+        {
+          "revision": 1,
+          "id": "locate",
+          "status": "superseded"
+        },
+        {
+          "revision": 1,
+          "id": "approach",
+          "status": "superseded"
+        },
+        {
+          "revision": 1,
+          "id": "root",
+          "status": "superseded"
+        },
+        {
+          "revision": 2,
+          "id": "locate",
+          "status": "superseded"
+        },
+        {
+          "revision": 2,
+          "id": "approach",
+          "status": "superseded"
+        },
+        {
+          "revision": 2,
+          "id": "root",
+          "status": "superseded"
+        },
+        {
+          "revision": 3,
+          "id": "root",
+          "status": "pending"
+        }
+      ],
+      "inference_ms": {
+        "count": 1187,
+        "median": 46.08733800000664,
+        "p95": 58.3074382000035
+      },
+      "control_cycle_ms": {
+        "count": 1193,
+        "median": 109.62137800004257,
+        "p95": 141.36120040000714
+      },
+      "gpu": {
+        "torch_peak_allocated_mib": 1915.00146484375,
+        "torch_peak_reserved_mib": 2126.0,
+        "scope": "PyTorch process including model loading, not total device VRAM"
+      },
+      "device_vram": {
+        "sampled_peak_used_mib": 2686.0,
+        "sample_count": 1016,
+        "sampling_error": null,
+        "scope": "entire device 0 including other processes; sampled, may miss short peaks"
+      },
+      "prefix_comparison": {
+        "first_pixels_equal": true,
+        "first_different_action": 7,
+        "checked": 800,
+        "causal_comparison": false
+      },
+      "action_logp_error": 0.0,
+      "post_stop_actions": 0,
+      "held_keys": 0,
+      "owned_pids": [],
+      "source_audit_sha256": "2a4b74881c530ab03c10b67b92e4b1723f892a02aa5894c692e31a70bd642d9b"
+    }
+  ],
+  "api_calls": 0,
+  "optimizer_updates": 0,
+  "scope": "Development diagnostics; prefixes and request budgets can differ; no causal/generalization claim; source is privileged server"
+}

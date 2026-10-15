@@ -344,12 +344,15 @@ class PlanHistory:
 
 class ReplanGuard:
     """Checks proposals only. Every verdict has execution_authorized=False."""
-    def __init__(self, history, capabilities, *, allow_goal_conditioning=False, allow_subgoals=False):
+    def __init__(self, history, capabilities, *, allow_goal_conditioning=False, allow_subgoals=False, allow_waypoints=False):
         self.history = history
         self.capabilities = copy.deepcopy(capabilities)
         for name,cap in self.capabilities.items():
             from .subgoal_skills import SKILLS, validate_capability
-            if allow_subgoals and name in SKILLS:
+            from .waypoint_skill import NAMES,validate_capability as validate_waypoint
+            if allow_waypoints and name in NAMES:
+                expected=validate_waypoint(cap)
+            elif allow_subgoals and name in SKILLS:
                 expected=validate_capability(cap)
             elif allow_goal_conditioning and name=='explore_then_resume':
                 expected=goal_conditioning_capability(cap['policy_ref'],**cap['arguments'])

@@ -4,6 +4,10 @@ STEVE-1의 검증된 화면 기반 정책 위에 구조화된 과업 제어를 �
 임의 Reward Machine 컴파일러, 계획 재수립, Bukkit 연결은 이 경로에 포함하지 않는다.
 이번 RM은 wood/dirt 수집 한 과업의 관측 기반 진행·완료 전이에 한정한다.
 
+2026-10-15 추가: 명시적 `-TaskPriorities` 모드는 여러 수집 목표를 보관하고 미완료 기간,
+실행 대기와 선행 조건으로 다음 목표를 선택한다. 기존 기본 모드는 유지한다.
+[명령·시간·저장 계약](goal-aging.md)을 참조한다.
+
 ## 명령과 권한
 
 명령은 command_id, task_id, op를 갖는다. request/modify만 goal(wood 또는 dirt)과

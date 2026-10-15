@@ -1,0 +1,165 @@
+{
+  "verified": true,
+  "games": [
+    {
+      "world": "far",
+      "steps": 1004,
+      "navigation_steps": 200,
+      "navigation": [
+        {
+          "outcome": "failed",
+          "diagnosis": "arrival_precision",
+          "steps": 100,
+          "already_satisfied": false,
+          "evidence": {
+            "start_distance": 2.9978552666211904,
+            "end_distance": 0.8438941721326776,
+            "minimum_distance": 0.3693743488225073,
+            "path_blocks": 6.129694309558554,
+            "movement_commands": 38,
+            "misaligned_commands": 11,
+            "aligned_low_motion_streak": 3
+          }
+        },
+        {
+          "outcome": "failed",
+          "diagnosis": "unresolved_navigation_failure",
+          "steps": 100,
+          "already_satisfied": false,
+          "evidence": {
+            "start_distance": 3.000000000000017,
+            "end_distance": 2.41504706112363,
+            "minimum_distance": 2.41504706112363,
+            "path_blocks": 1.7795200557370618,
+            "movement_commands": 76,
+            "misaligned_commands": 3,
+            "aligned_low_motion_streak": 8
+          }
+        }
+      ],
+      "subgoals": [],
+      "log_gain": 0,
+      "status": "planning_paused",
+      "actual_llm_calls": 0,
+      "logp_error": 0.0,
+      "audit_sha256": "1c8006a1ab483902c7ccf08bc4b34878db10432cc90bb874d84f7741b33c3652"
+    },
+    {
+      "world": "corner",
+      "steps": 1052,
+      "navigation_steps": 148,
+      "navigation": [
+        {
+          "outcome": "completed",
+          "diagnosis": "observed_arrival",
+          "steps": 48,
+          "already_satisfied": false,
+          "evidence": {
+            "start_distance": 2.9635072585805378,
+            "end_distance": 0.3095245171479747,
+            "minimum_distance": 0.3095245171479747,
+            "path_blocks": 5.166103291353937,
+            "movement_commands": 22,
+            "misaligned_commands": 4,
+            "aligned_low_motion_streak": 0
+          }
+        },
+        {
+          "outcome": "failed",
+          "diagnosis": "unresolved_navigation_failure",
+          "steps": 100,
+          "already_satisfied": false,
+          "evidence": {
+            "start_distance": 3.011032763087716,
+            "end_distance": 2.1127028865597035,
+            "minimum_distance": 2.0413939951819,
+            "path_blocks": 5.634025862029729,
+            "movement_commands": 57,
+            "misaligned_commands": 4,
+            "aligned_low_motion_streak": 5
+          }
+        }
+      ],
+      "subgoals": [
+        {
+          "skill_id": "locate_wood",
+          "outcome": "failed",
+          "reason": "budget_exhausted",
+          "start": 851,
+          "end": 950,
+          "committed_steps": 100,
+          "before": {
+            "position": [
+              234.49813530751283,
+              201.0,
+              -795.3463367215994
+            ],
+            "tick": 932,
+            "target": null,
+            "kind": 0,
+            "target_known": false,
+            "distance": 0.0,
+            "reachable": false,
+            "mining": false,
+            "inventory_gain": 0,
+            "phase": "unknown",
+            "interaction_ready": false,
+            "gui_open": false,
+            "source": "privileged_server"
+          },
+          "after": {
+            "position": [
+              234.02438133094628,
+              202.1661092609382,
+              -797.7196491114429
+            ],
+            "tick": 1032,
+            "target": null,
+            "kind": 0,
+            "target_known": false,
+            "distance": 0.0,
+            "reachable": false,
+            "mining": false,
+            "inventory_gain": 0,
+            "phase": "unknown",
+            "interaction_ready": false,
+            "gui_open": false,
+            "source": "privileged_server"
+          }
+        }
+      ],
+      "log_gain": 0,
+      "status": "planning_paused",
+      "actual_llm_calls": 0,
+      "logp_error": 0.0,
+      "audit_sha256": "826ee3b51a9ebd4beb40dd66312f94f97b9ddc3dd50937b23b411873572718fc"
+    }
+  ],
+  "tests": {
+    "windows-tests.log": {
+      "total": 598,
+      "sha256": "7aaf7ba2db31a5958ba34665a9bcefe1a004c265f5848e81a81c12a93249ef44"
+    },
+    "wsl-tests.log": {
+      "total": 4,
+      "sha256": "c861a22bcae987722e029b94da39beb69f51505cf3b87530e1233580af6d096e"
+    }
+  },
+  "automatic_stop_retained": true,
+  "audit_recovery": {
+    "completed": true,
+    "exit_code": 0,
+    "error": null,
+    "run": "results/rm-refined-navigation-20261015/game-corner/run",
+    "api_calls": 0,
+    "game_actions": 0,
+    "scope": "Preserved trajectory; one torch CPU thread; no gameplay",
+    "elapsed_s": 62.641000000000076,
+    "log_sha256": "222bcddd3a9089e6b8215491a327542349fc7de3a2d27f801cfd5b9d9d1e155f"
+  },
+  "original_weights_worlds_spec_preserved": true,
+  "post_stop_actions": 0,
+  "keys_remaining": 0,
+  "owned_pids_remaining": [],
+  "scope": "Refined actor in RM; privileged observations and fixed planner; no causal or LLM effectiveness claim"
+}

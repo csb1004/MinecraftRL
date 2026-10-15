@@ -12,6 +12,8 @@ from minecraftrl.stall_replay import log_count
 from minecraftrl.subgoal_planner import blocked_subgoal
 from minecraftrl.subgoal_skills import SKILLS, completion, navigation_state
 from minecraftrl.world_store import digest
+from minecraftrl.waypoint_skill import NAMES,assess_navigation,same_failed_route
+from minecraftrl.waypoints import arrived
 
 
 def verify_schedule(run,report,rows,trajectory,history,events):
@@ -29,6 +31,40 @@ def verify_schedule(run,report,rows,trajectory,history,events):
             release_sequence=s['release_sequence'],held_key_count=obs['held_key_count'],baseline_count=root['baseline'])
         actual['navigation']=navigation_state(obs,root['baseline'])
         assert s==actual
+    coverage_states={}
+    if report['condition']['planning'].get('navigation_strategy') in ('coverage','coverage_motion'):
+        from minecraftrl.spatial_memory import SpatialMemory
+        from minecraftrl.exploration_coverage import score_candidates,coverage_delta
+        requests=[e['packet'] for e in events if e['event']=='wait_started']
+        if requests:
+            binding=requests[0]['runtime_binding']
+            memory=SpatialMemory(binding['world_id'],binding['episode_id'],source='privileged_server',dimension='overworld')
+            needed={0}
+            for plan in schedule['plans']:
+                for node in plan['nodes']:
+                    r=node.get('receipt')
+                    if r and r.get('type')=='neural_waypoint':needed.update((r['before']['sequence'],r['after']['sequence']))
+            by_step={p['runtime_binding']['sequence']:p for p in requests}
+            motion=report['condition']['planning'].get('navigation_strategy')=='coverage_motion';route=None
+            for step in range(len(rows)+1):
+                obs=at(step);memory.observe([obs['server_'+a] for a in 'xyz'],obs['server_tick'])
+                if motion and route is not None and step:
+                    row=rows[step-1]
+                    route.observe_action(row['server_before'],row['server_after'],row['action'] if 'waypoint_goal' in row else {},sequence=step)
+                if step in needed:coverage_states[step]=memory.summary()
+                if step in by_step:
+                    context=by_step[step]['waypoint_context']
+                    if motion:
+                        from minecraftrl.adaptive_route import AdaptiveRoute
+                        from minecraftrl.exploration_route import pose_only
+                        route=AdaptiveRoute(pose_only(obs),[[r['server_before']['server_'+a] for a in 'xyz'] for r in rows[:step]],
+                            blocked_directions=route.blocked_directions if route else None,windowed_motion=True)
+                        assert route.blocked_directions==context['motion_evidence']
+                        for actual,expected in zip(context['candidates'],route.candidates):
+                            assert actual['target']==expected['target'] and actual['admissible']==expected['admissible']
+                    ranked,evidence=score_candidates(memory,context['candidates'])
+                    assert evidence==context['exploration']
+                    assert [c['cost'] for c in ranked]==[c['cost'] for c in context['candidates']]
     packets={};plans={};waits=[]
     for e in events:
         if e['event']=='wait_started':
@@ -58,15 +94,42 @@ def verify_schedule(run,report,rows,trajectory,history,events):
             for dep in node['depends_on']:
                 r=next(n['receipt'] for n in plan['nodes'] if n['id']==dep)
                 assert r and r['end_sequence']<=step
-                if r.get('type')=='neural_subgoal':assert r['outcome']=='completed'
+                if r.get('type') in ('neural_subgoal','neural_waypoint'):assert r['outcome']=='completed'
                 else:assert r['classification'] in ('target_acquired','interaction_ready') and r['end_sequence']==step
             if node['id']=='root' and node['depends_on'] and any(
-                    n['id'] in node['depends_on'] and n['skill_id'] in SKILLS for n in plan['proposal']['steps']):
+                    n['id'] in node['depends_on'] and n['skill_id'] in (*SKILLS,*NAMES) for n in plan['proposal']['steps']):
                 assert current['navigation']['interaction_ready']
+            if node['skill_id'] in NAMES:
+                cap=plan['registry'][node['skill_id']]
+                for old in previous:
+                    for old_node in old['nodes']:
+                        r=old_node.get('receipt')
+                        if r:assert not same_failed_route(cap,at(step),r,world_id=current['world_id'],episode_id=current['episode_id'])
     receipts=[]
+    navigation_receipts=[]
     for revision,plan in enumerate(schedule['plans'],1):
         for n in plan['nodes']:
             r=n.get('receipt')
+            if r and r.get('type')=='neural_waypoint':
+                node=next(x for x in plan['proposal']['steps'] if x['id']==n['id'])
+                before,after=r['before'],r['after'];verify_snapshot(before);verify_snapshot(after)
+                window=rows[before['sequence']:after['sequence']]
+                assert r['method']==plan['registry'][node['skill_id']]
+                assert len(window)==r['committed_steps']<=node['budget_ticks']
+                assessment=assess_navigation(r['method'],window,reason=r['reason'])
+                if r['already_satisfied']:
+                    assert not window and arrived(at(after['sequence']),r['method']['arguments']['target'])
+                    assessment.update(outcome='completed',diagnosis='already_satisfied')
+                assert assessment==r['assessment'] and assessment['outcome']==r['outcome']
+                assert r['root_completed']==goal_satisfied(after)
+                if 'exploration' in r:
+                    assert coverage_states
+                    assert r['exploration']==coverage_delta(coverage_states[before['sequence']],coverage_states[after['sequence']])
+                for row in window:
+                    assert row['rm_plan']['revision']==revision and row['rm_plan']['node_id']==n['id']
+                    assert row['waypoint_target']==r['method']['arguments']['target'] and row['mode']=='intervention'
+                navigation_receipts.append(r)
+                continue
             if not r or r.get('type')!='neural_subgoal':continue
             node=next(x for x in plan['proposal']['steps'] if x['id']==n['id'])
             before,after=r['before'],r['after'];verify_snapshot(before);verify_snapshot(after)
@@ -91,7 +154,10 @@ def verify_schedule(run,report,rows,trajectory,history,events):
         if row['owner']=='planner_neutral':continue
         if tag['revision']==0:assert tag['node_id']=='root' and row['mode']=='wood';continue
         plan=plans[tag['revision']];node=next(n for n in plan['proposal']['steps'] if n['id']==tag['node_id'])
-        assert row['subgoal_context']['skill_id']==node['skill_id']
+        if node['skill_id'] in NAMES:
+            assert row['waypoint_target']==plan['registry'][node['skill_id']]['arguments']['target']
+            assert row['waypoint_goal']==saved['waypoint_goal']
+        else:assert row['subgoal_context']['skill_id']==node['skill_id']
         assert row['mode']==('wood' if node['id']=='root' else 'intervention')
     from minecraftrl.recovery_evidence import assess_attempt
     for receipt in report['recovery_attempts']:
@@ -107,8 +173,10 @@ def verify_schedule(run,report,rows,trajectory,history,events):
         assert hashlib.sha256(np.asarray(Image.open(run/s['frame'])).tobytes()).hexdigest()==s['input_image_sha256']
         if s['committed']:assert rows[s['before_action']-1]['embedding_sha256']==s['embedding_sha256']
     assert len(packets)==report['planner_calls'] and len(plans)==len(schedule['plans'])
+    if navigation_receipts:assert read('navigation-receipts.json')==navigation_receipts
     return dict(status=report['status'],protocol='rm_plan_v1',planner_calls=report['planner_calls'],
         installed_plans=len(plans),planner_wait_s=waits,root_preserved=True,subgoal_receipts=receipts,
+        navigation_receipts=navigation_receipts,
         source_sha256={name:digest(run/name) for name in ('summary.json','trajectory.pt','events.jsonl',
             'goal-recovery-rows.json','planner-events.json','planner-history.json','rm-schedule.json','neural-skills.json')
             if (run/name).exists()},

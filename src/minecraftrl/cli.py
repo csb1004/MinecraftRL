@@ -43,14 +43,17 @@ def parser():
     p.add_argument('--rl-checkpoint',type=Path)
     p.add_argument('--rl-embed',type=Path)
     p.add_argument('--rl-waypoint-actor',type=Path,help='Development-only learned waypoint head with known fixture goals')
+    p.add_argument('--rl-navigation-trial',type=Path,help='Explicit bounded navigation correction/evaluation/RL protocol')
     p.add_argument('--rl-waypoint-start',choices=['stall','initial'],default='stall',help='Explicit initial-state diagnostic or normal stall handoff')
-    p.add_argument('--rl-waypoint-planner',choices=['fixture','visit_memory'],default='fixture',help='Oracle fixture route or pose/visit-only exploration goals')
+    p.add_argument('--rl-waypoint-planner',choices=['fixture','visit_memory','adaptive_rule','adaptive_llm'],default='fixture',help='Development route planner; adaptive_llm needs a separately authorized Windows broker')
+    p.add_argument('--rl-navigation-strategy',choices=['visited','coverage','coverage_motion'],default='visited',help='RM candidate ranking: destination visits or observed path coverage with optional motion feedback; no terrain oracle')
     p.add_argument('--rl-recovery-embed',type=Path,help='Eval-only single graph-stall goal-conditioning intervention')
     planner=p.add_mutually_exclusive_group()
     planner.add_argument('--rl-planner-choice',choices=['explore_then_resume','remain_paused'],help='Local fixed planner fixture; no API calls')
     planner.add_argument('--rl-planner-exchange',type=Path,help='One-use Windows broker exchange under project results')
     planner.add_argument('--rl-rm-plan-fixture',choices=['explore','unsupported','subgoals'],help='Fixed subgoal DAG fixture; no LLM')
     p.add_argument('--rl-skill-catalogue',type=Path,help='Opt-in verified neural subgoal embedding catalogue')
+    p.add_argument('--rl-rm-navigation-actor',type=Path,help='Experimental waypoint executor inside the RM subgoal planner')
     p.add_argument('--rl-rm-plan',action='store_true',help='Opt-in subgoal DAG protocol for the planner mailbox')
     p.add_argument('--rl-planner-max-requests',type=int,choices=[1,2,3],default=1)
     p.add_argument('--rl-planner-exchange-live',action='store_true',help='Accept separately authorized live advisory scope')
@@ -64,6 +67,7 @@ def parser():
     p.add_argument('--rl-student-correction',action='store_true',help='Explicit student stall -> neutral -> privileged teacher demonstration')
     p.add_argument('--rl-reward-mode',choices=['sparse','wood-potential-v1','wood-potential-v2','wood-potential-v3','wood-potential-v4'],default='sparse')
     p.add_argument('--task-session', action='store_true')
+    p.add_argument('--task-priorities',action='store_true',help='Persistent multiple collection goals with aging and prerequisite priority inheritance')
     p.add_argument('--world-slot', help='Persistent local world slot (session only; default companion)')
     p.add_argument('--world-store-root',type=Path,help='Project-local isolated world store for experiments')
     p.add_argument('--root', type=Path, default=Path(__file__).resolve().parents[2])
@@ -181,8 +185,17 @@ def worker(args, condition):
         elif args.rl_collect:
             from .rl_policy import RLPolicy
             policy=RLPolicy(env.raw,args.root,output,args.rl_checkpoint,args.rl_embed,resolve_rl_sampling_seed(args),reward_mode=args.rl_reward_mode)
-            if getattr(args,'rl_waypoint_actor',None):
+            if getattr(args,'rl_navigation_trial',None):
+                from .navigation_trial import NavigationTrial
+                trial=json.loads(args.rl_navigation_trial.read_text(encoding='utf-8'))
+                if trial['world_sha256']!=world['sha256']:raise ValueError('navigation trial world mismatch')
+                expected_split='train' if args.rl_split=='train' else 'development'
+                if trial['split']!=expected_split:raise ValueError('navigation trial split mismatch')
+                policy=NavigationTrial(policy,env.raw,world,output,trial,args.root)
+            elif getattr(args,'rl_waypoint_actor',None):
                 from .waypoint_control import WaypointController
+                if args.rl_waypoint_planner.startswith('adaptive_'):
+                    from .adaptive_control import AdaptiveWaypointController as WaypointController
                 policy=WaypointController(policy,args.rl_waypoint_actor,world,output,start_mode=args.rl_waypoint_start,
                     planner_mode=args.rl_waypoint_planner)
             elif getattr(args,'rl_recovery_embed',None):
@@ -201,6 +214,14 @@ def worker(args, condition):
                         extra['catalogue']=load_catalogue(args.rl_skill_catalogue,args.root)
                         if args.rl_rm_plan_fixture=='subgoals':
                             provider=FixedSubgoalProvider(args.rl_planner_delay,max_calls=args.rl_planner_max_requests)
+                        if getattr(args,'rl_rm_navigation_actor',None):
+                            from .rm_navigation import RMNavigationController,FixedNavigationProvider
+                            if not world or world.get('experimental_split')!='development':
+                                raise ValueError('RM navigation integration requires a development world')
+                            controller=RMNavigationController;extra['navigation_checkpoint']=args.rl_rm_navigation_actor
+                            extra['navigation_strategy']=getattr(args,'rl_navigation_strategy','visited')
+                            if args.rl_rm_plan_fixture=='subgoals':
+                                provider=FixedNavigationProvider(args.rl_planner_delay,max_calls=args.rl_planner_max_requests)
                     policy=controller(policy,args.rl_recovery_embed,output,raw=env.raw,
                         world_id=world['sha256'],provider=provider,max_requests=args.rl_planner_max_requests,**extra)
                 elif getattr(args,'rl_planner_choice',None) or getattr(args,'rl_planner_exchange',None):
@@ -233,7 +254,11 @@ def worker(args, condition):
             return {'torch_peak_allocated_mib': torch.cuda.max_memory_allocated()/2**20,
                     'torch_peak_reserved_mib': torch.cuda.max_memory_reserved()/2**20,
                     'scope': 'PyTorch process including model loading, not total device VRAM'}
-        if args.rl_collect and getattr(args,'rl_waypoint_actor',None):
+        if args.rl_collect and getattr(args,'rl_navigation_trial',None):
+            from .navigation_trial import run_navigation_trial
+            report=run_navigation_trial(policy,env,output,world=world,seed=args.seed,limit_s=args.limit_s,
+                gate=gate,stop_file=args.stop_file,synchronize=torch.cuda.synchronize,gpu_metrics=gpu)
+        elif args.rl_collect and getattr(args,'rl_waypoint_actor',None):
             from .waypoint_control import run_waypoint
             report=run_waypoint(policy,env,output,world=world,seed=args.seed,limit_s=args.limit_s,
                 gate=gate,stop_file=args.stop_file,synchronize=torch.cuda.synchronize,gpu_metrics=gpu)
@@ -276,11 +301,13 @@ def worker(args, condition):
                 synchronize=torch.cuda.synchronize,gpu_metrics=gpu)
         elif args.task_session:
             from .task_runtime import run_task_session
+            from .scheduled_tasks import ScheduledTasks
             report = run_task_session(policy,env,output,seed=args.seed,limit_s=args.limit_s,
                                      no_progress_s=args.no_progress_s,
                                      gate=gate,stop_file=args.stop_file,
                                      synchronize=torch.cuda.synchronize,gpu_metrics=gpu,
-                                     world_store=world_store,restore_bundle=restore_bundle)
+                                     world_store=world_store,restore_bundle=restore_bundle,
+                                     scheduled_tasks=ScheduledTasks() if getattr(args,'task_priorities',False) else None)
         else:
             report = run_episode(policy, env, output, seed=args.seed, goal=condition['goal'],
                                  target_items=condition['target_items'], limit_s=args.limit_s,
@@ -334,6 +361,7 @@ def episode(args, condition):
             '--condition',condition['name'],'--seed',str(args.seed),'--limit-s',str(args.limit_s),
             '--output',str(args.output),'--stop-file',str(stop)]
     if task_session: argv.extend(['--task-session','--no-progress-s',str(getattr(args,'no_progress_s',60.))])
+    if getattr(args,'task_priorities',False): argv.append('--task-priorities')
     if getattr(args,'craft_probe',False): argv.append('--craft-probe')
     if getattr(args,'craft_stop_on_success',False): argv.append('--craft-stop-on-success')
     if getattr(args,'craft_recover_cursor',False): argv.append('--craft-recover-cursor')
@@ -350,6 +378,7 @@ def episode(args, condition):
         if getattr(args,'rl_student_correction',False):argv.append('--rl-student-correction')
         if args.rl_checkpoint:argv.extend(['--rl-checkpoint',str(args.rl_checkpoint)])
         if args.rl_embed:argv.extend(['--rl-embed',str(args.rl_embed)])
+        if getattr(args,'rl_navigation_trial',None):argv.extend(['--rl-navigation-trial',str(args.rl_navigation_trial)])
         if getattr(args,'rl_waypoint_actor',None):argv.extend(['--rl-waypoint-actor',str(args.rl_waypoint_actor),
             '--rl-waypoint-start',args.rl_waypoint_start,'--rl-waypoint-planner',args.rl_waypoint_planner])
         if getattr(args,'rl_recovery_embed',None):argv.extend(['--rl-recovery-embed',str(args.rl_recovery_embed)])
@@ -359,6 +388,8 @@ def episode(args, condition):
             argv.extend(['--rl-rm-plan-fixture',args.rl_rm_plan_fixture,'--rl-planner-delay',str(args.rl_planner_delay)])
         if getattr(args,'rl_rm_plan',False):argv.append('--rl-rm-plan')
         if getattr(args,'rl_skill_catalogue',None):argv.extend(['--rl-skill-catalogue',str(args.rl_skill_catalogue)])
+        if getattr(args,'rl_rm_navigation_actor',None):argv.extend(['--rl-rm-navigation-actor',str(args.rl_rm_navigation_actor),
+            '--rl-navigation-strategy',getattr(args,'rl_navigation_strategy','visited')])
         argv.extend(['--rl-planner-max-requests',str(getattr(args,'rl_planner_max_requests',1))])
         if getattr(args,'rl_planner_exchange',None):
             argv.extend(['--rl-planner-exchange',str(args.rl_planner_exchange)])
@@ -477,6 +508,13 @@ def validate_goal_recovery_args(args):
     rm_fixture=getattr(args,'rl_rm_plan_fixture',None)
     rm_plan=getattr(args,'rl_rm_plan',False) or bool(rm_fixture)
     catalogue=getattr(args,'rl_skill_catalogue',None)
+    navigation_actor=getattr(args,'rl_rm_navigation_actor',None)
+    if navigation_actor:
+        if (not catalogue or not rm_plan or getattr(args,'rl_waypoint_actor',None) or
+                rm_fixture not in (None,'subgoals')):
+            raise SystemExit('RM navigation requires a subgoal catalogue and RM plan, without standalone waypoint control')
+        if not navigation_actor.resolve().is_relative_to(args.root.resolve()/'results'):
+            raise SystemExit('RM navigation weights must be project-local results')
     if catalogue and not rm_plan:raise SystemExit('Neural catalogue requires the RM planner')
     if rm_fixture=='subgoals' and not catalogue:raise SystemExit('Subgoal fixture requires a neural catalogue')
     if catalogue:
@@ -508,6 +546,8 @@ def validate_goal_recovery_args(args):
 
 
 def validate_waypoint_args(args):
+    if getattr(args,'rl_navigation_strategy','visited')!='visited' and not getattr(args,'rl_rm_navigation_actor',None):
+        raise SystemExit('coverage exploration requires RM navigation actor')
     path=getattr(args,'rl_waypoint_actor',None)
     if path is None:
         if getattr(args,'rl_waypoint_start','stall')!='stall':raise SystemExit('initial waypoint start requires waypoint actor')
@@ -521,10 +561,21 @@ def validate_waypoint_args(args):
         raise SystemExit('waypoint weights must be project-local results')
 
 
+def validate_navigation_trial_args(args):
+    path=getattr(args,'rl_navigation_trial',None)
+    if not path:return
+    if (not args.rl_collect or not args.rl_world or not args.rl_checkpoint or not args.rl_embed or
+            args.rl_reward_mode!='wood-potential-v4' or args.rl_prepare or args.rl_probe_route or
+            args.rl_teacher or args.rl_student_correction or args.rl_waypoint_actor or args.rl_recovery_embed or
+            args.rl_rm_navigation_actor):raise SystemExit('navigation trial requires isolated parent/world/embedding and v4')
+    if not path.resolve().is_relative_to(args.root.resolve()/'results'):raise SystemExit('navigation protocol must be project-local')
+
+
 def main():
     args = parser().parse_args(); args.root = args.root.resolve()
     validate_goal_recovery_args(args)
     validate_waypoint_args(args)
+    validate_navigation_trial_args(args)
     if args.rl_student_correction and (not args.rl_collect or not args.rl_world or not args.rl_checkpoint or not args.rl_embed
             or args.rl_teacher or args.rl_probe_route or args.rl_prepare or args.rl_reward_mode!='wood-potential-v4'):
         raise SystemExit('student correction requires an explicit checkpoint, embedding, reserved world and v4; no other controller')
@@ -561,6 +612,7 @@ def main():
         if args.policy!='steve1': raise SystemExit('session requires --policy steve1')
         args.task_session=True; args.condition='wood'
         args.world_slot=args.world_slot or 'companion'
+    if args.task_priorities and not args.task_session: raise SystemExit('--task-priorities requires a task session')
     if args.world_slot and not (args.task_session or args.craft_probe): raise SystemExit('--world-slot requires a task session or craft-probe')
     if args.world_store_root:
         args.world_store_root=args.world_store_root.resolve()

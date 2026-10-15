@@ -1,0 +1,85 @@
+{
+  "completed": true,
+  "checks": [
+    {
+      "trial": "far/visit_memory",
+      "steps": 520,
+      "action_logp_max_error": 0.0,
+      "root_success": true,
+      "recovery_evaluated": false,
+      "actual_llm_calls": 0
+    },
+    {
+      "trial": "far/adaptive_rule",
+      "steps": 520,
+      "action_logp_max_error": 0.0,
+      "root_success": true,
+      "recovery_evaluated": false,
+      "actual_llm_calls": 0
+    },
+    {
+      "trial": "far/adaptive_llm",
+      "steps": 677,
+      "action_logp_max_error": 0.0,
+      "root_success": false,
+      "recovery_evaluated": true,
+      "actual_llm_calls": 2
+    },
+    {
+      "trial": "corner/visit_memory",
+      "steps": 1200,
+      "action_logp_max_error": 0.0,
+      "root_success": false,
+      "recovery_evaluated": true,
+      "actual_llm_calls": 0
+    },
+    {
+      "trial": "corner/adaptive_rule",
+      "steps": 800,
+      "action_logp_max_error": 0.0,
+      "root_success": false,
+      "recovery_evaluated": true,
+      "actual_llm_calls": 0
+    },
+    {
+      "trial": "corner/adaptive_llm",
+      "steps": 1097,
+      "action_logp_max_error": 0.0,
+      "root_success": true,
+      "recovery_evaluated": false,
+      "actual_llm_calls": 0
+    }
+  ],
+  "total_actual_transitions": 4814,
+  "tests": {
+    "windows_full": {
+      "total": 566,
+      "skipped": 21,
+      "passed": 545,
+      "log": "results/adaptive-recovery-20261014/windows-final-tests.log"
+    },
+    "wsl_affected": {
+      "total": 28,
+      "skipped": 0,
+      "passed": 28,
+      "log": "results/adaptive-recovery-20261014/wsl-final-tests.log"
+    }
+  },
+  "new_api_calls": 2,
+  "reserved_usd": 0.5,
+  "estimated_usd": 0.00745325,
+  "optimizer_updates": 0,
+  "final_evaluation_seeds_used": 0,
+  "default_policy_promoted": false,
+  "stop_text": "RL collection ended; adaptive recovery trial finished.",
+  "preserved_assets_verified": true,
+  "post_batch_history_fix": "unit/replay verified; six games used archived v1 source",
+  "history_replay": {
+    "archived_steps": 677,
+    "navigation_failures": 1,
+    "interrupted_candidates": 2,
+    "new_api_calls": 0,
+    "new_game_actions": 0
+  },
+  "scope": "Six development trials; privileged pose/root RM, map-free candidates, learned motors. Limited LLM/rule hybrid; not F3-only."
+}

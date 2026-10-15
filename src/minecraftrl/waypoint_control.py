@@ -121,19 +121,24 @@ def run_waypoint(policy,env,output,*,world,gate,stop_file,**kwargs):
         report=run_episode(policy,wrapper,output,goal='collect wood',target_items=LOGS,
             completion_check=lambda obs:wrapper.reward.completed,gate=gate,stop_file=stop_file,
             on_control_closed=closed,**kwargs)
-        report.update(controller='steve1_waypoint_development',rl_updates=0,actual_llm_calls=0,
+        receipts=list((output/'candidate-exchange').glob('request-*/api-receipt.json'))
+        import json
+        actual_calls=sum(json.loads(p.read_text(encoding='utf-8')).get('network_calls',0) for p in receipts)
+        report.update(controller='steve1_waypoint_development',rl_updates=0,actual_llm_calls=actual_calls,
             rl_training_eligible=False,condition=getattr(policy,'condition_metadata',{}),initial_world=world,
             route_started=policy.route is not None,route_completed=bool(policy.route and policy.route.completed),
             route_receipts=policy.route.receipts if policy.route else [],route_failure=policy.failure,
-            mode_steps={mode:sum(r['mode']==mode for r in policy.rows) for mode in ('root','waypoint','resumed')},
+            mode_steps={mode:sum(r['mode']==mode for r in policy.rows) for mode in ('root','waypoint','resumed','root_probe','planner_neutral')},
             root_inventory_success=bool(wrapper.reward and wrapper.reward.completed),direct_action_overrides=0,
             scope=getattr(policy,'condition_metadata',{}).get('goal_source','initialization incomplete')+'; learned motor actions; development only')
         write_json(output/'waypoint-rows.json',policy.rows);write_json(output/'waypoint-switches.json',policy.switches)
         write_json(output/'stall-decisions.json',policy.decisions);write_json(output/'initial-state.json',getattr(wrapper,'initial',{}))
-        if policy.planner_mode=='visit_memory':
+        if policy.planner_mode in ('visit_memory','adaptive_rule','adaptive_llm'):
             write_json(output/'exploration-route.json',dict(
                 decisions=getattr(policy.route,'decisions',[]),failures=getattr(policy.route,'failures',[]),
-                targets=getattr(policy.route,'targets',[]),scope='speculative goals; unknown traversability'))
+                targets=getattr(policy.route,'targets',[]),blocked_directions=getattr(policy.route,'blocked_directions',[]),
+                interruptions=getattr(policy.route,'interruptions',[]),
+                probes=getattr(policy,'probes',[]),scope='speculative goals; unknown traversability'))
         if hasattr(policy,'spatial'):policy.spatial.save(output/'spatial-memory.json')
         if hasattr(policy.student,'initial_state'):
             policy.student.torch.save(dict(rows=policy.student.rows,condition=getattr(policy,'condition_metadata',{}),eligible=False,

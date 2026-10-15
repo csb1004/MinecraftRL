@@ -1,0 +1,187 @@
+{
+  "games": [
+    {
+      "revision": "far",
+      "steps": 1004,
+      "status": "planning_paused",
+      "pause_reasons": [
+        "planning_request_budget_exhausted"
+      ],
+      "planner_calls": 2,
+      "navigation": [
+        {
+          "outcome": "failed",
+          "diagnosis": "arrival_precision",
+          "steps": 100,
+          "evidence": {
+            "start_distance": 2.9978552666211904,
+            "end_distance": 0.8438941721326776,
+            "minimum_distance": 0.3693743488225073,
+            "path_blocks": 6.129694309558554,
+            "movement_commands": 38,
+            "misaligned_commands": 11,
+            "aligned_low_motion_streak": 3
+          }
+        },
+        {
+          "outcome": "failed",
+          "diagnosis": "unresolved_navigation_failure",
+          "steps": 100,
+          "evidence": {
+            "start_distance": 3.000000000000017,
+            "end_distance": 2.41504706112363,
+            "minimum_distance": 2.41504706112363,
+            "path_blocks": 1.7795200557370618,
+            "movement_commands": 76,
+            "misaligned_commands": 3,
+            "aligned_low_motion_streak": 8
+          }
+        }
+      ],
+      "subgoals": [],
+      "log_gain": 0,
+      "actual_llm_calls": 0,
+      "optimizer_updates": 0,
+      "inference_ms": {
+        "count": 1000,
+        "median": 54.649064500011946,
+        "p95": 65.58923139998569
+      },
+      "control_cycle_ms": {
+        "count": 1004,
+        "median": 118.0189490000032,
+        "p95": 147.0413148500142
+      },
+      "gpu": {
+        "torch_peak_allocated_mib": 1915.00146484375,
+        "torch_peak_reserved_mib": 2126.0,
+        "scope": "PyTorch process including model loading, not total device VRAM"
+      },
+      "device_vram": {
+        "sampled_peak_used_mib": 2821.0,
+        "sample_count": 1150,
+        "sampling_error": null,
+        "scope": "entire device 0 including other processes; sampled, may miss short peaks"
+      },
+      "logp_error": 0.0
+    },
+    {
+      "revision": "corner",
+      "steps": 1052,
+      "status": "planning_paused",
+      "pause_reasons": [
+        "planning_request_budget_exhausted"
+      ],
+      "planner_calls": 2,
+      "navigation": [
+        {
+          "outcome": "completed",
+          "diagnosis": "observed_arrival",
+          "steps": 48,
+          "evidence": {
+            "start_distance": 2.9635072585805378,
+            "end_distance": 0.3095245171479747,
+            "minimum_distance": 0.3095245171479747,
+            "path_blocks": 5.166103291353937,
+            "movement_commands": 22,
+            "misaligned_commands": 4,
+            "aligned_low_motion_streak": 0
+          }
+        },
+        {
+          "outcome": "failed",
+          "diagnosis": "unresolved_navigation_failure",
+          "steps": 100,
+          "evidence": {
+            "start_distance": 3.011032763087716,
+            "end_distance": 2.1127028865597035,
+            "minimum_distance": 2.0413939951819,
+            "path_blocks": 5.634025862029729,
+            "movement_commands": 57,
+            "misaligned_commands": 4,
+            "aligned_low_motion_streak": 5
+          }
+        }
+      ],
+      "subgoals": [
+        {
+          "skill_id": "locate_wood",
+          "outcome": "failed",
+          "reason": "budget_exhausted",
+          "start": 851,
+          "end": 950,
+          "committed_steps": 100,
+          "before": {
+            "position": [
+              234.49813530751283,
+              201.0,
+              -795.3463367215994
+            ],
+            "tick": 932,
+            "target": null,
+            "kind": 0,
+            "target_known": false,
+            "distance": 0.0,
+            "reachable": false,
+            "mining": false,
+            "inventory_gain": 0,
+            "phase": "unknown",
+            "interaction_ready": false,
+            "gui_open": false,
+            "source": "privileged_server"
+          },
+          "after": {
+            "position": [
+              234.02438133094628,
+              202.1661092609382,
+              -797.7196491114429
+            ],
+            "tick": 1032,
+            "target": null,
+            "kind": 0,
+            "target_known": false,
+            "distance": 0.0,
+            "reachable": false,
+            "mining": false,
+            "inventory_gain": 0,
+            "phase": "unknown",
+            "interaction_ready": false,
+            "gui_open": false,
+            "source": "privileged_server"
+          }
+        }
+      ],
+      "log_gain": 0,
+      "actual_llm_calls": 0,
+      "optimizer_updates": 0,
+      "inference_ms": {
+        "count": 1048,
+        "median": 56.76236500005416,
+        "p95": 67.22882895002158
+      },
+      "control_cycle_ms": {
+        "count": 1052,
+        "median": 120.8788535000167,
+        "p95": 150.74772210002718
+      },
+      "gpu": {
+        "torch_peak_allocated_mib": 1915.00146484375,
+        "torch_peak_reserved_mib": 2126.0,
+        "scope": "PyTorch process including model loading, not total device VRAM"
+      },
+      "device_vram": {
+        "sampled_peak_used_mib": 2857.0,
+        "sample_count": 1185,
+        "sampling_error": null,
+        "scope": "entire device 0 including other processes; sampled, may miss short peaks"
+      },
+      "logp_error": 0.0
+    }
+  ],
+  "prefix_check": {
+    "first_pixels_equal": false,
+    "first_different_action": 2,
+    "common_prefix_checked": 800
+  },
+  "scope": "Different worlds/prefixes; no causal comparison. Server observations, no live LLM; no wall map in plot."
+}

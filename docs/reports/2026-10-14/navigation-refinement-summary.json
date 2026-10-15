@@ -1,0 +1,2060 @@
+{
+  "runs": [
+    {
+      "label": "correction-development",
+      "mode": "correction",
+      "split": "development",
+      "steps": 334,
+      "actor_sha256": "f1dee8013938deca68d87b6eda2c7db1bffa511eaf23528745bbc60bec2c282a",
+      "seed": 104761,
+      "learned_arrivals": 0,
+      "teacher_arrivals": 6,
+      "goals": [
+        {
+          "index": 0,
+          "target": [
+            228.5,
+            201.0,
+            -793.5
+          ],
+          "outcome": "completed",
+          "owner": "teacher",
+          "actions": 51,
+          "student_success": false,
+          "sequence": 51,
+          "final_distance": 0.19498817125978118,
+          "start_distance": 3.0,
+          "minimum_distance": 0.19498817125978118,
+          "path_blocks": 4.811842663542182,
+          "distance_increase_steps": 4
+        },
+        {
+          "index": 1,
+          "target": [
+            228.5,
+            201.0,
+            -796.5
+          ],
+          "outcome": "completed",
+          "owner": "teacher",
+          "actions": 54,
+          "student_success": false,
+          "sequence": 105,
+          "final_distance": 0.20984346838308432,
+          "start_distance": 3.0755529283410374,
+          "minimum_distance": 0.20984346838308432,
+          "path_blocks": 6.473198651325401,
+          "distance_increase_steps": 6
+        },
+        {
+          "index": 2,
+          "target": [
+            226.5,
+            201.0,
+            -796.5
+          ],
+          "outcome": "completed",
+          "owner": "teacher",
+          "actions": 50,
+          "student_success": false,
+          "sequence": 155,
+          "final_distance": 0.08271083188592013,
+          "start_distance": 1.795376622801978,
+          "minimum_distance": 0.08271083188592013,
+          "path_blocks": 5.513122284604103,
+          "distance_increase_steps": 13
+        },
+        {
+          "index": 3,
+          "target": [
+            226.5,
+            201.0,
+            -797.3
+          ],
+          "outcome": "completed",
+          "owner": "teacher",
+          "actions": 52,
+          "student_success": false,
+          "sequence": 207,
+          "final_distance": 0.17059363373640285,
+          "start_distance": 0.8634716183383505,
+          "minimum_distance": 0.17059363373640285,
+          "path_blocks": 4.792240442086548,
+          "distance_increase_steps": 19
+        },
+        {
+          "index": 4,
+          "target": [
+            228.5,
+            201.0,
+            -797.3
+          ],
+          "outcome": "completed",
+          "owner": "teacher",
+          "actions": 52,
+          "student_success": false,
+          "sequence": 259,
+          "final_distance": 0.239836965488427,
+          "start_distance": 2.0809900157194905,
+          "minimum_distance": 0.239836965488427,
+          "path_blocks": 4.8778387645196855,
+          "distance_increase_steps": 4
+        },
+        {
+          "index": 5,
+          "target": [
+            228.5,
+            201.0,
+            -794.5
+          ],
+          "outcome": "completed",
+          "owner": "teacher",
+          "actions": 75,
+          "student_success": false,
+          "sequence": 334,
+          "final_distance": 0.33529322575376125,
+          "start_distance": 2.5925433585163966,
+          "minimum_distance": 0.33529322575376125,
+          "path_blocks": 9.338543410631281,
+          "distance_increase_steps": 22
+        }
+      ],
+      "unrun_goal_count": 0,
+      "owner_steps": {
+        "student": 192,
+        "neutral": 6,
+        "teacher": 136
+      },
+      "expert_angle_bins": [
+        97,
+        19,
+        19,
+        1
+      ],
+      "expert_within_one_block": 19,
+      "root_inventory_success": false,
+      "inference_ms": {
+        "count": 334,
+        "median": 55.278562500006956,
+        "p95": 65.38187960002233
+      },
+      "cycle_ms": {
+        "count": 334,
+        "median": 126.38556699994297,
+        "p95": 155.893276400036
+      },
+      "gpu": {
+        "torch_peak_allocated_mib": 1915.00146484375,
+        "torch_peak_reserved_mib": 2056.0,
+        "scope": "PyTorch process including model loading, not total device VRAM"
+      },
+      "device_vram": {
+        "sampled_peak_used_mib": 2860.0,
+        "sample_count": 810,
+        "sampling_error": null,
+        "scope": "entire device 0 including other processes; sampled, may miss short peaks"
+      },
+      "first_frame_sha256": "6746690e79920143a5a4644dcb05656a96e880e0d99624149bd45eaaa4cc57ee",
+      "world_sha256": "7408a4a201df7706c39b9666e35f555633081825d64c566639bf30d03ab02cce",
+      "probability_audited": true
+    },
+    {
+      "label": "correction-train-104743",
+      "mode": "correction",
+      "split": "train",
+      "steps": 337,
+      "actor_sha256": "f1dee8013938deca68d87b6eda2c7db1bffa511eaf23528745bbc60bec2c282a",
+      "seed": 104743,
+      "learned_arrivals": 0,
+      "teacher_arrivals": 6,
+      "goals": [
+        {
+          "index": 0,
+          "target": [
+            932.5,
+            201.0,
+            550.5
+          ],
+          "outcome": "completed",
+          "owner": "teacher",
+          "actions": 50,
+          "student_success": false,
+          "sequence": 50,
+          "final_distance": 0.3076148824345649,
+          "start_distance": 3.1622776601683795,
+          "minimum_distance": 0.3076148824345649,
+          "path_blocks": 4.731431819758092,
+          "distance_increase_steps": 0
+        },
+        {
+          "index": 1,
+          "target": [
+            932.5,
+            201.0,
+            547.5
+          ],
+          "outcome": "completed",
+          "owner": "teacher",
+          "actions": 52,
+          "student_success": false,
+          "sequence": 102,
+          "final_distance": 0.3051697076348677,
+          "start_distance": 3.0919117473510718,
+          "minimum_distance": 0.3051697076348677,
+          "path_blocks": 6.191262663786081,
+          "distance_increase_steps": 5
+        },
+        {
+          "index": 2,
+          "target": [
+            930.5,
+            201.0,
+            547.5
+          ],
+          "outcome": "completed",
+          "owner": "teacher",
+          "actions": 65,
+          "student_success": false,
+          "sequence": 167,
+          "final_distance": 0.17542084202485997,
+          "start_distance": 1.7005611676794434,
+          "minimum_distance": 0.17542084202485997,
+          "path_blocks": 5.803573062838207,
+          "distance_increase_steps": 23
+        },
+        {
+          "index": 3,
+          "target": [
+            930.5,
+            201.0,
+            546.7
+          ],
+          "outcome": "completed",
+          "owner": "teacher",
+          "actions": 49,
+          "student_success": false,
+          "sequence": 216,
+          "final_distance": 0.33158511439611865,
+          "start_distance": 0.8388845922649657,
+          "minimum_distance": 0.33158511439611865,
+          "path_blocks": 3.62985228965786,
+          "distance_increase_steps": 6
+        },
+        {
+          "index": 4,
+          "target": [
+            932.5,
+            201.0,
+            546.7
+          ],
+          "outcome": "completed",
+          "owner": "teacher",
+          "actions": 57,
+          "student_success": false,
+          "sequence": 273,
+          "final_distance": 0.3121572523422734,
+          "start_distance": 2.3112953917759658,
+          "minimum_distance": 0.3121572523422734,
+          "path_blocks": 7.6210875080659015,
+          "distance_increase_steps": 18
+        },
+        {
+          "index": 5,
+          "target": [
+            932.5,
+            201.0,
+            549.5
+          ],
+          "outcome": "completed",
+          "owner": "teacher",
+          "actions": 64,
+          "student_success": false,
+          "sequence": 337,
+          "final_distance": 0.2550084810930772,
+          "start_distance": 2.668195400856214,
+          "minimum_distance": 0.2550084810930772,
+          "path_blocks": 8.326141248565218,
+          "distance_increase_steps": 20
+        }
+      ],
+      "unrun_goal_count": 0,
+      "owner_steps": {
+        "student": 192,
+        "neutral": 6,
+        "teacher": 139
+      },
+      "expert_angle_bins": [
+        94,
+        21,
+        23,
+        1
+      ],
+      "expert_within_one_block": 18,
+      "root_inventory_success": false,
+      "inference_ms": {
+        "count": 337,
+        "median": 47.52638700000489,
+        "p95": 58.58050619997357
+      },
+      "cycle_ms": {
+        "count": 337,
+        "median": 112.35703099998773,
+        "p95": 195.89319620001785
+      },
+      "gpu": {
+        "torch_peak_allocated_mib": 1915.00146484375,
+        "torch_peak_reserved_mib": 2056.0,
+        "scope": "PyTorch process including model loading, not total device VRAM"
+      },
+      "device_vram": {
+        "sampled_peak_used_mib": 2876.0,
+        "sample_count": 894,
+        "sampling_error": null,
+        "scope": "entire device 0 including other processes; sampled, may miss short peaks"
+      },
+      "first_frame_sha256": "e79b980eb1dce0bad6bce434fe5a0af3346ab30cf4d0a8a824b4451f3951323b",
+      "world_sha256": "2aa7d3ab22f1ca590252d496842c94bc23de0e67efb8f66a26b2d0dcea08a091",
+      "probability_audited": true
+    },
+    {
+      "label": "correction-train-104759",
+      "mode": "correction",
+      "split": "train",
+      "steps": 329,
+      "actor_sha256": "f1dee8013938deca68d87b6eda2c7db1bffa511eaf23528745bbc60bec2c282a",
+      "seed": 104759,
+      "learned_arrivals": 0,
+      "teacher_arrivals": 6,
+      "goals": [
+        {
+          "index": 0,
+          "target": [
+            -267.5,
+            201.0,
+            -710.5
+          ],
+          "outcome": "completed",
+          "owner": "teacher",
+          "actions": 53,
+          "student_success": false,
+          "sequence": 53,
+          "final_distance": 0.22216225501796835,
+          "start_distance": 3.1622776601683795,
+          "minimum_distance": 0.22216225501796835,
+          "path_blocks": 6.258706094821075,
+          "distance_increase_steps": 1
+        },
+        {
+          "index": 1,
+          "target": [
+            -267.5,
+            201.0,
+            -707.5
+          ],
+          "outcome": "completed",
+          "owner": "teacher",
+          "actions": 56,
+          "student_success": false,
+          "sequence": 109,
+          "final_distance": 0.17860748526960962,
+          "start_distance": 3.099608639692778,
+          "minimum_distance": 0.17860748526960962,
+          "path_blocks": 6.569699278102439,
+          "distance_increase_steps": 1
+        },
+        {
+          "index": 2,
+          "target": [
+            -269.5,
+            201.0,
+            -707.5
+          ],
+          "outcome": "completed",
+          "owner": "teacher",
+          "actions": 54,
+          "student_success": false,
+          "sequence": 163,
+          "final_distance": 0.1636784790464792,
+          "start_distance": 1.822673981909055,
+          "minimum_distance": 0.1636784790464792,
+          "path_blocks": 5.590428703552248,
+          "distance_increase_steps": 16
+        },
+        {
+          "index": 3,
+          "target": [
+            -269.5,
+            201.0,
+            -706.7
+          ],
+          "outcome": "completed",
+          "owner": "teacher",
+          "actions": 48,
+          "student_success": false,
+          "sequence": 211,
+          "final_distance": 0.32018601346124614,
+          "start_distance": 0.712177796212001,
+          "minimum_distance": 0.32018601346124614,
+          "path_blocks": 3.71848964685722,
+          "distance_increase_steps": 19
+        },
+        {
+          "index": 4,
+          "target": [
+            -267.5,
+            201.0,
+            -706.7
+          ],
+          "outcome": "completed",
+          "owner": "teacher",
+          "actions": 54,
+          "student_success": false,
+          "sequence": 265,
+          "final_distance": 0.3197547943966267,
+          "start_distance": 2.265978478162951,
+          "minimum_distance": 0.3197547943966267,
+          "path_blocks": 6.643619730277702,
+          "distance_increase_steps": 13
+        },
+        {
+          "index": 5,
+          "target": [
+            -267.5,
+            201.0,
+            -709.5
+          ],
+          "outcome": "completed",
+          "owner": "teacher",
+          "actions": 64,
+          "student_success": false,
+          "sequence": 329,
+          "final_distance": 0.34837742108048175,
+          "start_distance": 3.013014655161817,
+          "minimum_distance": 0.34837742108048175,
+          "path_blocks": 10.966710914356838,
+          "distance_increase_steps": 26
+        }
+      ],
+      "unrun_goal_count": 0,
+      "owner_steps": {
+        "student": 192,
+        "neutral": 6,
+        "teacher": 131
+      },
+      "expert_angle_bins": [
+        92,
+        20,
+        19,
+        0
+      ],
+      "expert_within_one_block": 18,
+      "root_inventory_success": false,
+      "inference_ms": {
+        "count": 329,
+        "median": 51.66642699998647,
+        "p95": 61.76433419998375
+      },
+      "cycle_ms": {
+        "count": 329,
+        "median": 119.26714200001243,
+        "p95": 154.9658255999475
+      },
+      "gpu": {
+        "torch_peak_allocated_mib": 1915.00146484375,
+        "torch_peak_reserved_mib": 2056.0,
+        "scope": "PyTorch process including model loading, not total device VRAM"
+      },
+      "device_vram": {
+        "sampled_peak_used_mib": 2845.0,
+        "sample_count": 827,
+        "sampling_error": null,
+        "scope": "entire device 0 including other processes; sampled, may miss short peaks"
+      },
+      "first_frame_sha256": "8337ec40c300e16911292051edb346b83efe0aad34e280f96c3f201047ac5168",
+      "world_sha256": "f8d3774e4a1eae2b893daae1485f5cae3b57871671c1bbbb585a11cd2b5e13f6",
+      "probability_audited": true
+    },
+    {
+      "label": "evaluate-linear-corner",
+      "mode": "evaluate",
+      "split": "development",
+      "steps": 427,
+      "actor_sha256": "920bb1dfbbe8df4c35858a1124e0ac1371ecc744a6ac81668f64ace27ea0807b",
+      "seed": 104761,
+      "learned_arrivals": 4,
+      "teacher_arrivals": 0,
+      "goals": [
+        {
+          "index": 0,
+          "target": [
+            228.5,
+            201.0,
+            -790.5
+          ],
+          "outcome": "completed",
+          "owner": "student",
+          "actions": 61,
+          "student_success": true,
+          "sequence": 61,
+          "final_distance": 0.3460425282406153,
+          "start_distance": 5.295280917949535,
+          "minimum_distance": 0.3460425282406153,
+          "path_blocks": 6.019041608811979,
+          "distance_increase_steps": 1
+        },
+        {
+          "index": 1,
+          "target": [
+            228.5,
+            201.0,
+            -787.5
+          ],
+          "outcome": "completed",
+          "owner": "student",
+          "actions": 81,
+          "student_success": true,
+          "sequence": 142,
+          "final_distance": 0.31408593104177585,
+          "start_distance": 3.2367478294806067,
+          "minimum_distance": 0.31408593104177585,
+          "path_blocks": 6.152768443964491,
+          "distance_increase_steps": 16
+        },
+        {
+          "index": 2,
+          "target": [
+            226.5,
+            201.0,
+            -787.5
+          ],
+          "outcome": "failed",
+          "owner": "student",
+          "actions": 100,
+          "student_success": false,
+          "sequence": 242,
+          "final_distance": 1.874514900287649,
+          "start_distance": 2.214889195496727,
+          "minimum_distance": 0.6930424256519516,
+          "path_blocks": 11.620228657498721,
+          "distance_increase_steps": 47
+        },
+        {
+          "index": 3,
+          "target": [
+            226.5,
+            201.0,
+            -786.7
+          ],
+          "outcome": "completed",
+          "owner": "student",
+          "actions": 72,
+          "student_success": true,
+          "sequence": 314,
+          "final_distance": 0.34481727516645233,
+          "start_distance": 1.9408818749650727,
+          "minimum_distance": 0.34481727516645233,
+          "path_blocks": 6.240199104085015,
+          "distance_increase_steps": 21
+        },
+        {
+          "index": 4,
+          "target": [
+            228.5,
+            201.0,
+            -786.7
+          ],
+          "outcome": "completed",
+          "owner": "student",
+          "actions": 13,
+          "student_success": true,
+          "sequence": 327,
+          "final_distance": 0.30443503943932976,
+          "start_distance": 1.949362009505916,
+          "minimum_distance": 0.30443503943932976,
+          "path_blocks": 1.6983218104704059,
+          "distance_increase_steps": 0
+        },
+        {
+          "index": 5,
+          "target": [
+            228.5,
+            201.0,
+            -789.5
+          ],
+          "outcome": "failed",
+          "owner": "student",
+          "actions": 100,
+          "student_success": false,
+          "sequence": 427,
+          "final_distance": 1.835832809084849,
+          "start_distance": 2.9632516426534568,
+          "minimum_distance": 0.6225447438302621,
+          "path_blocks": 12.482433247633747,
+          "distance_increase_steps": 41
+        }
+      ],
+      "unrun_goal_count": 0,
+      "owner_steps": {
+        "student": 427,
+        "neutral": 0,
+        "teacher": 0
+      },
+      "expert_angle_bins": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "expert_within_one_block": 0,
+      "root_inventory_success": false,
+      "inference_ms": {
+        "count": 427,
+        "median": 56.74988700002359,
+        "p95": 68.22458150004422
+      },
+      "cycle_ms": {
+        "count": 427,
+        "median": 126.06471899971439,
+        "p95": 162.75440100016564
+      },
+      "gpu": {
+        "torch_peak_allocated_mib": 1915.00146484375,
+        "torch_peak_reserved_mib": 2126.0,
+        "scope": "PyTorch process including model loading, not total device VRAM"
+      },
+      "device_vram": {
+        "sampled_peak_used_mib": 2822.0,
+        "sample_count": 949,
+        "sampling_error": null,
+        "scope": "entire device 0 including other processes; sampled, may miss short peaks"
+      },
+      "first_frame_sha256": "994f82d71eed890f79ecb7c4362547712a7eeec6403a0e50dfe3714992c0a04e",
+      "world_sha256": "2851b755a45623f97ef800ac844b66e0c22964481352de66f1fae4220a0d7eef",
+      "probability_audited": true
+    },
+    {
+      "label": "evaluate-linear-far",
+      "mode": "evaluate",
+      "split": "development",
+      "steps": 332,
+      "actor_sha256": "920bb1dfbbe8df4c35858a1124e0ac1371ecc744a6ac81668f64ace27ea0807b",
+      "seed": 104761,
+      "learned_arrivals": 5,
+      "teacher_arrivals": 0,
+      "goals": [
+        {
+          "index": 0,
+          "target": [
+            228.5,
+            201.0,
+            -793.5
+          ],
+          "outcome": "completed",
+          "owner": "student",
+          "actions": 32,
+          "student_success": true,
+          "sequence": 32,
+          "final_distance": 0.26889357710736583,
+          "start_distance": 3.0,
+          "minimum_distance": 0.26889357710736583,
+          "path_blocks": 2.8538994454425732,
+          "distance_increase_steps": 0
+        },
+        {
+          "index": 1,
+          "target": [
+            228.5,
+            201.0,
+            -796.5
+          ],
+          "outcome": "completed",
+          "owner": "student",
+          "actions": 79,
+          "student_success": true,
+          "sequence": 111,
+          "final_distance": 0.21132994372383926,
+          "start_distance": 2.7676922083960993,
+          "minimum_distance": 0.21132994372383926,
+          "path_blocks": 7.685386587164685,
+          "distance_increase_steps": 19
+        },
+        {
+          "index": 2,
+          "target": [
+            226.5,
+            201.0,
+            -796.5
+          ],
+          "outcome": "completed",
+          "owner": "student",
+          "actions": 54,
+          "student_success": true,
+          "sequence": 165,
+          "final_distance": 0.2750781619608909,
+          "start_distance": 1.829216219982075,
+          "minimum_distance": 0.2750781619608909,
+          "path_blocks": 6.134551944448846,
+          "distance_increase_steps": 14
+        },
+        {
+          "index": 3,
+          "target": [
+            226.5,
+            201.0,
+            -797.3
+          ],
+          "outcome": "completed",
+          "owner": "student",
+          "actions": 23,
+          "student_success": true,
+          "sequence": 188,
+          "final_distance": 0.3030306332464136,
+          "start_distance": 0.9923726889188069,
+          "minimum_distance": 0.3030306332464136,
+          "path_blocks": 2.4184997459247755,
+          "distance_increase_steps": 9
+        },
+        {
+          "index": 4,
+          "target": [
+            228.5,
+            201.0,
+            -797.3
+          ],
+          "outcome": "failed",
+          "owner": "student",
+          "actions": 100,
+          "student_success": false,
+          "sequence": 288,
+          "final_distance": 1.3898667655173595,
+          "start_distance": 1.6976213467857353,
+          "minimum_distance": 0.5880543993133469,
+          "path_blocks": 8.597876681048229,
+          "distance_increase_steps": 23
+        },
+        {
+          "index": 5,
+          "target": [
+            228.5,
+            201.0,
+            -794.5
+          ],
+          "outcome": "completed",
+          "owner": "student",
+          "actions": 44,
+          "student_success": true,
+          "sequence": 332,
+          "final_distance": 0.30770979994975683,
+          "start_distance": 3.6839397237765654,
+          "minimum_distance": 0.30770979994975683,
+          "path_blocks": 4.7625135742776745,
+          "distance_increase_steps": 11
+        }
+      ],
+      "unrun_goal_count": 0,
+      "owner_steps": {
+        "student": 332,
+        "neutral": 0,
+        "teacher": 0
+      },
+      "expert_angle_bins": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "expert_within_one_block": 0,
+      "root_inventory_success": false,
+      "inference_ms": {
+        "count": 332,
+        "median": 50.542638500019166,
+        "p95": 62.19788364992381
+      },
+      "cycle_ms": {
+        "count": 332,
+        "median": 117.4292850000711,
+        "p95": 148.69656650007528
+      },
+      "gpu": {
+        "torch_peak_allocated_mib": 1915.00146484375,
+        "torch_peak_reserved_mib": 2126.0,
+        "scope": "PyTorch process including model loading, not total device VRAM"
+      },
+      "device_vram": {
+        "sampled_peak_used_mib": 2849.0,
+        "sample_count": 857,
+        "sampling_error": null,
+        "scope": "entire device 0 including other processes; sampled, may miss short peaks"
+      },
+      "first_frame_sha256": "6746690e79920143a5a4644dcb05656a96e880e0d99624149bd45eaaa4cc57ee",
+      "world_sha256": "7408a4a201df7706c39b9666e35f555633081825d64c566639bf30d03ab02cce",
+      "probability_audited": true
+    },
+    {
+      "label": "evaluate-mlp-corner",
+      "mode": "evaluate",
+      "split": "development",
+      "steps": 306,
+      "actor_sha256": "8b5065e9c49b7e3bbdbd0dea7356680a75f8a197c5a04498bd0e76fa17c82681",
+      "seed": 104761,
+      "learned_arrivals": 5,
+      "teacher_arrivals": 0,
+      "goals": [
+        {
+          "index": 0,
+          "target": [
+            228.5,
+            201.0,
+            -790.5
+          ],
+          "outcome": "failed",
+          "owner": "student",
+          "actions": 100,
+          "student_success": false,
+          "sequence": 100,
+          "final_distance": 1.7498740756203275,
+          "start_distance": 5.295280917949535,
+          "minimum_distance": 0.351260359669816,
+          "path_blocks": 10.23926825752559,
+          "distance_increase_steps": 34
+        },
+        {
+          "index": 1,
+          "target": [
+            228.5,
+            201.0,
+            -787.5
+          ],
+          "outcome": "completed",
+          "owner": "student",
+          "actions": 42,
+          "student_success": true,
+          "sequence": 142,
+          "final_distance": 0.29273598013396745,
+          "start_distance": 1.7930018075294571,
+          "minimum_distance": 0.29273598013396745,
+          "path_blocks": 1.5622328214317078,
+          "distance_increase_steps": 0
+        },
+        {
+          "index": 2,
+          "target": [
+            226.5,
+            201.0,
+            -787.5
+          ],
+          "outcome": "completed",
+          "owner": "student",
+          "actions": 28,
+          "student_success": true,
+          "sequence": 170,
+          "final_distance": 0.2744465992816879,
+          "start_distance": 2.266764077771652,
+          "minimum_distance": 0.2744465992816879,
+          "path_blocks": 3.3394049481515053,
+          "distance_increase_steps": 0
+        },
+        {
+          "index": 3,
+          "target": [
+            226.5,
+            201.0,
+            -786.7
+          ],
+          "outcome": "completed",
+          "owner": "student",
+          "actions": 45,
+          "student_success": true,
+          "sequence": 215,
+          "final_distance": 0.3319893235768498,
+          "start_distance": 0.8016134818380142,
+          "minimum_distance": 0.3319893235768498,
+          "path_blocks": 2.624271109816011,
+          "distance_increase_steps": 8
+        },
+        {
+          "index": 4,
+          "target": [
+            228.5,
+            201.0,
+            -786.7
+          ],
+          "outcome": "completed",
+          "owner": "student",
+          "actions": 31,
+          "student_success": true,
+          "sequence": 246,
+          "final_distance": 0.30161665975107554,
+          "start_distance": 2.331553859633714,
+          "minimum_distance": 0.30161665975107554,
+          "path_blocks": 2.3279757079500434,
+          "distance_increase_steps": 0
+        },
+        {
+          "index": 5,
+          "target": [
+            228.5,
+            201.0,
+            -789.5
+          ],
+          "outcome": "completed",
+          "owner": "student",
+          "actions": 60,
+          "student_success": true,
+          "sequence": 306,
+          "final_distance": 0.3034801222456645,
+          "start_distance": 2.6418819941965896,
+          "minimum_distance": 0.3034801222456645,
+          "path_blocks": 3.455123191532134,
+          "distance_increase_steps": 3
+        }
+      ],
+      "unrun_goal_count": 0,
+      "owner_steps": {
+        "student": 306,
+        "neutral": 0,
+        "teacher": 0
+      },
+      "expert_angle_bins": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "expert_within_one_block": 0,
+      "root_inventory_success": false,
+      "inference_ms": {
+        "count": 306,
+        "median": 58.275114000025496,
+        "p95": 69.55761900019297
+      },
+      "cycle_ms": {
+        "count": 306,
+        "median": 130.5959400001484,
+        "p95": 158.2578957500118
+      },
+      "gpu": {
+        "torch_peak_allocated_mib": 1915.00146484375,
+        "torch_peak_reserved_mib": 2126.0,
+        "scope": "PyTorch process including model loading, not total device VRAM"
+      },
+      "device_vram": {
+        "sampled_peak_used_mib": 2873.0,
+        "sample_count": 862,
+        "sampling_error": null,
+        "scope": "entire device 0 including other processes; sampled, may miss short peaks"
+      },
+      "first_frame_sha256": "994f82d71eed890f79ecb7c4362547712a7eeec6403a0e50dfe3714992c0a04e",
+      "world_sha256": "2851b755a45623f97ef800ac844b66e0c22964481352de66f1fae4220a0d7eef",
+      "probability_audited": true
+    },
+    {
+      "label": "evaluate-mlp-far",
+      "mode": "evaluate",
+      "split": "development",
+      "steps": 440,
+      "actor_sha256": "8b5065e9c49b7e3bbdbd0dea7356680a75f8a197c5a04498bd0e76fa17c82681",
+      "seed": 104761,
+      "learned_arrivals": 4,
+      "teacher_arrivals": 0,
+      "goals": [
+        {
+          "index": 0,
+          "target": [
+            228.5,
+            201.0,
+            -793.5
+          ],
+          "outcome": "failed",
+          "owner": "student",
+          "actions": 100,
+          "student_success": false,
+          "sequence": 100,
+          "final_distance": 1.233146936922946,
+          "start_distance": 3.0,
+          "minimum_distance": 0.35862399958122926,
+          "path_blocks": 10.209318801167417,
+          "distance_increase_steps": 24
+        },
+        {
+          "index": 1,
+          "target": [
+            228.5,
+            201.0,
+            -796.5
+          ],
+          "outcome": "completed",
+          "owner": "student",
+          "actions": 40,
+          "student_success": true,
+          "sequence": 140,
+          "final_distance": 0.3038815399907673,
+          "start_distance": 1.7668780125100731,
+          "minimum_distance": 0.3038815399907673,
+          "path_blocks": 3.6009231885788786,
+          "distance_increase_steps": 8
+        },
+        {
+          "index": 2,
+          "target": [
+            226.5,
+            201.0,
+            -796.5
+          ],
+          "outcome": "completed",
+          "owner": "student",
+          "actions": 92,
+          "student_success": true,
+          "sequence": 232,
+          "final_distance": 0.2933554697638321,
+          "start_distance": 2.3038788203008065,
+          "minimum_distance": 0.2933554697638321,
+          "path_blocks": 10.204607580996091,
+          "distance_increase_steps": 26
+        },
+        {
+          "index": 3,
+          "target": [
+            226.5,
+            201.0,
+            -797.3
+          ],
+          "outcome": "completed",
+          "owner": "student",
+          "actions": 80,
+          "student_success": true,
+          "sequence": 312,
+          "final_distance": 0.3249318384883266,
+          "start_distance": 0.8007176735345775,
+          "minimum_distance": 0.3249318384883266,
+          "path_blocks": 5.856757648263787,
+          "distance_increase_steps": 12
+        },
+        {
+          "index": 4,
+          "target": [
+            228.5,
+            201.0,
+            -797.3
+          ],
+          "outcome": "completed",
+          "owner": "student",
+          "actions": 28,
+          "student_success": true,
+          "sequence": 340,
+          "final_distance": 0.2890446410279551,
+          "start_distance": 2.113548625359364,
+          "minimum_distance": 0.2890446410279551,
+          "path_blocks": 2.644965994066133,
+          "distance_increase_steps": 0
+        },
+        {
+          "index": 5,
+          "target": [
+            228.5,
+            201.0,
+            -794.5
+          ],
+          "outcome": "failed",
+          "owner": "student",
+          "actions": 100,
+          "student_success": false,
+          "sequence": 440,
+          "final_distance": 1.0103739520103632,
+          "start_distance": 2.6755964145023112,
+          "minimum_distance": 0.5669471616637223,
+          "path_blocks": 10.87432440437927,
+          "distance_increase_steps": 32
+        }
+      ],
+      "unrun_goal_count": 0,
+      "owner_steps": {
+        "student": 440,
+        "neutral": 0,
+        "teacher": 0
+      },
+      "expert_angle_bins": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "expert_within_one_block": 0,
+      "root_inventory_success": false,
+      "inference_ms": {
+        "count": 440,
+        "median": 53.31577000015386,
+        "p95": 75.23906360002
+      },
+      "cycle_ms": {
+        "count": 440,
+        "median": 125.93709049997415,
+        "p95": 169.7804634502516
+      },
+      "gpu": {
+        "torch_peak_allocated_mib": 1915.00146484375,
+        "torch_peak_reserved_mib": 2126.0,
+        "scope": "PyTorch process including model loading, not total device VRAM"
+      },
+      "device_vram": {
+        "sampled_peak_used_mib": 2843.0,
+        "sample_count": 959,
+        "sampling_error": "TimeoutExpired(['nvidia-smi', '--query-gpu=memory.used', '--format=csv,noheader,nounits', '-i', '0'], 0.5)",
+        "scope": "entire device 0 including other processes; sampled, may miss short peaks"
+      },
+      "first_frame_sha256": "6746690e79920143a5a4644dcb05656a96e880e0d99624149bd45eaaa4cc57ee",
+      "world_sha256": "7408a4a201df7706c39b9666e35f555633081825d64c566639bf30d03ab02cce",
+      "probability_audited": true
+    },
+    {
+      "label": "evaluate-ppo-corner",
+      "mode": "evaluate",
+      "split": "development",
+      "steps": 319,
+      "actor_sha256": "e033f1ef7902102569d01459d85cdd80252c141f4e1346bdb40832502e8acaea",
+      "seed": 104761,
+      "learned_arrivals": 6,
+      "teacher_arrivals": 0,
+      "goals": [
+        {
+          "index": 0,
+          "target": [
+            228.5,
+            201.0,
+            -790.5
+          ],
+          "outcome": "completed",
+          "owner": "student",
+          "actions": 63,
+          "student_success": true,
+          "sequence": 63,
+          "final_distance": 0.34824584892311794,
+          "start_distance": 5.295280917949535,
+          "minimum_distance": 0.34824584892311794,
+          "path_blocks": 5.879835424989622,
+          "distance_increase_steps": 1
+        },
+        {
+          "index": 1,
+          "target": [
+            228.5,
+            201.0,
+            -787.5
+          ],
+          "outcome": "completed",
+          "owner": "student",
+          "actions": 49,
+          "student_success": true,
+          "sequence": 112,
+          "final_distance": 0.2334345659235202,
+          "start_distance": 3.238320124046193,
+          "minimum_distance": 0.2334345659235202,
+          "path_blocks": 5.2882379092644936,
+          "distance_increase_steps": 6
+        },
+        {
+          "index": 2,
+          "target": [
+            226.5,
+            201.0,
+            -787.5
+          ],
+          "outcome": "completed",
+          "owner": "student",
+          "actions": 38,
+          "student_success": true,
+          "sequence": 150,
+          "final_distance": 0.34600543460636235,
+          "start_distance": 2.2327770316333084,
+          "minimum_distance": 0.34600543460636235,
+          "path_blocks": 4.4695124337279255,
+          "distance_increase_steps": 7
+        },
+        {
+          "index": 3,
+          "target": [
+            226.5,
+            201.0,
+            -786.7
+          ],
+          "outcome": "completed",
+          "owner": "student",
+          "actions": 16,
+          "student_success": true,
+          "sequence": 166,
+          "final_distance": 0.2943248061189602,
+          "start_distance": 1.1121735178013965,
+          "minimum_distance": 0.2943248061189602,
+          "path_blocks": 1.0145129996409934,
+          "distance_increase_steps": 0
+        },
+        {
+          "index": 4,
+          "target": [
+            228.5,
+            201.0,
+            -786.7
+          ],
+          "outcome": "completed",
+          "owner": "student",
+          "actions": 80,
+          "student_success": true,
+          "sequence": 246,
+          "final_distance": 0.16101804122834038,
+          "start_distance": 2.232181194622137,
+          "minimum_distance": 0.16101804122834038,
+          "path_blocks": 9.136403144613253,
+          "distance_increase_steps": 14
+        },
+        {
+          "index": 5,
+          "target": [
+            228.5,
+            201.0,
+            -789.5
+          ],
+          "outcome": "completed",
+          "owner": "student",
+          "actions": 73,
+          "student_success": true,
+          "sequence": 319,
+          "final_distance": 0.34355228197780435,
+          "start_distance": 2.6404882156476286,
+          "minimum_distance": 0.34355228197780435,
+          "path_blocks": 5.4803855801586305,
+          "distance_increase_steps": 11
+        }
+      ],
+      "unrun_goal_count": 0,
+      "owner_steps": {
+        "student": 319,
+        "neutral": 0,
+        "teacher": 0
+      },
+      "expert_angle_bins": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "expert_within_one_block": 0,
+      "root_inventory_success": false,
+      "inference_ms": {
+        "count": 319,
+        "median": 59.477383999364974,
+        "p95": 70.12618910066519
+      },
+      "cycle_ms": {
+        "count": 319,
+        "median": 133.659443000397,
+        "p95": 163.8470677999066
+      },
+      "gpu": {
+        "torch_peak_allocated_mib": 1915.00146484375,
+        "torch_peak_reserved_mib": 2126.0,
+        "scope": "PyTorch process including model loading, not total device VRAM"
+      },
+      "device_vram": {
+        "sampled_peak_used_mib": 2909.0,
+        "sample_count": 887,
+        "sampling_error": "TimeoutExpired(['nvidia-smi', '--query-gpu=memory.used', '--format=csv,noheader,nounits', '-i', '0'], 0.5)",
+        "scope": "entire device 0 including other processes; sampled, may miss short peaks"
+      },
+      "first_frame_sha256": "994f82d71eed890f79ecb7c4362547712a7eeec6403a0e50dfe3714992c0a04e",
+      "world_sha256": "2851b755a45623f97ef800ac844b66e0c22964481352de66f1fae4220a0d7eef",
+      "probability_audited": true
+    },
+    {
+      "label": "evaluate-ppo-far",
+      "mode": "evaluate",
+      "split": "development",
+      "steps": 330,
+      "actor_sha256": "e033f1ef7902102569d01459d85cdd80252c141f4e1346bdb40832502e8acaea",
+      "seed": 104761,
+      "learned_arrivals": 4,
+      "teacher_arrivals": 0,
+      "goals": [
+        {
+          "index": 0,
+          "target": [
+            228.5,
+            201.0,
+            -793.5
+          ],
+          "outcome": "completed",
+          "owner": "student",
+          "actions": 30,
+          "student_success": true,
+          "sequence": 30,
+          "final_distance": 0.17516127264376247,
+          "start_distance": 3.0,
+          "minimum_distance": 0.17516127264376247,
+          "path_blocks": 3.654179016529467,
+          "distance_increase_steps": 0
+        },
+        {
+          "index": 1,
+          "target": [
+            228.5,
+            201.0,
+            -796.5
+          ],
+          "outcome": "completed",
+          "owner": "student",
+          "actions": 52,
+          "student_success": true,
+          "sequence": 82,
+          "final_distance": 0.2684817547334166,
+          "start_distance": 3.02383906705552,
+          "minimum_distance": 0.2684817547334166,
+          "path_blocks": 5.926948378514233,
+          "distance_increase_steps": 8
+        },
+        {
+          "index": 2,
+          "target": [
+            226.5,
+            201.0,
+            -796.5
+          ],
+          "outcome": "failed",
+          "owner": "student",
+          "actions": 100,
+          "student_success": false,
+          "sequence": 182,
+          "final_distance": 1.549334155040516,
+          "start_distance": 2.2450006328379764,
+          "minimum_distance": 0.44014860054352445,
+          "path_blocks": 9.320598713504568,
+          "distance_increase_steps": 19
+        },
+        {
+          "index": 3,
+          "target": [
+            226.5,
+            201.0,
+            -797.3
+          ],
+          "outcome": "completed",
+          "owner": "student",
+          "actions": 4,
+          "student_success": true,
+          "sequence": 186,
+          "final_distance": 0.29430460008568354,
+          "start_distance": 0.8666738818615114,
+          "minimum_distance": 0.29430460008568354,
+          "path_blocks": 0.702183677178939,
+          "distance_increase_steps": 0
+        },
+        {
+          "index": 4,
+          "target": [
+            228.5,
+            201.0,
+            -797.3
+          ],
+          "outcome": "completed",
+          "owner": "student",
+          "actions": 44,
+          "student_success": true,
+          "sequence": 230,
+          "final_distance": 0.312802775482865,
+          "start_distance": 2.042033092493145,
+          "minimum_distance": 0.312802775482865,
+          "path_blocks": 4.187741253656562,
+          "distance_increase_steps": 6
+        },
+        {
+          "index": 5,
+          "target": [
+            228.5,
+            201.0,
+            -794.5
+          ],
+          "outcome": "failed",
+          "owner": "student",
+          "actions": 100,
+          "student_success": false,
+          "sequence": 330,
+          "final_distance": 1.0550494429833843,
+          "start_distance": 2.5296680404111296,
+          "minimum_distance": 0.4695679135218063,
+          "path_blocks": 11.9912332280298,
+          "distance_increase_steps": 35
+        }
+      ],
+      "unrun_goal_count": 0,
+      "owner_steps": {
+        "student": 330,
+        "neutral": 0,
+        "teacher": 0
+      },
+      "expert_angle_bins": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "expert_within_one_block": 0,
+      "root_inventory_success": false,
+      "inference_ms": {
+        "count": 330,
+        "median": 63.52598249941366,
+        "p95": 78.03985914979422
+      },
+      "cycle_ms": {
+        "count": 330,
+        "median": 139.9227355000221,
+        "p95": 210.95258659966024
+      },
+      "gpu": {
+        "torch_peak_allocated_mib": 1915.00146484375,
+        "torch_peak_reserved_mib": 2126.0,
+        "scope": "PyTorch process including model loading, not total device VRAM"
+      },
+      "device_vram": {
+        "sampled_peak_used_mib": 2903.0,
+        "sample_count": 957,
+        "sampling_error": null,
+        "scope": "entire device 0 including other processes; sampled, may miss short peaks"
+      },
+      "first_frame_sha256": "6746690e79920143a5a4644dcb05656a96e880e0d99624149bd45eaaa4cc57ee",
+      "world_sha256": "7408a4a201df7706c39b9666e35f555633081825d64c566639bf30d03ab02cce",
+      "probability_audited": true
+    },
+    {
+      "label": "evaluate-prior-corner",
+      "mode": "evaluate",
+      "split": "development",
+      "steps": 541,
+      "actor_sha256": "f1dee8013938deca68d87b6eda2c7db1bffa511eaf23528745bbc60bec2c282a",
+      "seed": 104761,
+      "learned_arrivals": 1,
+      "teacher_arrivals": 0,
+      "goals": [
+        {
+          "index": 0,
+          "target": [
+            228.5,
+            201.0,
+            -790.5
+          ],
+          "outcome": "failed",
+          "owner": "student",
+          "actions": 100,
+          "student_success": false,
+          "sequence": 100,
+          "final_distance": 1.1315410505736834,
+          "start_distance": 5.295280917949535,
+          "minimum_distance": 1.0982727302975672,
+          "path_blocks": 8.931110012884611,
+          "distance_increase_steps": 7
+        },
+        {
+          "index": 1,
+          "target": [
+            228.5,
+            201.0,
+            -787.5
+          ],
+          "outcome": "failed",
+          "owner": "student",
+          "actions": 100,
+          "student_success": false,
+          "sequence": 200,
+          "final_distance": 0.7503305728712878,
+          "start_distance": 4.106015303097453,
+          "minimum_distance": 0.5394439646296316,
+          "path_blocks": 12.068926612687058,
+          "distance_increase_steps": 20
+        },
+        {
+          "index": 2,
+          "target": [
+            226.5,
+            201.0,
+            -787.5
+          ],
+          "outcome": "failed",
+          "owner": "student",
+          "actions": 100,
+          "student_success": false,
+          "sequence": 300,
+          "final_distance": 2.3855513585694803,
+          "start_distance": 1.643563578242251,
+          "minimum_distance": 0.5337278086027853,
+          "path_blocks": 11.09069579377266,
+          "distance_increase_steps": 50
+        },
+        {
+          "index": 3,
+          "target": [
+            226.5,
+            201.0,
+            -786.7
+          ],
+          "outcome": "failed",
+          "owner": "student",
+          "actions": 100,
+          "student_success": false,
+          "sequence": 400,
+          "final_distance": 2.32780558715348,
+          "start_distance": 3.1241027673147372,
+          "minimum_distance": 1.078223148680922,
+          "path_blocks": 12.501642261448293,
+          "distance_increase_steps": 32
+        },
+        {
+          "index": 4,
+          "target": [
+            228.5,
+            201.0,
+            -786.7
+          ],
+          "outcome": "failed",
+          "owner": "student",
+          "actions": 100,
+          "student_success": false,
+          "sequence": 500,
+          "final_distance": 1.900312209893834,
+          "start_distance": 3.283347063352425,
+          "minimum_distance": 1.0599331660084454,
+          "path_blocks": 14.443285130098047,
+          "distance_increase_steps": 37
+        },
+        {
+          "index": 5,
+          "target": [
+            228.5,
+            201.0,
+            -789.5
+          ],
+          "outcome": "completed",
+          "owner": "student",
+          "actions": 41,
+          "student_success": true,
+          "sequence": 541,
+          "final_distance": 0.2923333095270459,
+          "start_distance": 0.9885580290403996,
+          "minimum_distance": 0.2923333095270459,
+          "path_blocks": 3.7954799531811574,
+          "distance_increase_steps": 6
+        }
+      ],
+      "unrun_goal_count": 0,
+      "owner_steps": {
+        "student": 541,
+        "neutral": 0,
+        "teacher": 0
+      },
+      "expert_angle_bins": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "expert_within_one_block": 0,
+      "root_inventory_success": false,
+      "inference_ms": {
+        "count": 541,
+        "median": 55.82950500001971,
+        "p95": 65.81333999997696
+      },
+      "cycle_ms": {
+        "count": 541,
+        "median": 124.19542799989358,
+        "p95": 154.10891900000934
+      },
+      "gpu": {
+        "torch_peak_allocated_mib": 1915.00146484375,
+        "torch_peak_reserved_mib": 2056.0,
+        "scope": "PyTorch process including model loading, not total device VRAM"
+      },
+      "device_vram": {
+        "sampled_peak_used_mib": 2755.0,
+        "sample_count": 958,
+        "sampling_error": null,
+        "scope": "entire device 0 including other processes; sampled, may miss short peaks"
+      },
+      "first_frame_sha256": "994f82d71eed890f79ecb7c4362547712a7eeec6403a0e50dfe3714992c0a04e",
+      "world_sha256": "2851b755a45623f97ef800ac844b66e0c22964481352de66f1fae4220a0d7eef",
+      "probability_audited": true
+    },
+    {
+      "label": "evaluate-prior-far",
+      "mode": "evaluate",
+      "split": "development",
+      "steps": 478,
+      "actor_sha256": "f1dee8013938deca68d87b6eda2c7db1bffa511eaf23528745bbc60bec2c282a",
+      "seed": 104761,
+      "learned_arrivals": 2,
+      "teacher_arrivals": 0,
+      "goals": [
+        {
+          "index": 0,
+          "target": [
+            228.5,
+            201.0,
+            -793.5
+          ],
+          "outcome": "failed",
+          "owner": "student",
+          "actions": 100,
+          "student_success": false,
+          "sequence": 100,
+          "final_distance": 1.4359462741825693,
+          "start_distance": 3.0,
+          "minimum_distance": 0.9521923976455857,
+          "path_blocks": 10.116364890759186,
+          "distance_increase_steps": 17
+        },
+        {
+          "index": 1,
+          "target": [
+            228.5,
+            201.0,
+            -796.5
+          ],
+          "outcome": "failed",
+          "owner": "student",
+          "actions": 100,
+          "student_success": false,
+          "sequence": 200,
+          "final_distance": 1.6226569991632425,
+          "start_distance": 2.666170967310048,
+          "minimum_distance": 0.6227124957129198,
+          "path_blocks": 8.468018983332527,
+          "distance_increase_steps": 17
+        },
+        {
+          "index": 2,
+          "target": [
+            226.5,
+            201.0,
+            -796.5
+          ],
+          "outcome": "completed",
+          "owner": "student",
+          "actions": 65,
+          "student_success": true,
+          "sequence": 265,
+          "final_distance": 0.2169713990445255,
+          "start_distance": 1.6760212724491876,
+          "minimum_distance": 0.2169713990445255,
+          "path_blocks": 6.966700389368438,
+          "distance_increase_steps": 17
+        },
+        {
+          "index": 3,
+          "target": [
+            226.5,
+            201.0,
+            -797.3
+          ],
+          "outcome": "failed",
+          "owner": "student",
+          "actions": 100,
+          "student_success": false,
+          "sequence": 365,
+          "final_distance": 1.2349024704440714,
+          "start_distance": 0.8280726507965639,
+          "minimum_distance": 0.4106805074979193,
+          "path_blocks": 11.283523190447225,
+          "distance_increase_steps": 41
+        },
+        {
+          "index": 4,
+          "target": [
+            228.5,
+            201.0,
+            -797.3
+          ],
+          "outcome": "completed",
+          "owner": "student",
+          "actions": 13,
+          "student_success": true,
+          "sequence": 378,
+          "final_distance": 0.2277978775092635,
+          "start_distance": 1.6436180313639424,
+          "minimum_distance": 0.2277978775092635,
+          "path_blocks": 1.591863446805034,
+          "distance_increase_steps": 0
+        },
+        {
+          "index": 5,
+          "target": [
+            228.5,
+            201.0,
+            -794.5
+          ],
+          "outcome": "failed",
+          "owner": "student",
+          "actions": 100,
+          "student_success": false,
+          "sequence": 478,
+          "final_distance": 2.1923202274945757,
+          "start_distance": 2.5722221196157418,
+          "minimum_distance": 0.6099525396819249,
+          "path_blocks": 12.443713630969894,
+          "distance_increase_steps": 35
+        }
+      ],
+      "unrun_goal_count": 0,
+      "owner_steps": {
+        "student": 478,
+        "neutral": 0,
+        "teacher": 0
+      },
+      "expert_angle_bins": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "expert_within_one_block": 0,
+      "root_inventory_success": false,
+      "inference_ms": {
+        "count": 478,
+        "median": 53.33386900008463,
+        "p95": 62.294681100070186
+      },
+      "cycle_ms": {
+        "count": 478,
+        "median": 118.11115350008095,
+        "p95": 167.01674319982644
+      },
+      "gpu": {
+        "torch_peak_allocated_mib": 1915.00146484375,
+        "torch_peak_reserved_mib": 2056.0,
+        "scope": "PyTorch process including model loading, not total device VRAM"
+      },
+      "device_vram": {
+        "sampled_peak_used_mib": 2714.0,
+        "sample_count": 925,
+        "sampling_error": null,
+        "scope": "entire device 0 including other processes; sampled, may miss short peaks"
+      },
+      "first_frame_sha256": "6746690e79920143a5a4644dcb05656a96e880e0d99624149bd45eaaa4cc57ee",
+      "world_sha256": "7408a4a201df7706c39b9666e35f555633081825d64c566639bf30d03ab02cce",
+      "probability_audited": true
+    },
+    {
+      "label": "ppo-train-104743",
+      "mode": "ppo",
+      "split": "train",
+      "steps": 379,
+      "actor_sha256": "8b5065e9c49b7e3bbdbd0dea7356680a75f8a197c5a04498bd0e76fa17c82681",
+      "seed": 104743,
+      "learned_arrivals": 5,
+      "teacher_arrivals": 0,
+      "goals": [
+        {
+          "index": 0,
+          "target": [
+            932.5,
+            201.0,
+            550.5
+          ],
+          "outcome": "failed",
+          "owner": "student",
+          "actions": 100,
+          "student_success": false,
+          "sequence": 100,
+          "final_distance": 1.7772262301529604,
+          "start_distance": 3.1622776601683795,
+          "minimum_distance": 1.259462028321507,
+          "path_blocks": 13.884696161280793,
+          "distance_increase_steps": 16
+        },
+        {
+          "index": 1,
+          "target": [
+            932.5,
+            201.0,
+            547.5
+          ],
+          "outcome": "completed",
+          "owner": "student",
+          "actions": 61,
+          "student_success": true,
+          "sequence": 161,
+          "final_distance": 0.34301437889052333,
+          "start_distance": 3.0419957262988646,
+          "minimum_distance": 0.34301437889052333,
+          "path_blocks": 5.51739355178586,
+          "distance_increase_steps": 10
+        },
+        {
+          "index": 2,
+          "target": [
+            930.5,
+            201.0,
+            547.5
+          ],
+          "outcome": "completed",
+          "owner": "student",
+          "actions": 41,
+          "student_success": true,
+          "sequence": 202,
+          "final_distance": 0.34714966403972175,
+          "start_distance": 1.9432124656928196,
+          "minimum_distance": 0.34714966403972175,
+          "path_blocks": 2.378949824236873,
+          "distance_increase_steps": 0
+        },
+        {
+          "index": 3,
+          "target": [
+            930.5,
+            201.0,
+            546.7
+          ],
+          "outcome": "completed",
+          "owner": "student",
+          "actions": 70,
+          "student_success": true,
+          "sequence": 272,
+          "final_distance": 0.3237414082317951,
+          "start_distance": 0.5120711379679785,
+          "minimum_distance": 0.3237414082317951,
+          "path_blocks": 6.6926208925226245,
+          "distance_increase_steps": 18
+        },
+        {
+          "index": 4,
+          "target": [
+            932.5,
+            201.0,
+            546.7
+          ],
+          "outcome": "completed",
+          "owner": "student",
+          "actions": 48,
+          "student_success": true,
+          "sequence": 320,
+          "final_distance": 0.3222706634217083,
+          "start_distance": 1.9354268038210016,
+          "minimum_distance": 0.3222706634217083,
+          "path_blocks": 4.411108345861412,
+          "distance_increase_steps": 6
+        },
+        {
+          "index": 5,
+          "target": [
+            932.5,
+            201.0,
+            549.5
+          ],
+          "outcome": "completed",
+          "owner": "student",
+          "actions": 59,
+          "student_success": true,
+          "sequence": 379,
+          "final_distance": 0.3236889821048368,
+          "start_distance": 2.694106972319611,
+          "minimum_distance": 0.3236889821048368,
+          "path_blocks": 4.729576719759434,
+          "distance_increase_steps": 8
+        }
+      ],
+      "unrun_goal_count": 0,
+      "owner_steps": {
+        "student": 379,
+        "neutral": 0,
+        "teacher": 0
+      },
+      "expert_angle_bins": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "expert_within_one_block": 0,
+      "root_inventory_success": false,
+      "inference_ms": {
+        "count": 379,
+        "median": 53.18760200043471,
+        "p95": 63.53983929984679
+      },
+      "cycle_ms": {
+        "count": 379,
+        "median": 122.34890399986398,
+        "p95": 144.1119203002926
+      },
+      "gpu": {
+        "torch_peak_allocated_mib": 1915.00146484375,
+        "torch_peak_reserved_mib": 2126.0,
+        "scope": "PyTorch process including model loading, not total device VRAM"
+      },
+      "device_vram": {
+        "sampled_peak_used_mib": 2858.0,
+        "sample_count": 880,
+        "sampling_error": null,
+        "scope": "entire device 0 including other processes; sampled, may miss short peaks"
+      },
+      "first_frame_sha256": "e79b980eb1dce0bad6bce434fe5a0af3346ab30cf4d0a8a824b4451f3951323b",
+      "world_sha256": "2aa7d3ab22f1ca590252d496842c94bc23de0e67efb8f66a26b2d0dcea08a091",
+      "probability_audited": true
+    },
+    {
+      "label": "ppo-train-104759",
+      "mode": "ppo",
+      "split": "train",
+      "steps": 264,
+      "actor_sha256": "8b5065e9c49b7e3bbdbd0dea7356680a75f8a197c5a04498bd0e76fa17c82681",
+      "seed": 104759,
+      "learned_arrivals": 5,
+      "teacher_arrivals": 0,
+      "goals": [
+        {
+          "index": 0,
+          "target": [
+            -267.5,
+            201.0,
+            -710.5
+          ],
+          "outcome": "failed",
+          "owner": "student",
+          "actions": 100,
+          "student_success": false,
+          "sequence": 100,
+          "final_distance": 2.0719927239791374,
+          "start_distance": 3.1622776601683795,
+          "minimum_distance": 0.41387252549616677,
+          "path_blocks": 12.170195453680256,
+          "distance_increase_steps": 23
+        },
+        {
+          "index": 1,
+          "target": [
+            -267.5,
+            201.0,
+            -707.5
+          ],
+          "outcome": "completed",
+          "owner": "student",
+          "actions": 47,
+          "student_success": true,
+          "sequence": 147,
+          "final_distance": 0.14922367966879993,
+          "start_distance": 3.1001859594178014,
+          "minimum_distance": 0.14922367966879993,
+          "path_blocks": 3.411534048331568,
+          "distance_increase_steps": 1
+        },
+        {
+          "index": 2,
+          "target": [
+            -269.5,
+            201.0,
+            -707.5
+          ],
+          "outcome": "completed",
+          "owner": "student",
+          "actions": 31,
+          "student_success": true,
+          "sequence": 178,
+          "final_distance": 0.16725993154718882,
+          "start_distance": 2.119476557002346,
+          "minimum_distance": 0.16725993154718882,
+          "path_blocks": 3.641335793420958,
+          "distance_increase_steps": 2
+        },
+        {
+          "index": 3,
+          "target": [
+            -269.5,
+            201.0,
+            -706.7
+          ],
+          "outcome": "completed",
+          "owner": "student",
+          "actions": 45,
+          "student_success": true,
+          "sequence": 223,
+          "final_distance": 0.33653729554053313,
+          "start_distance": 0.642280801640345,
+          "minimum_distance": 0.33653729554053313,
+          "path_blocks": 4.016662236486236,
+          "distance_increase_steps": 10
+        },
+        {
+          "index": 4,
+          "target": [
+            -267.5,
+            201.0,
+            -706.7
+          ],
+          "outcome": "completed",
+          "owner": "student",
+          "actions": 15,
+          "student_success": true,
+          "sequence": 238,
+          "final_distance": 0.29211181318942575,
+          "start_distance": 2.2101343541207026,
+          "minimum_distance": 0.29211181318942575,
+          "path_blocks": 2.1988098176971564,
+          "distance_increase_steps": 0
+        },
+        {
+          "index": 5,
+          "target": [
+            -267.5,
+            201.0,
+            -709.5
+          ],
+          "outcome": "completed",
+          "owner": "student",
+          "actions": 26,
+          "student_success": true,
+          "sequence": 264,
+          "final_distance": 0.1924329826447572,
+          "start_distance": 2.7907819376257326,
+          "minimum_distance": 0.1924329826447572,
+          "path_blocks": 2.7005409968438587,
+          "distance_increase_steps": 0
+        }
+      ],
+      "unrun_goal_count": 0,
+      "owner_steps": {
+        "student": 264,
+        "neutral": 0,
+        "teacher": 0
+      },
+      "expert_angle_bins": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "expert_within_one_block": 0,
+      "root_inventory_success": false,
+      "inference_ms": {
+        "count": 264,
+        "median": 54.247063500042714,
+        "p95": 64.68961760019738
+      },
+      "cycle_ms": {
+        "count": 264,
+        "median": 125.91693149988714,
+        "p95": 153.3359839495006
+      },
+      "gpu": {
+        "torch_peak_allocated_mib": 1915.00146484375,
+        "torch_peak_reserved_mib": 2126.0,
+        "scope": "PyTorch process including model loading, not total device VRAM"
+      },
+      "device_vram": {
+        "sampled_peak_used_mib": 2854.0,
+        "sample_count": 880,
+        "sampling_error": null,
+        "scope": "entire device 0 including other processes; sampled, may miss short peaks"
+      },
+      "first_frame_sha256": "8337ec40c300e16911292051edb346b83efe0aad34e280f96c3f201047ac5168",
+      "world_sha256": "f8d3774e4a1eae2b893daae1485f5cae3b57871671c1bbbb585a11cd2b5e13f6",
+      "probability_audited": true
+    }
+  ],
+  "api_calls": 0,
+  "scope": "local privileged-coordinate development; no final evaluation; unrun excluded"
+}

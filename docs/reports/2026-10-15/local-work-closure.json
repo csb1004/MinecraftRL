@@ -1,0 +1,43 @@
+{
+  "verified": true,
+  "new_games": 7,
+  "new_transitions": 4406,
+  "exploration_games": 3,
+  "near_correction_and_development_games": 4,
+  "retained_bc_updates": 17,
+  "near_candidate_promoted": false,
+  "api_calls": 0,
+  "final_seeds_used": false,
+  "checks": {
+    "windows-tests.log": {
+      "count": 616,
+      "sha256": "969e3391c5eed27adf7719bb134fa7af4c4747e3b7df487158a973b83b68e644"
+    },
+    "wsl-tests.log": {
+      "count": 30,
+      "sha256": "726c3dc928d0039e85a672a6c66f127d0e158814149b5fd2129409ed4d3e8e68"
+    },
+    "recovered-motion-green.log": {
+      "count": 48,
+      "sha256": "0f925f068e6db644679270e7874442ac375c3e5552df376a75d0bf7848e08724"
+    },
+    "guards-wsl-tests.log": {
+      "count": 9,
+      "sha256": "024e4c862240829a660273c67eebf691315d58af4596d1319311bc1656e8e856"
+    }
+  },
+  "process_check": {
+    "checked_at": "2026-10-15T14:04:52.2888757+09:00",
+    "windows_project_processes": [],
+    "wsl_project_processes": [],
+    "stop_retained": true,
+    "stop_text": "RL collection ended; navigation refinement trial finished.",
+    "research_spec_sha256": "4af3ad00c5bab9b9d08b2e23fe768e140944118aa85cf412c45a67bb032275ad"
+  },
+  "evidence_sha256": {
+    "docs/reports/2026-10-15/exploration-coverage-summary.json": "81f5151f8d83123899fe2a7f3dcf5a8660f10a8781c25e885cd002c32e5a4735",
+    "results/near-navigation-low-lr-20261015/verification.json": "60aa843d7edda0e69721f235eb12289878c4d7166bcc849b26695442b9860773",
+    "results/exploration-motion-20261015/motion-guard-replay.json": "f8bc9ad7fcd3dcb3d6edc61c0c047a095eac1eaefad85d406541549247df768b"
+  },
+  "scope": "Local bounded diagnostics; no inventory success or exploration generalization claim; no added RL optimizer updates"
+}

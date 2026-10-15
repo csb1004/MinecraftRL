@@ -1,0 +1,620 @@
+{
+  "verified": true,
+  "training": {
+    "completed": true,
+    "error": null,
+    "method": "bc_continue",
+    "api_calls": 0,
+    "game_actions": 0,
+    "models": [
+      {
+        "kind": "mlp",
+        "before_train": {
+          "nll": 1.5928123855823382,
+          "labels": 519,
+          "kl": 0.0,
+          "stored_logp_max_error": 9.409340500831604
+        },
+        "before_development": {
+          "nll": 2.8091279159416445,
+          "labels": 136,
+          "kl": null,
+          "stored_logp_max_error": 8.410038828849792
+        },
+        "updates": 34,
+        "epochs": [
+          {
+            "epoch": 1,
+            "mean_loss": 1.4814898266511805,
+            "train": {
+              "nll": 1.5377201696719638,
+              "labels": 519,
+              "kl": 0.01207283012232343,
+              "stored_logp_max_error": 9.482972025871277
+            }
+          },
+          {
+            "epoch": 2,
+            "mean_loss": 1.4770096750820385,
+            "train": {
+              "nll": 1.501937468803572,
+              "labels": 519,
+              "kl": 0.03794497074103427,
+              "stored_logp_max_error": 9.474010348320007
+            }
+          }
+        ],
+        "trainable_parameters": 638746,
+        "learning_rate": 2e-05,
+        "batch_size": 32,
+        "kl_coefficient": 0.01,
+        "initial_actor_state_sha256": "cd5d86b9c2bd63ffebb2405cd9f7dd0308ab2b2e8854aede9156aac811c74d1c",
+        "epoch_budget": 8,
+        "kl_guard_rollback_epoch": 2,
+        "after_train": {
+          "nll": 1.5377201696719638,
+          "labels": 519,
+          "kl": 0.01207283012232343,
+          "stored_logp_max_error": 9.482972025871277
+        },
+        "after_development": {
+          "nll": 2.7721315366044803,
+          "labels": 136,
+          "kl": null,
+          "stored_logp_max_error": 9.763140857219696
+        },
+        "checkpoint_sha256": "40c03e46bdb6bb2ecd4645c7a4b41f952f132700fc5641418a90373ddcd6c201",
+        "reload_error": 0.0,
+        "actor_state_sha256": "48cd8e011cab0e4eaf16f776296ddd81d2d412b74be55ccf4874b8fd9ac27853",
+        "value_state_sha256": "66172cbff42a62a3143922d3792760cc5f1e299cbe5bb8abc4a31b15dbb5127d",
+        "value_unchanged": true,
+        "actor_weights_changed": true,
+        "retained_updates": 17
+      }
+    ],
+    "train_labels": 519,
+    "development_labels": 136,
+    "source_sha256": "e033f1ef7902102569d01459d85cdd80252c141f4e1346bdb40832502e8acaea",
+    "inputs": {
+      "results/navigation-refinement-20261014/correction-train-104743/run": "ea9bfb64b6322ed6d4a8ae68a17a3b4d17538f00ab6dc0fc3a71ec42443656e7",
+      "results/navigation-refinement-20261014/correction-train-104759/run": "26af3e6fa8f38a9fb66026927bc39181e96f2d8f0fbb316a45d88d098a4cc03f",
+      "results/near-navigation-20261015/correction-104743/run": "d7893775d35e6e3b90d1a4d3a13e5c4531d4a9bf70dce01261e30e1660f34ed2",
+      "results/near-navigation-20261015/correction-104759/run": "ea0046d0f2fc3176aa3bed112436409a3f0d7651a3d4659fd751d62e1956ab10",
+      "results/navigation-refinement-20261014/correction-development/run": "d4608d8d8b19df87048e5c356f0b2f08b5d0fb599f9d548ccd9c2f567699631f"
+    },
+    "root_unchanged": true,
+    "elapsed_s": 31.708252746000003,
+    "peak_allocated_mib": 449.3095703125
+  },
+  "games": [
+    {
+      "label": "correction-104743",
+      "steps": 176,
+      "learned_arrivals": 0,
+      "teacher_arrivals": 6,
+      "owners": {
+        "student": 48,
+        "neutral": 6,
+        "teacher": 122
+      },
+      "inference_ms": {
+        "count": 176,
+        "median": 47.40668700000583,
+        "p95": 60.68929325000738
+      },
+      "goal_receipts": [
+        {
+          "index": 0,
+          "target": [
+            930.7,
+            201.0,
+            547.5
+          ],
+          "outcome": "completed",
+          "owner": "teacher",
+          "actions": 17,
+          "student_success": false,
+          "sequence": 17,
+          "final_distance": 0.33904673768701316
+        },
+        {
+          "index": 1,
+          "target": [
+            931.5,
+            201.0,
+            547.5
+          ],
+          "outcome": "completed",
+          "owner": "teacher",
+          "actions": 23,
+          "student_success": false,
+          "sequence": 40,
+          "final_distance": 0.22864118805455586
+        },
+        {
+          "index": 2,
+          "target": [
+            930.7,
+            201.0,
+            548.2
+          ],
+          "outcome": "completed",
+          "owner": "teacher",
+          "actions": 39,
+          "student_success": false,
+          "sequence": 79,
+          "final_distance": 0.32340401412505826
+        },
+        {
+          "index": 3,
+          "target": [
+            931.5,
+            201.0,
+            548.2
+          ],
+          "outcome": "completed",
+          "owner": "teacher",
+          "actions": 29,
+          "student_success": false,
+          "sequence": 108,
+          "final_distance": 0.20220234428814407
+        },
+        {
+          "index": 4,
+          "target": [
+            930.7,
+            201.0,
+            547.5
+          ],
+          "outcome": "completed",
+          "owner": "teacher",
+          "actions": 26,
+          "student_success": false,
+          "sequence": 134,
+          "final_distance": 0.25365790680273637
+        },
+        {
+          "index": 5,
+          "target": [
+            932.5,
+            201.0,
+            549.5
+          ],
+          "outcome": "completed",
+          "owner": "teacher",
+          "actions": 42,
+          "student_success": false,
+          "sequence": 176,
+          "final_distance": 0.15436509274434837
+        }
+      ],
+      "root_inventory_success": false,
+      "control_cycle_ms": {
+        "count": 176,
+        "median": 114.89761799998632,
+        "p95": 141.36825274999865
+      },
+      "gpu": {
+        "torch_peak_allocated_mib": 1915.00146484375,
+        "torch_peak_reserved_mib": 2126.0,
+        "scope": "PyTorch process including model loading, not total device VRAM"
+      },
+      "device_vram": {
+        "sampled_peak_used_mib": 2685.0,
+        "sample_count": 561,
+        "sampling_error": null,
+        "scope": "entire device 0 including other processes; sampled, may miss short peaks"
+      },
+      "logp_error": 0.0,
+      "probability_audit_sha256": "9e678d811f1438fa9dc0fd65b2fd5ce116164408a0a9e168e6f317d91384bead"
+    },
+    {
+      "label": "correction-104759",
+      "steps": 181,
+      "learned_arrivals": 0,
+      "teacher_arrivals": 6,
+      "owners": {
+        "student": 48,
+        "neutral": 6,
+        "teacher": 127
+      },
+      "inference_ms": {
+        "count": 181,
+        "median": 47.53636599997435,
+        "p95": 61.360178000029464
+      },
+      "goal_receipts": [
+        {
+          "index": 0,
+          "target": [
+            -269.3,
+            201.0,
+            -707.5
+          ],
+          "outcome": "completed",
+          "owner": "teacher",
+          "actions": 17,
+          "student_success": false,
+          "sequence": 17,
+          "final_distance": 0.3390467376870922
+        },
+        {
+          "index": 1,
+          "target": [
+            -268.5,
+            201.0,
+            -707.5
+          ],
+          "outcome": "completed",
+          "owner": "teacher",
+          "actions": 22,
+          "student_success": false,
+          "sequence": 39,
+          "final_distance": 0.2287383268250205
+        },
+        {
+          "index": 2,
+          "target": [
+            -269.3,
+            201.0,
+            -708.2
+          ],
+          "outcome": "completed",
+          "owner": "teacher",
+          "actions": 32,
+          "student_success": false,
+          "sequence": 71,
+          "final_distance": 0.2364583309363022
+        },
+        {
+          "index": 3,
+          "target": [
+            -268.5,
+            201.0,
+            -708.2
+          ],
+          "outcome": "completed",
+          "owner": "teacher",
+          "actions": 38,
+          "student_success": false,
+          "sequence": 109,
+          "final_distance": 0.18914013755261946
+        },
+        {
+          "index": 4,
+          "target": [
+            -269.3,
+            201.0,
+            -707.5
+          ],
+          "outcome": "completed",
+          "owner": "teacher",
+          "actions": 29,
+          "student_success": false,
+          "sequence": 138,
+          "final_distance": 0.22045259416018043
+        },
+        {
+          "index": 5,
+          "target": [
+            -267.5,
+            201.0,
+            -709.5
+          ],
+          "outcome": "completed",
+          "owner": "teacher",
+          "actions": 43,
+          "student_success": false,
+          "sequence": 181,
+          "final_distance": 0.25808744018325025
+        }
+      ],
+      "root_inventory_success": false,
+      "control_cycle_ms": {
+        "count": 181,
+        "median": 116.40205000003334,
+        "p95": 139.3576179999627
+      },
+      "gpu": {
+        "torch_peak_allocated_mib": 1915.00146484375,
+        "torch_peak_reserved_mib": 2126.0,
+        "scope": "PyTorch process including model loading, not total device VRAM"
+      },
+      "device_vram": {
+        "sampled_peak_used_mib": 2685.0,
+        "sample_count": 555,
+        "sampling_error": null,
+        "scope": "entire device 0 including other processes; sampled, may miss short peaks"
+      },
+      "logp_error": 0.0,
+      "probability_audit_sha256": "ff83e87d0681f7cbd86646ce059d1ab682f5094e051ff2601712f4334df43775"
+    },
+    {
+      "label": "evaluate-far",
+      "steps": 461,
+      "learned_arrivals": 4,
+      "teacher_arrivals": 0,
+      "owners": {
+        "student": 461,
+        "neutral": 0,
+        "teacher": 0
+      },
+      "inference_ms": {
+        "count": 461,
+        "median": 46.48294800000485,
+        "p95": 61.572705000003225
+      },
+      "goal_receipts": [
+        {
+          "index": 0,
+          "target": [
+            228.5,
+            201.0,
+            -793.5
+          ],
+          "outcome": "failed",
+          "owner": "student",
+          "actions": 100,
+          "student_success": false,
+          "sequence": 100,
+          "final_distance": 0.9888411047804624
+        },
+        {
+          "index": 1,
+          "target": [
+            228.5,
+            201.0,
+            -796.5
+          ],
+          "outcome": "completed",
+          "owner": "student",
+          "actions": 65,
+          "student_success": true,
+          "sequence": 165,
+          "final_distance": 0.2572427528744077
+        },
+        {
+          "index": 2,
+          "target": [
+            226.5,
+            201.0,
+            -796.5
+          ],
+          "outcome": "failed",
+          "owner": "student",
+          "actions": 100,
+          "student_success": false,
+          "sequence": 265,
+          "final_distance": 0.9659394021800803
+        },
+        {
+          "index": 3,
+          "target": [
+            226.5,
+            201.0,
+            -797.3
+          ],
+          "outcome": "completed",
+          "owner": "student",
+          "actions": 54,
+          "student_success": true,
+          "sequence": 319,
+          "final_distance": 0.3263857462411573
+        },
+        {
+          "index": 4,
+          "target": [
+            228.5,
+            201.0,
+            -797.3
+          ],
+          "outcome": "completed",
+          "owner": "student",
+          "actions": 47,
+          "student_success": true,
+          "sequence": 366,
+          "final_distance": 0.18513371908772017
+        },
+        {
+          "index": 5,
+          "target": [
+            228.5,
+            201.0,
+            -794.5
+          ],
+          "outcome": "completed",
+          "owner": "student",
+          "actions": 95,
+          "student_success": true,
+          "sequence": 461,
+          "final_distance": 0.31738526246466703
+        }
+      ],
+      "root_inventory_success": false,
+      "control_cycle_ms": {
+        "count": 461,
+        "median": 115.39135399999623,
+        "p95": 137.0556059999899
+      },
+      "gpu": {
+        "torch_peak_allocated_mib": 1915.00146484375,
+        "torch_peak_reserved_mib": 2126.0,
+        "scope": "PyTorch process including model loading, not total device VRAM"
+      },
+      "device_vram": {
+        "sampled_peak_used_mib": 2685.0,
+        "sample_count": 685,
+        "sampling_error": null,
+        "scope": "entire device 0 including other processes; sampled, may miss short peaks"
+      },
+      "logp_error": 0.0,
+      "probability_audit_sha256": "67346d134c5b6f2ae7f6bcca50c232038c8f3c5cc38146d31c50f4f5bc2449eb"
+    },
+    {
+      "label": "evaluate-corner",
+      "steps": 358,
+      "learned_arrivals": 5,
+      "teacher_arrivals": 0,
+      "owners": {
+        "student": 358,
+        "neutral": 0,
+        "teacher": 0
+      },
+      "inference_ms": {
+        "count": 358,
+        "median": 46.82125000002202,
+        "p95": 61.6385656999995
+      },
+      "goal_receipts": [
+        {
+          "index": 0,
+          "target": [
+            228.5,
+            201.0,
+            -790.5
+          ],
+          "outcome": "completed",
+          "owner": "student",
+          "actions": 59,
+          "student_success": true,
+          "sequence": 59,
+          "final_distance": 0.20557685241450993
+        },
+        {
+          "index": 1,
+          "target": [
+            228.5,
+            201.0,
+            -787.5
+          ],
+          "outcome": "failed",
+          "owner": "student",
+          "actions": 100,
+          "student_success": false,
+          "sequence": 159,
+          "final_distance": 0.9784927012148823
+        },
+        {
+          "index": 2,
+          "target": [
+            226.5,
+            201.0,
+            -787.5
+          ],
+          "outcome": "completed",
+          "owner": "student",
+          "actions": 65,
+          "student_success": true,
+          "sequence": 224,
+          "final_distance": 0.17994539761484576
+        },
+        {
+          "index": 3,
+          "target": [
+            226.5,
+            201.0,
+            -786.7
+          ],
+          "outcome": "completed",
+          "owner": "student",
+          "actions": 43,
+          "student_success": true,
+          "sequence": 267,
+          "final_distance": 0.3346368468856774
+        },
+        {
+          "index": 4,
+          "target": [
+            228.5,
+            201.0,
+            -786.7
+          ],
+          "outcome": "completed",
+          "owner": "student",
+          "actions": 37,
+          "student_success": true,
+          "sequence": 304,
+          "final_distance": 0.2918946912047133
+        },
+        {
+          "index": 5,
+          "target": [
+            228.5,
+            201.0,
+            -789.5
+          ],
+          "outcome": "completed",
+          "owner": "student",
+          "actions": 54,
+          "student_success": true,
+          "sequence": 358,
+          "final_distance": 0.2551804005672713
+        }
+      ],
+      "root_inventory_success": false,
+      "control_cycle_ms": {
+        "count": 358,
+        "median": 115.80187050000745,
+        "p95": 134.86776794997297
+      },
+      "gpu": {
+        "torch_peak_allocated_mib": 1915.00146484375,
+        "torch_peak_reserved_mib": 2126.0,
+        "scope": "PyTorch process including model loading, not total device VRAM"
+      },
+      "device_vram": {
+        "sampled_peak_used_mib": 2685.0,
+        "sample_count": 630,
+        "sampling_error": null,
+        "scope": "entire device 0 including other processes; sampled, may miss short peaks"
+      },
+      "logp_error": 0.0,
+      "probability_audit_sha256": "4eee2ef74a394eada382adccf4d3dd25b3ea25cbaef1499a02b97996b3f9bd10"
+    }
+  ],
+  "selection": {
+    "baseline": {
+      "arrivals": 10,
+      "actions": 649
+    },
+    "candidate": {
+      "arrivals": 9,
+      "actions": 819
+    },
+    "improved": false,
+    "scope": "Reused development tasks; not final evaluation or default promotion"
+  },
+  "rm_followup": null,
+  "initial_comparisons": [
+    {
+      "world": "evaluate-far",
+      "first_pixels_equal": true,
+      "first_pixels_sha256": "54df5f5f39382adfa6240b4f84788ea0daea4001cc224c3d2e316f9e9b871234",
+      "initial_memory_equal": true,
+      "backbone_equal": true
+    },
+    {
+      "world": "evaluate-corner",
+      "first_pixels_equal": true,
+      "first_pixels_sha256": "8bf46a27fd73e61cc7f6714b50832253166bf10bc4e2a2728dd2a5406d21d618",
+      "initial_memory_equal": true,
+      "backbone_equal": true
+    }
+  ],
+  "teacher_label_coverage": {
+    "old_train": {
+      "labels": 270,
+      "within_one_block": 36,
+      "beyond_135_degrees": 1
+    },
+    "new_train": {
+      "labels": 249,
+      "within_one_block": 67,
+      "beyond_135_degrees": 16
+    }
+  },
+  "api_calls": 0,
+  "default_promoted": false,
+  "final_seeds_used": false,
+  "scope": "Train-only teacher labels, frozen parent/value, reused development tasks; demonstrations are not learned success"
+}

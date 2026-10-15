@@ -1,0 +1,121 @@
+{
+  "verified": true,
+  "runs": [
+    {
+      "label": "correction-train-104743",
+      "steps": 337,
+      "learned_arrivals": 0,
+      "teacher_arrivals": 6
+    },
+    {
+      "label": "correction-train-104759",
+      "steps": 329,
+      "learned_arrivals": 0,
+      "teacher_arrivals": 6
+    },
+    {
+      "label": "correction-development",
+      "steps": 334,
+      "learned_arrivals": 0,
+      "teacher_arrivals": 6
+    },
+    {
+      "label": "evaluate-prior-far",
+      "steps": 478,
+      "learned_arrivals": 2,
+      "teacher_arrivals": 0
+    },
+    {
+      "label": "evaluate-prior-corner",
+      "steps": 541,
+      "learned_arrivals": 1,
+      "teacher_arrivals": 0
+    },
+    {
+      "label": "evaluate-linear-far",
+      "steps": 332,
+      "learned_arrivals": 5,
+      "teacher_arrivals": 0
+    },
+    {
+      "label": "evaluate-linear-corner",
+      "steps": 427,
+      "learned_arrivals": 4,
+      "teacher_arrivals": 0
+    },
+    {
+      "label": "evaluate-mlp-far",
+      "steps": 440,
+      "learned_arrivals": 4,
+      "teacher_arrivals": 0
+    },
+    {
+      "label": "evaluate-mlp-corner",
+      "steps": 306,
+      "learned_arrivals": 5,
+      "teacher_arrivals": 0
+    },
+    {
+      "label": "evaluate-ppo-far",
+      "steps": 330,
+      "learned_arrivals": 4,
+      "teacher_arrivals": 0
+    },
+    {
+      "label": "evaluate-ppo-corner",
+      "steps": 319,
+      "learned_arrivals": 6,
+      "teacher_arrivals": 0
+    },
+    {
+      "label": "ppo-train-104743",
+      "steps": 379,
+      "learned_arrivals": 5,
+      "teacher_arrivals": 0
+    },
+    {
+      "label": "ppo-train-104759",
+      "steps": 264,
+      "learned_arrivals": 5,
+      "teacher_arrivals": 0
+    }
+  ],
+  "total_transitions": 4816,
+  "tests": {
+    "windows-tests-final.log": {
+      "count": 594,
+      "sha256": "713cc9135ab3931597cf903cf1d5ad37e1dfd3c8e2e6e4bf9e627dbc4f913601"
+    },
+    "wsl-tests-final.log": {
+      "count": 12,
+      "sha256": "bfedb0a7e81925049a67fede9df21228fde3606b7ff4e648c7bfb8c2a08a28cc"
+    }
+  },
+  "models": {
+    "bc": {
+      "report_sha256": "ffe5e1051d2c1abacf51c3c948a85d0f090553e3b8815b402a841cb8ddeb98b5"
+    },
+    "ppo": {
+      "report_sha256": "b9aded57dbea25e10a3ed529181556f099a8819662670f83ebf33b1931d52628"
+    }
+  },
+  "retained_ppo_changes": {
+    "actor": {
+      "changed_tensors": 12,
+      "maximum_absolute_change": 0.007075227797031403
+    },
+    "navigation_value": {
+      "changed_tensors": 4,
+      "maximum_absolute_change": 0.009971950203180313
+    }
+  },
+  "all_saved_features_logp_value_finite": true,
+  "api_calls": 0,
+  "root_spec_preserved": true,
+  "evaluation_first_frames": {
+    "far": "6746690e79920143a5a4644dcb05656a96e880e0d99624149bd45eaaa4cc57ee",
+    "corner": "994f82d71eed890f79ecb7c4362547712a7eeec6403a0e50dfe3714992c0a04e"
+  },
+  "evaluation_initial_recurrent_and_backbone_equal": true,
+  "scope": "local development; frozen known goals; no final 5-seed evaluation or promotion"
+}

@@ -8,6 +8,10 @@ probe_seed=${4:-104729}
 probe_seconds=${5:-180}
 probe_condition=${6:-}
 probe_world_slot=${7:-}
+probe_task_priorities=${8:-}
+if [ -n "$probe_task_priorities" ] && { [ "$probe_task_priorities" != priorities ] || [ "$probe_operation" != session ] || [ "$probe_policy" != steve1 ]; }; then
+    echo 'Priority scheduling requires a STEVE-1 session.' >&2; exit 2
+fi
 case "$probe_policy" in vpt|steve1) ;; *) echo 'Unknown policy' >&2; exit 2;; esac
 cd "$probe_root"
 mkdir -p results .runtime .cache
@@ -93,6 +97,7 @@ fi
 probe_args=(-m minecraftrl.cli "$probe_operation" --root "$probe_root" --policy "$probe_policy" --seed "$probe_seed" --limit-s "$probe_seconds" --stop-file "$probe_root/results/STOP")
 if [ -n "$probe_condition" ]; then probe_args+=(--condition "$probe_condition"); fi
 if [ -n "$probe_world_slot" ]; then probe_args+=(--world-slot "$probe_world_slot"); fi
+if [ "$probe_task_priorities" = priorities ]; then probe_args+=(--task-priorities); fi
 if [ -z "${DISPLAY:-}" ] && command -v xvfb-run >/dev/null; then
     exec "$probe_mamba" run -p "$probe_env" xvfb-run -a python "${probe_args[@]}"
 else
