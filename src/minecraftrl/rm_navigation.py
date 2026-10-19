@@ -26,8 +26,14 @@ def validate_waypoint_context(packet):
     for item in candidates:
         cap=packet['execution_registry'].get(item['skill_id'],{});args=cap.get('arguments',{})
         target=item.get('target');goal_features(pose,target)
-        if (args.get('target')!=target or args.get('actor_sha256')!=data.get('actor_sha256') or
-                abs(distance(nav['position'],target)-3)>1e-6 or target[1]!=nav['position'][1] or
+        local=data.get('source')=='privileged_local_passability_v1'
+        geometry=abs(distance(nav['position'],target)-3)<=1e-6 and target[1]==nav['position'][1]
+        if local:
+            from .local_navigation import checked_grid,validate_candidate
+            observation=dict(pose,server_tick=s['tick'],local_navigation=data.get('local_navigation'))
+            checked_grid(observation)
+            geometry=validate_candidate(observation,target) if item.get('admissible') else target==nav['position']
+        if (args.get('target')!=target or args.get('actor_sha256')!=data.get('actor_sha256') or not geometry or
                 type(item.get('admissible')) is not bool or type(item.get('cost')) not in (int,float) or
                 not math.isfinite(item['cost'])):raise ValueError('candidate differs from registered waypoint')
 
@@ -77,6 +83,9 @@ class FixedNavigationProvider(FixedSubgoalProvider):
         approach=dict(id='approach',objective='Regain observed wood interaction readiness',skill_id='approach_wood',
             priority=70,depends_on=['locate'],entry='active_root',completion='wood_interaction_ready',
             budget_s=20.,budget_ticks=100,on_failure='replan')
+        if packet['waypoint_context'].get('source')=='privileged_local_passability_v1':
+            approach.update(budget_s=30.,budget_ticks=200)
+            locate.update(budget_s=30.,budget_ticks=200)
         root=value['steps'][-1];root['depends_on']=['approach'];value['steps']=[move,locate,approach,root]
         value['reason']='Fixed local integration fixture; no LLM inference.'
         return value
@@ -89,8 +98,9 @@ class RMNavigationController(NeuralSubgoalController):
     scheduler_type=NavigationScheduler
 
     def __init__(self,*args,navigation_checkpoint,navigation_strategy='visited',**kwargs):
-        if navigation_strategy not in ('visited','coverage','coverage_motion'):raise ValueError('invalid navigation strategy')
+        if navigation_strategy not in ('visited','coverage','coverage_motion','local_passability'):raise ValueError('invalid navigation strategy')
         self.navigation_strategy=navigation_strategy
+        self.local_navigation=None;self.local_approach_target=None
         self.navigation_coverage_start=None
         super().__init__(*args,**kwargs)
         self.navigation_path=Path(navigation_checkpoint);self.navigation_start=None;self.route_memory=None
@@ -112,11 +122,39 @@ class RMNavigationController(NeuralSubgoalController):
 
     def reset(self,goal=None):
         super().reset(goal);self.nav_head.goal=None
+        if self.navigation_strategy=='local_passability':
+            from .local_navigation import LocalNavigation
+            from .subgoal_skills import capability as subgoal_capability
+            self.local_navigation=LocalNavigation()
+            self.local_navigation.observe(self.environment.gui)
+            import numpy as np
+            manifest=self.condition_metadata['planning']['neural_skills']
+            for skill in ('locate_wood','approach_wood'):
+                self.capabilities[skill]=subgoal_capability(skill,str(self.student.checkpoint),
+                    self.embed_hashes['wood'],navigation_actor_sha256=self.navigation_sha256)
+                entry=manifest[skill]
+                entry['catalogue_capability']=deepcopy(entry['capability'])
+                entry.update(capability=deepcopy(self.capabilities[skill]),embedding_sha256=self.embed_hashes['wood'],
+                    executor='local passability planner + frozen navigation actor; root wood embedding')
+                np.save(self.output/(skill+'-embed.npy'),self.wood_embed)
+            write_json(self.output/'neural-skills.json',manifest)
+            self.guard=ReplanGuard(self.guard.history,self.capabilities,allow_goal_conditioning=True,allow_subgoals=True)
+            from .local_execution import configure_stall,LOCAL_STALL_WINDOWS,LOCAL_GOAL_WAIT,MINING_TEMPERATURE
+            from .stall_replay import wood_sample
+            configure_stall(self.detector,wood_sample(self.environment.gui,{},str(self.output)).stage)
+            self.condition_metadata['planning']['local_execution']=dict(stall_windows=LOCAL_STALL_WINDOWS,
+                goal_wait_ticks=LOCAL_GOAL_WAIT,mining_temperature=MINING_TEMPERATURE,
+                decoding='tempered neural sampling only during current confirmed log mining',
+                collection_budget_unchanged=True,episode_limit_unchanged=True)
         self.condition_metadata['planning'].update(waypoint_integration=True,navigation_actor=str(self.navigation_path),
             navigation_actor_sha256=self.navigation_sha256,experimental=True,
             navigation_strategy=self.navigation_strategy,
             navigation_input='motion_goal_10' if self.navigation_refined else 'relative_goal_6',
             diagnostics='observed hypotheses; no certified terrain',root_goal_and_reward_preserved=True)
+        if self.local_navigation is not None:
+            self.condition_metadata['planning'].update(diagnostics='bounded privileged local passability; conservative level walking only',
+                observation_condition='server pose + local collision/support grid + camera surface rays + wood lock; not video-only',
+                wood_detection='center ray plus occlusion-tested camera rays: yaw +/-40, pitch +/-20, spacing 5 degrees, range 16')
 
     def navigation_receipts(self):
         return [n['receipt'] for p in self.scheduler.state['plans'] for n in p['nodes']
@@ -124,6 +162,9 @@ class RMNavigationController(NeuralSubgoalController):
 
     def blocked_navigation(self,cap):
         current=self.environment.gui;s=self.snapshot()
+        if self.local_navigation is not None and self.waypoint_context is not None:
+            if any(c['skill_id']==cap['skill_id'] and not c['admissible'] for c in self.waypoint_context['candidates']):
+                return True
         if self.route_memory.blocked(current,cap['arguments']['target']):return True
         return any(same_failed_route(cap,current,r,world_id=s['world_id'],episode_id=s['episode_id']) for r in self.navigation_receipts())
 
@@ -131,17 +172,24 @@ class RMNavigationController(NeuralSubgoalController):
         g=self.environment.gui;history=[[r['server_before']['server_'+a] for a in 'xyz'] for r in self.rows]
         self.route_memory=AdaptiveRoute(pose_only(g),history,
             blocked_directions=self.route_memory.blocked_directions if self.route_memory else None,
-            windowed_motion=self.navigation_strategy=='coverage_motion')
+            windowed_motion=self.navigation_strategy in ('coverage_motion','local_passability'))
         choices=self.route_memory.candidates;candidates=[];exploration=None
         if self.navigation_strategy in ('coverage','coverage_motion'):
             from .exploration_coverage import score_candidates
             choices,exploration=score_candidates(self.spatial,choices)
+        if self.local_navigation is not None:
+            choices=self.local_navigation.choices(g)
+            while len(choices)<4:
+                choices.append(dict(target=[g['server_'+a] for a in 'xyz'],cost=1000.,admissible=False))
         for index,c in enumerate(choices):
             cap=capability(index,str(self.student.checkpoint),self.navigation_sha256,self.embed_hashes['wood'],c['target'])
             self.capabilities[cap['skill_id']]=cap
             candidates.append(dict(skill_id=cap['skill_id'],target=deepcopy(c['target']),cost=c['cost'],admissible=c['admissible']))
         self.waypoint_context=dict(pose=pose_only(g),candidates=candidates,actor_sha256=self.navigation_sha256,
             source='privileged_server_pose_and_observed_motion',terrain='unknown')
+        if self.local_navigation is not None:
+            self.waypoint_context.update(source='privileged_local_passability_v1',terrain='conservative_level_walking',
+                local_navigation=deepcopy(g['local_navigation']))
         if exploration is not None:self.waypoint_context['exploration']=exploration
         if self.navigation_strategy=='coverage_motion':
             self.waypoint_context['motion_evidence']=deepcopy(self.route_memory.blocked_directions)
@@ -151,6 +199,8 @@ class RMNavigationController(NeuralSubgoalController):
     def make_packet(self,s,evidence):
         packet,allowed=super().make_packet(s,evidence)
         packet['waypoint_context']=deepcopy(self.waypoint_context)
+        if self.local_navigation is not None:
+            packet['observation_source']='privileged server pose + bounded local passability grid + observed wood lock'
         packet['spatial_memory']['waypoint_execution_supported']=True
         blocked=[cap for cap in self.capabilities.values() if cap['skill_id'] in NAMES and self.blocked_navigation(cap)]
         memory=packet['memory'];prior={c['skill_id'] for c in memory['blocked_methods']}
@@ -180,7 +230,16 @@ class RMNavigationController(NeuralSubgoalController):
 
     def start_node(self,node,reason):
         self.nav_head.goal=None
-        if node['skill_id'] not in NAMES:return super().start_node(node,reason)
+        if node['skill_id'] not in NAMES:
+            result=super().start_node(node,reason)
+            if self.local_navigation is not None and node['skill_id'] in ('locate_wood','approach_wood'):
+                self.local_approach_target=None
+                self.intervention_embed=self.wood_embed.copy();self.embed_hashes['intervention']=self.embed_hashes['wood']
+            if self.local_navigation is not None and self.phase=='resumed':
+                from .local_execution import configure_stall
+                from .stall_replay import wood_sample
+                configure_stall(self.resumed_detector,wood_sample(self.environment.gui,{},str(self.output)).stage)
+            return result
         self.navigation_cap=deepcopy(self.scheduler.state['plans'][-1]['registry'][node['skill_id']])
         self.active_plan_node=node;self.phase='waypoint';self.root_started=None;self.navigation_start=self.snapshot()
         if self.navigation_strategy in ('coverage','coverage_motion'):self.navigation_coverage_start=self.spatial.summary()
@@ -217,6 +276,27 @@ class RMNavigationController(NeuralSubgoalController):
 
     def act(self,screen):
         self.nav_head.goal=None
+        from .local_execution import mining_temperature
+        self.student.action_temperature=(mining_temperature(self.environment.gui,self.phase)
+            if self.local_navigation is not None else 1.)
+        if (self.local_navigation is not None and self.phase=='subgoal'
+                and self.active_plan_node['skill_id'] in ('locate_wood','approach_wood')):
+            from .navigation_refinement import motion_goal
+            choice=self.local_navigation.waypoint(self.environment.gui)
+            if choice is not None:self.local_approach_target=choice['target']
+            elif abs(self.environment.gui['server_y']-(self.local_navigation.floor or 0))<=.15:
+                self.local_approach_target=None
+            target=self.local_approach_target
+            if target is not None:
+                previous=self.rows[-1]['server_before'] if self.rows else None
+                self.nav_head.goal=(motion_goal(self.environment.gui,target,previous,
+                    remaining=min(100,self.active_plan_node['budget_ticks']-(len(self.rows)-self.subgoal_start['sequence'])))
+                    if self.navigation_refined else goal_features(self.environment.gui,target))
+            action=NeuralSubgoalController.act(self,screen)
+            self.pending.update(waypoint_goal=deepcopy(self.nav_head.goal),
+                local_route=dict(target=deepcopy(target),choice=choice,stage=self.active_plan_node['skill_id'],source='privileged_local_passability_v1',
+                    status='learned_route_following' if target is not None else 'no_route_collection_actor'))
+            return action
         if self.phase!='waypoint':return super().act(screen)
         if self.environment.reward is not self.root_reward_object:raise RuntimeError('original RM replaced')
         target=self.navigation_cap['arguments']['target']
@@ -236,8 +316,17 @@ class RMNavigationController(NeuralSubgoalController):
 
     def commit(self,action,reward,terminal):
         if self.phase!='waypoint':
-            before=self.pending['server_before']
+            before=self.pending['server_before'];local=deepcopy(self.pending.get('local_route'))
+            goal=deepcopy(self.pending.get('waypoint_goal'))
             super().commit(action,reward,terminal)
+            if local is not None:
+                self.student.rows[-1].update(waypoint_goal=goal,local_route=local)
+                if local['target'] is not None and target_blockage(self.rows[-24:],local['target']):
+                    self.local_navigation.reject(local['target'],self.environment.gui['server_tick'])
+                    self.local_approach_target=None
+            if (self.local_navigation is not None and self.environment.gui.get('screen')==0
+                    and self.environment.gui.get('server_alive')==1 and self.environment.gui.get('error')==0):
+                self.local_navigation.observe(self.environment.gui)
             if self.route_memory and self.environment.gui.get('error')==0:
                 # Other skills can refute a blockage by crossing it; their mining actions
                 # must not become evidence of navigation blockage.
@@ -251,7 +340,7 @@ class RMNavigationController(NeuralSubgoalController):
         if self.is_stopped():self.finish_navigation('stop')
         elif terminal:self.finish_navigation('environment_done')
         elif arrived(self.environment.gui,self.navigation_cap['arguments']['target']):self.finish_navigation('predicate_satisfied')
-        elif (self.navigation_strategy=='coverage_motion' and self.route_memory.latest_blockage and
+        elif (self.navigation_strategy in ('coverage_motion','local_passability') and self.route_memory.latest_blockage and
                 self.route_memory.blocked(self.environment.gui,self.navigation_cap['arguments']['target']) and
                 target_blockage(self.rows[self.navigation_start['sequence']:],self.navigation_cap['arguments']['target'])):
             self.finish_navigation('observed_blockage')

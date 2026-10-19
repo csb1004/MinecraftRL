@@ -1,0 +1,34 @@
+{
+  "label": "verify-blind-02",
+  "status": "planning_paused",
+  "execution_valid": false,
+  "worker_exit_code": 2,
+  "normal_episode_success": false,
+  "elapsed_control_s": 61.30127341399998,
+  "steps": 424,
+  "server_log_gain": 0.0,
+  "inventory_gain_step": null,
+  "success_elapsed_s": null,
+  "first_discovery_step": null,
+  "first_reachable_step": null,
+  "initial_known": false,
+  "planner_calls": 2,
+  "phases": {
+    "collect": 160,
+    "release": 2,
+    "refresh": 2,
+    "waypoint": 60,
+    "locate_wood": 200
+  },
+  "tempered_neural_actions": 0,
+  "saved_log_counts": {
+    "level.dat/Player": 0,
+    "3965fc16-3634-586b-8d9e-c94443e4cb58.dat": 0
+  },
+  "post_stop_actions": 0,
+  "held_keys_after_release": 0.0,
+  "remaining_owned_pids": [],
+  "planner_pauses": [
+    "same_failed_condition"
+  ]
+}

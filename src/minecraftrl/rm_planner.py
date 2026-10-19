@@ -81,6 +81,11 @@ verified open passages. Without registered navigate_waypoint_0..3 instances, coo
 unsupported. When present, each instance binds one candidate target to the same learned motor executor.
 Use active_root entry, waypoint_arrived completion, <=100 ticks/30 seconds. These are speculative
 targets, not verified paths. Never invent or edit target arguments, weights, or completion predicates.
+If waypoint_context.source is privileged_local_passability_v1, admissible targets instead have
+fresh conservative level-walking clearance from a bounded local server sensor. This is a privileged
+observation condition, not vision-only or a global world map. The actor can still fail to follow it.
+An approach_wood capability with navigation_actor_sha256 uses that learned actor with locally
+planned detours, not the text-only approach. Respect its registered budget and actual readiness predicate.
 Use waypoint_context and previous_plans node receipts: diagnosis is an observed hypothesis, not terrain truth.
 Distinguish heading errors, arrival precision, suspected blockage, unknown observations, and interruption.
 Preserve successful segments in memory; revise the failed suffix. Familiar routes may be necessary

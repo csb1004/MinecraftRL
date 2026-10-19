@@ -1,0 +1,8 @@
+wsl: Failed to translate 'E:\Git\cmd'
+wsl: Failed to translate 'E:\Microsoft VS Code\bin'
+wsl: Failed to translate 'E:\Antigravity\bin'
+...................................................................................................
+----------------------------------------------------------------------
+Ran 99 tests in 35.520s
+
+OK

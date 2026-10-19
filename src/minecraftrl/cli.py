@@ -46,7 +46,7 @@ def parser():
     p.add_argument('--rl-navigation-trial',type=Path,help='Explicit bounded navigation correction/evaluation/RL protocol')
     p.add_argument('--rl-waypoint-start',choices=['stall','initial'],default='stall',help='Explicit initial-state diagnostic or normal stall handoff')
     p.add_argument('--rl-waypoint-planner',choices=['fixture','visit_memory','adaptive_rule','adaptive_llm'],default='fixture',help='Development route planner; adaptive_llm needs a separately authorized Windows broker')
-    p.add_argument('--rl-navigation-strategy',choices=['visited','coverage','coverage_motion'],default='visited',help='RM candidate ranking: destination visits or observed path coverage with optional motion feedback; no terrain oracle')
+    p.add_argument('--rl-navigation-strategy',choices=['visited','coverage','coverage_motion','local_passability'],default='visited',help='RM navigation; local_passability opts into bounded privileged collision/support observations and routed neural approach')
     p.add_argument('--rl-recovery-embed',type=Path,help='Eval-only single graph-stall goal-conditioning intervention')
     planner=p.add_mutually_exclusive_group()
     planner.add_argument('--rl-planner-choice',choices=['explore_then_resume','remain_paused'],help='Local fixed planner fixture; no API calls')
@@ -159,8 +159,12 @@ def worker(args, condition):
             import uuid
             from .policies import PersistentMineRLEnvironment
             temporary=args.root/'data/worlds/runtime'/uuid.uuid4().hex;temporary.mkdir(parents=True)
+            write_json(output/'world-runtime.json',dict(path=str(temporary),source_archive=str(args.rl_world),
+                ownership='fresh isolated episode directory; preserve after process cleanup'))
             os.environ['JAVA_TOOL_OPTIONS']=os.environ.get('JAVA_TOOL_OPTIONS','')+' -Djava.io.tmpdir="'+str(temporary)+'"'
             world=checked_world(args.rl_world,args.seed) if args.rl_world else None
+            if args.rl_navigation_strategy=='local_passability':
+                os.environ['JAVA_TOOL_OPTIONS']+=' -DminecraftRL.cameraWood=true'
             if args.rl_teacher or args.rl_student_correction:
                 from .correction_teacher import validate_teacher_world
                 validate_teacher_world(world or {},args.rl_split)

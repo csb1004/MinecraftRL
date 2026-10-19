@@ -9,6 +9,15 @@ from .memory import atomic_json, file_lock
 from .world_store import digest
 
 UPSTREAM_SHA256='f7a1e0aa8bee8a0ff9479856e807be6d8aa30373db8934d5b093342690ae9a48'
+LOCAL_UPSTREAM_SHA256='e5a27c6f0b3a521486ac63c23059e7004f12fc1142247d4ff7ec8c68b8b12fc7'
+# Reviewed new-PC Java sources; a different binary is never accepted by bypassing pinning.
+LOCAL_SOURCES={
+    'net/minecraft/client/ReplaySender.java':'0f79577ba048eb88f8fbb886cd698b3beacac2fdfa9a6c8db309597ea35cc72e',
+    'com/minerl/multiagent/env/EnvServer.java':'ea83babfbc764900ccda163d361ca9e9301b4c6103aa93fbe792b020742208e7',
+    'net/minecraft/server/management/PlayerInteractionManager.java':'cc7bc46a33a9c6b9c1e11803c0ee1287a0922ff12e3ac7b0db5349ae63517f9a',
+    'com/minerl/multiagent/recorder/PlayRecorder.java':'a57f1389de15f6f4b75fae55042ac3058c210748c09e48b7b26d90626d2db2cc',
+    'net/minecraft/client/gui/screen/DeathScreen.java':'9d77999e7deee0dd2759a5de71e7da2fabd6f24d214da003f7d8e3cf1fe93566',
+}
 CLASS='net/minecraft/client/ReplaySender'
 
 
@@ -86,7 +95,11 @@ def build_save_jar(root,minecraft_dir,*,craft_monitor=False,workshop_monitor=Fal
     if workshop_monitor and not craft_monitor:raise ValueError('workshop monitor requires craft monitor')
     root=Path(root); minecraft_dir=Path(minecraft_dir)
     upstream=minecraft_dir/'build/libs/mcprec-6.13.jar'
-    if digest(upstream)!=UPSTREAM_SHA256: raise ValueError('unsupported_upstream_world_jar')
+    upstream_sha=digest(upstream)
+    if upstream_sha not in (UPSTREAM_SHA256,LOCAL_UPSTREAM_SHA256):raise ValueError('unsupported_upstream_world_jar')
+    if upstream_sha==LOCAL_UPSTREAM_SHA256:
+        if any(digest(minecraft_dir/'src/main/java'/p)!=sha for p,sha in LOCAL_SOURCES.items()):
+            raise ValueError('unreviewed_local_world_sources')
     source=minecraft_dir/('src/main/java/'+CLASS+'.java')
     patched=patch_source(source.read_text(encoding='utf-8'))
     server=minecraft_dir/'src/main/java/com/minerl/multiagent/env/EnvServer.java'
@@ -113,11 +126,14 @@ def build_save_jar(root,minecraft_dir,*,craft_monitor=False,workshop_monitor=Fal
             extra['PlayRecorder.java']=recorder_text.replace(capture,
                 'net.minecraft.client.gui.screen.inventory.WorkshopObservation.capture();\n        '+capture)
     patch_hash=hashlib.sha256((patched+''.join(extra.values())).encode()).hexdigest()
+    cache_key=hashlib.sha256((upstream_sha+patch_hash).encode()).hexdigest()
     base=root/'.runtime/world-save'; base.mkdir(parents=True,exist_ok=True)
     with file_lock(base/'build.lock'):
-        receipt=base/(patch_hash+'.json')
+        receipt=base/(cache_key+'.json')
         if receipt.exists():
             value=json.loads(receipt.read_text()); artifact=base/value['artifact']
+            if value['upstream_sha256']!=upstream_sha or value['patched_source_sha256']!=patch_hash:
+                raise ValueError('world_save_cache_identity_mismatch')
             if digest(artifact)!=value['sha256']: raise ValueError('modified_world_save_jar')
             return artifact
         build=base/uuid.uuid4().hex; build.mkdir(); classes=build/'classes'; classes.mkdir()
@@ -131,7 +147,7 @@ def build_save_jar(root,minecraft_dir,*,craft_monitor=False,workshop_monitor=Fal
         if result.returncode: raise RuntimeError('World save JAR compilation failed: '+str(build/'javac.log'))
         replacements={p.relative_to(classes).as_posix():p for p in classes.rglob('*.class')}
         if CLASS+'.class' not in replacements: raise RuntimeError('Missing compiled save barrier')
-        artifact=base/(patch_hash+'.jar'); temporary=build/'patched.jar'
+        artifact=base/(cache_key+'.jar'); temporary=build/'patched.jar'
         with zipfile.ZipFile(upstream) as src, zipfile.ZipFile(temporary,'x') as dst:
             for entry in src.infolist():
                 dst.writestr(entry,replacements[entry.filename].read_bytes() if entry.filename in replacements else src.read(entry))
@@ -140,7 +156,7 @@ def build_save_jar(root,minecraft_dir,*,craft_monitor=False,workshop_monitor=Fal
         with zipfile.ZipFile(temporary) as check:
             if check.testzip(): raise RuntimeError('Invalid patched world save JAR')
         temporary.replace(artifact)
-        atomic_json(receipt,{'artifact':artifact.name,'sha256':digest(artifact),'upstream_sha256':UPSTREAM_SHA256,
+        atomic_json(receipt,{'artifact':artifact.name,'sha256':digest(artifact),'upstream_sha256':upstream_sha,
                             'source_sha256':digest(source),'patched_source_sha256':patch_hash,
                             'replaced_classes':sorted(replacements),'scope':'save barrier + fresh world storage identity' +
                             (' + read-only craft GUI monitor' if craft_monitor else '') +
