@@ -80,7 +80,8 @@ class GoalRecoveryController:
         self.pending = dict(mode=self.mode, owner=self.controller_name, action=jsonable(action),
                             server_before=jsonable(before), reward_context=list(self.context),
                             frame=f'frames/{len(self.rows):06d}.png',
-                            embedding_sha256=self.embed_hashes[self.mode], loss_eligible=False)
+                            embedding_sha256=self.embed_hashes[self.mode], loss_eligible=False,
+                            action_temperature=getattr(self.student,'action_temperature',1.))
         return action
 
     def commit(self, action, reward, terminal):

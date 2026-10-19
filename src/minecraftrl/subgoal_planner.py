@@ -9,7 +9,8 @@ from .subgoal_skills import SKILLS, completion
 
 def motor_condition(cap):
     args=cap.get('arguments',{})
-    return cap['policy_ref'],args.get('embedding_sha256',args.get('explore_sha256',cap['skill_id']))
+    return (cap['policy_ref'],args.get('embedding_sha256',args.get('explore_sha256',cap['skill_id'])),
+            args.get('navigation_actor_sha256'))
 
 
 def blocked_subgoal(current,cap,history,plans):

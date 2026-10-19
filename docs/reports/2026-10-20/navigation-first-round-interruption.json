@@ -1,0 +1,9 @@
+{
+  "path": "results\\local-navigation-reliability-20261019",
+  "completed_verification": 2,
+  "successes": 1,
+  "failures": 1,
+  "remaining_runs_cancelled": true,
+  "third_run": "blocked by STOP before game launch",
+  "reason": "Single center-ray discovery missed clearly visible peripheral tree; same-condition retry correctly refused"
+}

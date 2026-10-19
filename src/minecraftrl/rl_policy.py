@@ -25,10 +25,13 @@ def state_fingerprint(value):
         else:digest.update(repr(item).encode())
     visit(value);return digest.hexdigest()
 
-def guided(head,features):
+def guided(head,features,temperature=1.):
     import torch
+    import math
+    if type(temperature) not in (int,float) or not math.isfinite(temperature) or not 0<temperature<=1:
+        raise ValueError('action temperature must be finite in (0, 1]')
     logits=head(features)
-    return {k:torch.log_softmax(7*v[0:1]-6*v[1:2],dim=-1) for k,v in logits.items()}
+    return {k:torch.log_softmax((7*v[0:1]-6*v[1:2])/temperature,dim=-1) for k,v in logits.items()}
 
 def guided_minibatch(head,features):
     """Keep each forward GEMM shape identical to collection; retain gradients."""
@@ -56,6 +59,7 @@ class RLPolicy(Steve1Policy):
         from .rl_core import SHAPED_REWARDS
         if reward_mode!='sparse' and reward_mode not in SHAPED_REWARDS:raise ValueError('unknown reward mode')
         self.reward_mode=reward_mode;self.reward_context=None
+        self.action_temperature=1.
         torch=self.torch;p=self.agent.policy
         p.requires_grad_(False)
         self.value=torch.nn.Linear(p.net.output_latent_size(),1).to(self.device)
@@ -151,7 +155,7 @@ class RLPolicy(Steve1Policy):
             write_json(self.output/'first-feature-timing.json',dict(seconds=time.monotonic()-started))
         else:features,state=self.features(screen)
         with torch.no_grad():
-            pd=guided(self.agent.policy.pi_head,features)
+            pd=guided(self.agent.policy.pi_head,features,temperature=self.action_temperature)
             if any(not torch.isfinite(v).all() for v in pd.values()):raise ValueError('nonfinite action distribution')
             action=self.agent.policy.pi_head.sample(pd,deterministic=False)
             logp=self.agent.policy.pi_head.logprob(action,pd).item()
@@ -160,7 +164,7 @@ class RLPolicy(Steve1Policy):
             if not math.isfinite(logp) or not math.isfinite(value):raise ValueError('nonfinite policy output')
         env_action=self.agent._agent_action_to_env({k:v[:,0] for k,v in action.items()})
         self.pending=dict(features=features.cpu(),action=cpu_tree(action),old_logp=logp,value=value,
-                          first=self.first,env_action=jsonable(env_action))
+                          first=self.first,env_action=jsonable(env_action),action_temperature=self.action_temperature)
         if self.reward_mode!='sparse':self.pending['reward_context']=list(self.reward_context)
         # Inference may be discarded at the deadline before env.step. Commit
         # recurrent state only with the action actually sent to the game.

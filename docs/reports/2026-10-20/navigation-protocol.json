@@ -1,0 +1,53 @@
+{
+  "scope": "Local development validation, not final test or training",
+  "episode_limit_s": 180,
+  "root_node_limit_s": 60,
+  "root_node_limit_ticks": 600,
+  "paid_calls": 0,
+  "optimizer_updates": 0,
+  "source_worlds": "Immutable original corner and pose-only known-corner fixture",
+  "success": [
+    "summary.status == target_reached",
+    "execution_valid == true",
+    "server inventory log gain >= 1 before terminal",
+    "elapsed_s <= 180",
+    "saved NBT log count >= 1",
+    "STOP no further policy dispatch; input keys and owned PIDs released"
+  ],
+  "development": {
+    "initial_attempts": [
+      {
+        "label": "dev-blind-01",
+        "sampling_seed": 15102
+      },
+      {
+        "label": "dev-known-01",
+        "sampling_seed": 15002
+      }
+    ],
+    "rule": "Preserve all failures and new attempt names. Refine from evidence before freezing repeated verification."
+  },
+  "verification": {
+    "seeds": [
+      15101,
+      15102,
+      15103
+    ],
+    "worlds": [
+      "original-corner",
+      "known-corner"
+    ],
+    "rule": "Three seeds per start, six games on one frozen candidate; count every run."
+  },
+  "research_spec_sha256": "4af3ad00c5bab9b9d08b2e23fe768e140944118aa85cf412c45a67bb032275ad",
+  "previous_round": {
+    "path": "results\\local-navigation-reliability-20261019",
+    "completed_verification": 2,
+    "successes": 1,
+    "failures": 1,
+    "remaining_runs_cancelled": true,
+    "third_run": "blocked by STOP before game launch",
+    "reason": "Single center-ray discovery missed clearly visible peripheral tree; same-condition retry correctly refused"
+  },
+  "observation_revision": "Opt-in camera surface rays, yaw +/-40 pitch +/-20 in 5 degree steps, range16, first block hit only; still privileged, not video-only"
+}

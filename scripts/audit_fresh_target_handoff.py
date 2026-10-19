@@ -60,7 +60,27 @@ def audit(run,checkpoint,exchange=None):
     decisions=read(run/'stall-decisions.json');assert len(decisions)==len(raw)
     initial=read(run/'initial-state.json');previous=start=initial['server']
     reward=SHAPED_REWARDS[data['reward_config']['name']](start)
-    detector=StallDetector();detector.update(wood_sample(start,{},str(run)))
+    detector=StallDetector()
+    diagnostic_wait=report.get('condition',{}).get('intervention',{}).get('diagnostic_initial_goal_budget_ticks')
+    if diagnostic_wait is not None:
+        assert diagnostic_wait==32 and report['condition']['planning']['navigation_strategy']=='local_passability'
+        protocol=read(run.parent/'protocol.json')
+        assert protocol['diagnostic_initial_goal_budget_ticks']==32 and 'NOT default-policy' in protocol['scope']
+        detector.goal_budget_ticks=diagnostic_wait
+    detector.update(wood_sample(start,{},str(run)))
+    local_execution=report.get('condition',{}).get('planning',{}).get('local_execution')
+    if local_execution:
+        from minecraftrl.local_execution import configure_stall,LOCAL_STALL_WINDOWS,LOCAL_GOAL_WAIT,mining_temperature
+        assert local_execution['stall_windows']==LOCAL_STALL_WINDOWS
+        assert local_execution['goal_wait_ticks']==LOCAL_GOAL_WAIT
+        configure_stall(detector,wood_sample(start,{},str(run)).stage)
+    camera_receipts=[]
+    camera_detection=report.get('condition',{}).get('planning',{}).get('wood_detection')
+    if camera_detection:
+        from minecraftrl.visible_wood import validate_acquisition
+        assert start['wood_camera_rays_enabled']==1
+        receipt=validate_acquisition(start)
+        if receipt:camera_receipts.append(receipt)
     sys.path.insert(0,str(root/'external/steve1'))
     from gym3.types import DictType
     from steve1.VPT.lib.action_mapping import CameraHierarchicalMapping
@@ -119,16 +139,22 @@ def audit(run,checkpoint,exchange=None):
         expected=torch.tensor(reward.context(),dtype=feature['features'].dtype)
         assert torch.equal(feature['features'][0,0,-6:],expected) and torch.equal(feature['features'][1,0,-6:],expected)
         expected_embed=embeds[row['mode']]
-        is_waypoint=waypoint and 'waypoint_goal' in row
+        is_waypoint=waypoint and row.get('waypoint_goal') is not None
         if is_waypoint:
             if refined:
                 tag=row['rm_plan'];key=(tag['revision'],tag['node_id']);count=nav_counts.get(key,0)
                 plan=schedule['plans'][tag['revision']-1]
                 node=next(v for v in plan['proposal']['steps'] if v['id']==tag['node_id'])
                 prior=raw[n-2]['server_before'] if n>1 else None
-                expected_goal=motion_goal(previous,row['waypoint_target'],prior,remaining=node['budget_ticks']-count)
+                local=row.get('local_route')
+                target=local['target'] if local else row['waypoint_target']
+                remaining=node['budget_ticks']-count
+                if local:
+                    receipt=next(v['receipt'] for v in plan['nodes'] if v['id']==tag['node_id'])
+                    remaining=min(100,node['budget_ticks']-((n-1)-receipt['before']['sequence']))
+                expected_goal=motion_goal(previous,target,prior,remaining=remaining)
                 nav_counts[key]=count+1
-            else:expected_goal=goal_features(previous,row['waypoint_target'])
+            else:expected_goal=goal_features(previous,row.get('local_route',{}).get('target',row.get('waypoint_target')))
             assert feature['waypoint_goal']==row['waypoint_goal']==expected_goal
             expected_embed=embeds['wood']
         elif subgoals:
@@ -138,6 +164,22 @@ def audit(run,checkpoint,exchange=None):
             if 'gui_open' not in tag['abstract_state']:observed.pop('gui_open')  # Preserved pre-fix failure, closed frames only.
             assert tag['abstract_state']==observed
             if tag['phase']=='subgoal':expected_embed=skill_embeds[tag['skill_id']]
+        if row.get('local_route') is not None:
+            from minecraftrl.local_navigation import checked_grid,validate_candidate
+            from minecraftrl.subgoal_skills import navigation_state
+            assert planning['navigation_strategy']=='local_passability'
+            local=row['local_route'];assert local==feature['local_route']
+            tag=row['rm_plan'];plan=schedule['plans'][tag['revision']-1]
+            cap=plan['registry'][row['subgoal_context']['skill_id']]
+            assert cap['arguments']['navigation_actor_sha256']==planning['navigation_actor_sha256']
+            assert row['subgoal_context']==feature['subgoal_context']
+            assert row['subgoal_context']['abstract_state']==navigation_state(previous,log_count(start))
+            grid=checked_grid(previous)
+            if local['choice'] is not None:
+                assert local['choice']['target']==local['target'] and validate_candidate(previous,local['target'])
+            elif local['target'] is not None:
+                assert abs(previous['server_y']-local['target'][1])>.15  # Carry the last verified ground goal while airborne.
+            expected_embed=embeds['wood']
         # PlanningRecoveryController.act explicitly restores the root embedding
         # for release/refresh, even after a text-conditioned subgoal fails.
         if waypoint and row['owner']=='planner_neutral':expected_embed=embeds['wood']
@@ -159,12 +201,21 @@ def audit(run,checkpoint,exchange=None):
                 features=feature['features'].cuda()
                 assert torch.isfinite(features).all() and torch.isfinite(torch.tensor(feature['old_logp']))
                 if is_waypoint:features=(append_motion if refined else append_goal)(features,row['waypoint_goal'])
-                pd=guided(head,features);assert all(torch.isfinite(v).all() for v in pd.values())
+                temperature=feature.get('action_temperature',1.)
+                assert temperature==row.get('action_temperature',1.)
+                if local_execution:
+                    assert temperature==mining_temperature(previous,row.get('subgoal_context',{}).get('phase'))
+                else:assert temperature==1.
+                pd=guided(head,features,temperature=temperature);assert all(torch.isfinite(v).all() for v in pd.values())
                 actual=head.logprob(action,pd).item();assert np.isfinite(actual)
             max_error=max(max_error,abs(actual-feature['old_logp']))
             converted=transformer.policy2env(mapper.to_factored({k:v[:,0].numpy() for k,v in feature['action'].items()}))
             assert jsonable(converted)==row['action']
         server=row['server_after'];assert tick_delta(previous,server)==1
+        if camera_detection:
+            assert server['wood_camera_rays_enabled']==1
+            receipt=validate_acquisition(server)
+            if receipt:camera_receipts.append(receipt)
         parts=reward.advance(server,terminal=e['done'])
         assert jsonable(parts)==jsonable(row['reward_components'])==jsonable(feature['reward_components'])==jsonable(e['info']['rl_reward'])
         assert parts['total']==row['reward']==feature['reward']==e['reward']
@@ -207,6 +258,10 @@ def audit(run,checkpoint,exchange=None):
             control_cycle_ms=report['control_cycle_ms'],gpu=report['gpu'],device_vram=report['device_vram'],
             checkpoint_sha256=digest(checkpoint),worker_exit_code=report['worker_exit_code'],
             runtime_error=report.get('error'),execution_valid=report['execution_valid'])
+        if camera_detection:result['validated_camera_acquisitions']=camera_receipts
+        if diagnostic_wait is not None:
+            result.update(diagnostic_initial_goal_budget_ticks=diagnostic_wait,
+                scope='Targeted real-game recovery integration with shorter initial stall wait; NOT default-policy performance or training success')
         write_json(destination,result);print(json.dumps(result));return
     neutral_rows=[r for r in raw if r['owner']=='planner_neutral']
     if report['planner_calls']==0:

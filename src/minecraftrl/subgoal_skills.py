@@ -16,16 +16,24 @@ SKILLS={
 }
 
 
-def capability(skill_id,policy_ref,embedding_sha256):
+def capability(skill_id,policy_ref,embedding_sha256,navigation_actor_sha256=None):
     from .replanning import collection_capability
     collection_capability('wood',policy_ref)
     if skill_id not in SKILLS or not isinstance(embedding_sha256,str) or len(embedding_sha256)!=64 or any(
             c not in '0123456789abcdef' for c in embedding_sha256):
         raise ValueError('invalid neural subgoal binding')
     spec=SKILLS[skill_id]
-    return dict(skill_id=skill_id,goal='wood',policy_ref=policy_ref,
+    result=dict(skill_id=skill_id,goal='wood',policy_ref=policy_ref,
         arguments=dict(embedding_sha256=embedding_sha256),max_budget_s=30.,max_budget_ticks=200,
         completion=spec['completion'],scope=spec['scope'])
+    if navigation_actor_sha256 is not None:
+        if (skill_id not in ('locate_wood','approach_wood') or len(navigation_actor_sha256)!=64
+                or any(c not in '0123456789abcdef' for c in navigation_actor_sha256)):
+            raise ValueError('invalid local navigation actor')
+        result['arguments']['navigation_actor_sha256']=navigation_actor_sha256
+        result['scope']=('Local passability route with learned navigation actor; '+
+            ('new wood ray observation required' if skill_id=='locate_wood' else 'current server interaction readiness required'))
+    return result
 
 
 def validate_capability(value):

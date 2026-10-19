@@ -1,0 +1,65 @@
+{
+  "scope": "Exact copies of local development evidence; raw trajectories, worlds and weights remain local",
+  "files": [
+    {
+      "published": "navigation-final-verification.json",
+      "source": "results/local-navigation-reliability-v2-20261019/final-verification.json",
+      "sha256": "11e3a5496331289c605eff5309e3382a44ade658f9f135005b848469eb798a2c",
+      "bytes": 8559
+    },
+    {
+      "published": "navigation-protocol.json",
+      "source": "results/local-navigation-reliability-v2-20261019/protocol.json",
+      "sha256": "7537ea74981a72e0b9fa81f47899cd0ce2a2a37914c82d2831d318c28a8df1c9",
+      "bytes": 1826
+    },
+    {
+      "published": "navigation-source-freeze.json",
+      "source": "results/local-navigation-reliability-v2-20261019/verification-freeze.json",
+      "sha256": "936edeb27154542013448e43d145059dc20f2ef1efb67aadb4e810a46793081d",
+      "bytes": 10345
+    },
+    {
+      "published": "navigation-tests.txt",
+      "source": "results/local-navigation-reliability-v2-20261019/test-development.log",
+      "sha256": "08d5836b195a84fd5af4237eaada3c6485c5996f42acf80ecd2d536481166e2a",
+      "bytes": 343
+    },
+    {
+      "published": "navigation-verified-paths.png",
+      "source": "results/local-navigation-reliability-v2-20261019/verified-paths.png",
+      "sha256": "e9e77fa6ddb24914321039edb82bdb7d3b829e7fa81a1839df4ce846cc0bb1e6",
+      "bytes": 129852
+    },
+    {
+      "published": "navigation-detour-probe.png",
+      "source": "results/local-navigation-detour-20261019/detour-probe.png",
+      "sha256": "0f703069511f56b65bf835a6644079391a8a6229c9272e67f74102c039cd8885",
+      "bytes": 92992
+    },
+    {
+      "published": "navigation-detour-comparison.png",
+      "source": "results/local-navigation-detour-20261019/trajectory-comparison.png",
+      "sha256": "fe13a14bee6b4473ae12a2815b610f0540a4425ba95fe4d4ff7b83ca7c9e4339",
+      "bytes": 144519
+    },
+    {
+      "published": "navigation-wall-diagnosis.png",
+      "source": "results/local-wall-diagnosis-20261017/trajectory-comparison.png",
+      "sha256": "6d455fdabf9436267ac3e8a82b389ede1ec5577515ac14164693aa9efd9fede8",
+      "bytes": 193815
+    },
+    {
+      "published": "navigation-first-round-failure.json",
+      "source": "results/local-navigation-reliability-20261019/verify-blind-02/reliability.json",
+      "sha256": "067d1023ac15e11d317b1142d811c92755738f570ee7f2b375a50c8ee0e633e4",
+      "bytes": 841
+    },
+    {
+      "published": "navigation-first-round-interruption.json",
+      "source": "results/local-navigation-reliability-20261019/batch-interruption.json",
+      "sha256": "6c72bdd3bbbaf84e84cc89c0a7c0cb696b36b88d0c03d246ef05c933d051e934",
+      "bytes": 347
+    }
+  ]
+}

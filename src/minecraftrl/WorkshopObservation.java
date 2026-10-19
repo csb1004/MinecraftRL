@@ -33,6 +33,32 @@ public final class WorkshopObservation {
         return id.equals("oak_log") || id.equals("birch_log") || id.equals("spruce_log") ||
             id.equals("jungle_log") || id.equals("acacia_log") || id.equals("dark_oak_log");
     }
+    private static final boolean cameraWoodEnabled=Boolean.getBoolean("minecraftRL.cameraWood");
+    // Read-only visible-surface rays inside the fixed 70-degree vertical FOV.
+    // Every ray stops at its FIRST opaque outline; never enumerate logs behind walls.
+    private static BlockPos cameraWood(JsonObject j,ServerPlayerEntity sp,Vector3d eye) {
+        BlockPos chosen=null;double best=Double.POSITIVE_INFINITY;
+        JsonObject evidence=null;
+        for(int yaw=-40;yaw<=40;yaw+=5)for(int pitch=-20;pitch<=20;pitch+=5) {
+            double cost=yaw*yaw+pitch*pitch;
+            if(cost>=best)continue;
+            Vector3d look=Vector3d.fromPitchYaw(MathHelper.clamp(sp.rotationPitch+pitch,-89F,89F),sp.rotationYaw+yaw);
+            BlockRayTraceResult ray=sp.getServerWorld().rayTraceBlocks(new RayTraceContext(eye,
+                eye.add(look.scale(16)),RayTraceContext.BlockMode.OUTLINE,RayTraceContext.FluidMode.NONE,sp));
+            if(ray.getType()!=RayTraceResult.Type.BLOCK || !logBlock(sp,ray.getPos()))continue;
+            chosen=ray.getPos().toImmutable();best=cost;evidence=new JsonObject();
+            evidence.addProperty("source","privileged_camera_surface_rays_v1");
+            number(evidence,"tick",sp.getServer().getTickCounter());
+            number(evidence,"yaw_offset",yaw);number(evidence,"pitch_offset",pitch);
+            number(evidence,"yaw",sp.rotationYaw);number(evidence,"pitch",sp.rotationPitch);
+            number(evidence,"range",16);
+            number(evidence,"eye_x",eye.x);number(evidence,"eye_y",eye.y);number(evidence,"eye_z",eye.z);
+            number(evidence,"hit_x",ray.getHitVec().x);number(evidence,"hit_y",ray.getHitVec().y);number(evidence,"hit_z",ray.getHitVec().z);
+            number(evidence,"block_x",chosen.getX());number(evidence,"block_y",chosen.getY());number(evidence,"block_z",chosen.getZ());
+        }
+        if(evidence!=null)j.add("wood_camera_acquisition",evidence);
+        return chosen;
+    }
     private static void wood(JsonObject j,ServerPlayerEntity sp,WoodTracker state,String prefix,BlockPos mining) {
         number(j,prefix+"kind",0);number(j,prefix+"distance",0);number(j,prefix+"reachable",0);
         for(String axis:new String[]{"x","y","z"})number(j,prefix+"target_"+axis,0);
@@ -55,6 +81,7 @@ public final class WorkshopObservation {
             BlockRayTraceResult ray=sp.getServerWorld().rayTraceBlocks(new RayTraceContext(eye,
                 eye.add(sp.getLook(1).scale(16)),RayTraceContext.BlockMode.OUTLINE,RayTraceContext.FluidMode.NONE,sp));
             if(ray.getType()==RayTraceResult.Type.BLOCK && logBlock(sp,ray.getPos()))woodTarget=ray.getPos().toImmutable();
+            if(woodTarget==null && state==interactionWood && cameraWoodEnabled)woodTarget=cameraWood(j,sp,eye);
         }
         state.woodTarget=woodTarget;state.woodMissingSince=woodMissingSince;
         if(woodTarget==null)return;
@@ -81,8 +108,47 @@ public final class WorkshopObservation {
         catch(ReflectiveOperationException e) {throw new IllegalStateException(e);}
     }
     private static void number(JsonObject j,String key,double value) {j.addProperty(key,value);}
+    // Conservative, bounded, read-only walking sensor. No resource search or world-file access.
+    // Only full support + two empty, dry body cells are advertised; stairs/jumps remain unknown.
+    private static void localNavigation(JsonObject j,ServerPlayerEntity sp) {
+        if(sp==null)return;
+        int r=6,x=(int)Math.floor(sp.getPosX()),y=(int)Math.floor(sp.getPosY()+.01),z=(int)Math.floor(sp.getPosZ());
+        // While jumping, scan the real support below the player, not an empty airborne plane.
+        // At most two levels; unsupported drops are still not advertised as walking routes.
+        for(int below=0;below<=2;below++) {
+            BlockPos floor=new BlockPos(x,y-below-1,z);
+            if(sp.getServerWorld().isBlockLoaded(floor) &&
+               sp.getServerWorld().getBlockState(floor).isSolidSide(sp.getServerWorld(),floor,Direction.UP)) {
+                y-=below;break;
+            }
+        }
+        JsonObject nav=new JsonObject();JsonArray cells=new JsonArray();JsonArray access=new JsonArray();
+        number(nav,"radius",r);number(nav,"x",x);number(nav,"y",y);number(nav,"z",z);
+        number(nav,"tick",sp.getServer().getTickCounter());
+        nav.addProperty("source","privileged_local_passability_v1");
+        BlockPos target=interactionWood.woodTarget;
+        for(int dz=-r;dz<=r;dz++)for(int dx=-r;dx<=r;dx++) {
+            BlockPos p=new BlockPos(x+dx,y,z+dz);boolean open=false,ready=false;
+            if(sp.getServerWorld().isBlockLoaded(p)) {
+                open=sp.getServerWorld().isAirBlock(p) && sp.getServerWorld().isAirBlock(p.up()) &&
+                    sp.getServerWorld().getBlockState(p.down()).isSolidSide(sp.getServerWorld(),p.down(),Direction.UP) &&
+                    sp.getServerWorld().getFluidState(p).isEmpty() && sp.getServerWorld().getFluidState(p.up()).isEmpty();
+                if(open && target!=null && logBlock(sp,target)) {
+                    Vector3d eye=new Vector3d(p.getX()+.5,y+1.62,p.getZ()+.5),center=Vector3d.copyCentered(target);
+                    if(eye.distanceTo(center)<=3.5) {
+                        BlockRayTraceResult ray=sp.getServerWorld().rayTraceBlocks(new RayTraceContext(eye,center,
+                            RayTraceContext.BlockMode.OUTLINE,RayTraceContext.FluidMode.NONE,sp));
+                        ready=ray.getType()==RayTraceResult.Type.BLOCK && ray.getPos().equals(target);
+                    }
+                }
+            }
+            cells.add(open?1:0);access.add(ready?1:0);
+        }
+        nav.add("walkable",cells);nav.add("wood_access",access);j.add("local_navigation",nav);
+    }
     public static JsonObject read() {
         Minecraft mc=Minecraft.getInstance();JsonObject j=new JsonObject();
+        number(j,"wood_camera_rays_enabled",cameraWoodEnabled?1:0);
         ServerPlayerEntity sp=mc.player==null || mc.getIntegratedServer()==null ? null :
             mc.getIntegratedServer().getPlayerList().getPlayerByUUID(mc.player.getUniqueID());
         boolean inv=mc.currentScreen instanceof InventoryScreen,table=mc.currentScreen instanceof CraftingScreen;
@@ -119,6 +185,7 @@ public final class WorkshopObservation {
         }
         wood(j,sp,legacyWood,"wood_",null);
         wood(j,sp,interactionWood,"wood_v3_",mining);
+        localNavigation(j,sp);
         JsonArray slots=new JsonArray();Container container=screen==null?null:screen.getContainer();
         for(int i=0;i<46;i++) {
             JsonObject s=new JsonObject();Slot slot=container!=null && i<container.inventorySlots.size()?container.inventorySlots.get(i):null;

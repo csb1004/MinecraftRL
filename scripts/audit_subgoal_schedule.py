@@ -69,6 +69,12 @@ def verify_schedule(run,report,rows,trajectory,history,events):
     for e in events:
         if e['event']=='wait_started':
             p=e['packet'];validate_packet(p);verify_snapshot(p['runtime_binding'])
+            if p.get('waypoint_context',{}).get('source')=='privileged_local_passability_v1':
+                from minecraftrl.local_navigation import validate_candidate
+                obs=at(p['runtime_binding']['sequence']);context=p['waypoint_context']
+                assert context['local_navigation']==obs['local_navigation']
+                for c in context['candidates']:
+                    if c['admissible']:assert validate_candidate(obs,c['target'])
             request=next(r for r in history['requests'] if r['request_id']==p['request_id'])
             assert p['runtime_binding']==request['snapshot'] and p['execution_registry']==request['capabilities']
             packets[p['request_id']]=p
