@@ -3,13 +3,16 @@
 Steps are cut from `timeline.jsonl` (`step_started` / `step_finished`); signals are recomputed from `telemetry.jsonl`
 through the live adapter `rm.sample_from`. Records are read only. The live pipeline is not changed.
 """
+import hashlib
 import json
 import math
-from collections import deque
-from dataclasses import dataclass
+import statistics
+from collections import Counter, deque
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from ..stall_detection import StallDetector, StallSample
+from .monitor_spec import load_spec
 from .rm import sample_from
 from .steps import block_matches, item_count
 from .viewer import read_jsonl
@@ -118,12 +121,12 @@ def fit_times(runs, spec, *, min_records=3):
     return table, {k: len(v) for k, v in samples.items() if len(v) < min_records}
 
 
-def first_stall(run, step, rows, until_t, anomaly):
+def stall_events(run, step, rows, until_t=None):
     """The live search detector (FastMonitor fields, invalid samples skipped) over policy rows before `until_t`;
-    the first stall whose reason the spec names, as (seconds into the step, reason)."""
+    yields (recorded time, reason) for each stall."""
     detector, prev = StallDetector(), None
     for r in rows:
-        if until_t is not None and r['t'] >= until_t: break
+        if until_t is not None and r['t'] >= until_t: return
         s = sample_from_row(r)
         if not s.valid: continue
         removed = s.last_destroyed_pos if prev is not None and s.destroys > prev.destroys else None
@@ -131,8 +134,13 @@ def first_stall(run, step, rows, until_t, anomaly):
         report = detector.update(StallSample(tick=s.tick, position=s.position, yaw=s.yaw, stage='search',
                                              action=s.action_keys, inventory_count=item_count(s.inventory, step.target),
                                              block_removed=removed, context_id=run.name))
-        if report['event'] == 'stalled' and report['reason'] in anomaly: return r['t'] - step.start_t, report['reason']
-    return None
+        if report['event'] == 'stalled': yield r['t'], report['reason']
+
+
+def first_stall(run, step, rows, until_t, anomaly):
+    """The first stall whose reason the spec names, as (seconds into the step, reason)."""
+    return next(((t - step.start_t, reason) for t, reason in stall_events(run, step, rows, until_t) if reason in anomaly),
+                None)
 
 
 def waste_fractions(rows, names):
@@ -183,3 +191,160 @@ def replay_step(run, step, sub, table, margin):
         check, reason = min(candidates)
         out.update(check_s=check, check_reason=reason, saved_s=duration - check)
     return out
+
+
+STALL_KINDS = ('no_progress', 'repeated_cycle', 'stationary_repetition', 'no_goal_progress')
+FIDELITY_S = 2.
+CATEGORIES = ('problem', 'success', 'other')
+
+
+def run_label(run):
+    return f'{run.path.parent.name}/{run.name}'
+
+
+def category(r):
+    """problem: hit the run time limit. success: completed, or an until_found step that saw its target."""
+    if r['status'] == 'time_limit': return 'problem'
+    if r['status'] == 'completed' or (r['ending'] == 'until_found' and r['found_s'] is not None): return 'success'
+    return 'other'
+
+
+def _summary(rows):
+    out = {}
+    for cat in CATEGORIES:
+        group = [r for r in rows if category(r) == cat]
+        checked = [r for r in group if r['check_s'] is not None]
+        entry = {'n': len(group)}
+        if cat == 'problem':
+            saved = [r['saved_s'] for r in checked]
+            entry.update(detected=len(checked), saved_s_median=statistics.median(saved) if saved else None,
+                         saved_s_total=sum(saved), reasons=dict(Counter(r['check_reason'] for r in checked)))
+        elif cat == 'success':
+            entry.update(false_checks=len(checked), reasons=dict(Counter(r['check_reason'] for r in checked)))
+        out[cat] = entry
+    return out
+
+
+def _replay_all(runs, spec, table, margin):
+    return [dict(replay_step(run, step, spec.for_step(step.skill, step.target), table, margin), run=run_label(run))
+            for run in runs for step in run.steps]
+
+
+def evaluate(runs, spec, table, margins):
+    """Per margin: detections and saved time on problem steps, false checks on successes, per skill too.
+    `steps` lists every replayed step at the spec's own margin."""
+    result = {'margins': {}, 'steps': _replay_all(runs, spec, table, spec.margin)}
+    for margin in margins:
+        rows = result['steps'] if margin == spec.margin else _replay_all(runs, spec, table, margin)
+        skills = sorted({r['skill'] for r in rows})
+        result['margins'][f'{margin:g}'] = dict(_summary(rows),
+                                                by_skill={k: _summary([r for r in rows if r['skill'] == k]) for k in skills})
+    return result
+
+
+def stall_fidelity(run):
+    """Recorded stall events (monitor_event, or anomaly for hold kinds) that the replayed live detector reproduces:
+    same step, same kind, within FIDELITY_S seconds."""
+    timeline = read_jsonl(run.path / 'timeline.jsonl')
+    out = dict(recorded=0, reproduced=0, replayed=0, missed=[])
+    for step in run.steps:
+        events = list(stall_events(run, step, policy_rows(run, step)))
+        out['replayed'] += len(events)
+        for e in timeline:
+            kind = (e.get('event') or {}).get('kind')
+            if e.get('kind') not in ('monitor_event', 'anomaly') or e.get('step_id') != step.id or kind not in STALL_KINDS:
+                continue
+            if not step.start_t <= e['t'] <= step.end_t: continue
+            out['recorded'] += 1
+            if any(k == kind and abs(t - e['t']) <= FIDELITY_S for t, k in events): out['reproduced'] += 1
+            else: out['missed'].append(dict(step=step.id, kind=kind, at_s=e['t'] - step.start_t))
+    return out
+
+
+class ReplayRejected(ValueError):
+    pass
+
+
+def _usable(dirs):
+    keep, skipped = [], []
+    for d in map(Path, dirs):
+        (keep if d.is_dir() and (d / 'timeline.jsonl').exists() and (d / 'telemetry.jsonl').exists() else skipped).append(d)
+    return keep, [str(d) for d in skipped]
+
+
+def sha256(path):
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def _inputs(runs):
+    return [dict(dir=str(r.path), seed=r.seed, steps=len(r.steps), timeline_sha256=sha256(r.path / 'timeline.jsonl'),
+                 telemetry_sha256=sha256(r.path / 'telemetry.jsonl')) for r in runs]
+
+
+def _fidelity(runs):
+    per_run = {run_label(r): stall_fidelity(r) for r in runs}
+    total = {k: sum(v[k] for v in per_run.values()) for k in ('recorded', 'reproduced', 'replayed')}
+    return dict(total, runs=per_run)
+
+
+def build_report(spec_path, fit_dirs, eval_dirs, *, margins=(0.2, 0.5, 1.0), min_records=3):
+    """Times are fitted on the fit runs only and applied to the eval runs. Shared folders or seeds are refused."""
+    spec = load_spec(spec_path)
+    overlap = {Path(d).resolve() for d in fit_dirs} & {Path(d).resolve() for d in eval_dirs}
+    if overlap: raise ReplayRejected('folders in both fit and eval: ' + ', '.join(sorted(map(str, overlap))))
+    fit_paths, skipped_fit = _usable(fit_dirs); eval_paths, skipped_eval = _usable(eval_dirs)
+    if not fit_paths or not eval_paths: raise ReplayRejected('need at least one fit run and one eval run with records')
+    fit_runs, eval_runs = [load_run(p) for p in fit_paths], [load_run(p) for p in eval_paths]
+    shared = {r.seed for r in fit_runs} & {r.seed for r in eval_runs}
+    if shared: raise ReplayRejected('seeds in both fit and eval: ' + ', '.join(map(str, sorted(shared, key=str))))
+    table, insufficient = fit_times(fit_runs, spec, min_records=min_records)
+    margins = tuple(sorted(set(margins) | {spec.margin}))
+    here = Path(__file__).resolve().parent
+    return dict(
+        spec=dict(path=str(spec_path), version=spec.version, author=spec.author, margin=spec.margin),
+        inputs=dict(fit=_inputs(fit_runs), eval=_inputs(eval_runs), skipped=skipped_fit + skipped_eval),
+        source={'monitor_spec.py': sha256(here / 'monitor_spec.py'), 'monitor_replay.py': sha256(here / 'monitor_replay.py'),
+                'spec': sha256(spec_path)},
+        min_records=min_records, times={k: asdict(v) for k, v in sorted(table.items())}, insufficient=insufficient,
+        evaluation=evaluate(eval_runs, spec, table, margins),
+        fidelity=dict(fit=_fidelity(fit_runs), eval=_fidelity(eval_runs)))
+
+
+def _num(v, digits=1):
+    return '-' if v is None else f'{v:.{digits}f}'
+
+
+def _seeds(runs):
+    return ', '.join(str(s) for s in sorted({r['seed'] for r in runs}, key=str))
+
+
+def report_markdown(report):
+    spec, ev, inputs = report['spec'], report['evaluation'], report['inputs']
+    lines = [f"# 감시 명세 재생 결과 ({spec['version']})", '',
+             f"- 개발 기록 {len(inputs['fit'])}개 (seed {_seeds(inputs['fit'])}): 기준 시간만 정한다.",
+             f"- 평가 기록 {len(inputs['eval'])}개 (seed {_seeds(inputs['eval'])}): 감지와 오탐만 잰다.",
+             f"- 건너뛴 폴더 {len(inputs['skipped'])}개 (기록 파일 없음). 명세 여유 {spec['margin']:g}.", '',
+             '## 여유별 요약', '',
+             '| 여유 | 문제 단계 | 감지 | 아낄 수 있던 시간 중앙값(s) | 합계(s) | 성공 단계 | 오탐 | 기타 |',
+             '|---|---|---|---|---|---|---|---|']
+    for m, s in ev['margins'].items():
+        p, ok = s['problem'], s['success']
+        lines.append(f"| {m} | {p['n']} | {p['detected']} | {_num(p['saved_s_median'])} | {_num(p['saved_s_total'])} | "
+                     f"{ok['n']} | {ok['false_checks']} | {s['other']['n']} |")
+    own = ev['margins'][f"{spec['margin']:g}"]
+    lines += ['', f"## 스킬별 (여유 {spec['margin']:g})", '', '| 스킬 | 문제 | 감지 | 성공 | 오탐 | 기타 |',
+              '|---|---|---|---|---|---|']
+    for skill, s in own['by_skill'].items():
+        lines.append(f"| {skill} | {s['problem']['n']} | {s['problem']['detected']} | {s['success']['n']} | "
+                     f"{s['success']['false_checks']} | {s['other']['n']} |")
+    lines += ['', '점검 사유: 문제 ' + json.dumps(own['problem']['reasons'], ensure_ascii=False) + ', 오탐 ' +
+              json.dumps(own['success']['reasons'], ensure_ascii=False), '',
+              '## 기준 시간 (개발 기록, 단위당 초)', '', '| 키 | n | 최고 | 최악 |', '|---|---|---|---|']
+    lines += [f"| {k} | {v['n']} | {v['best']:.1f} | {v['worst']:.1f} |" for k, v in report['times'].items()]
+    lines += ['', f"## 기록 부족 (완료 {report['min_records']}개 미만, 기준 없음)", '']
+    lines += [f'- {k}: {n}개' for k, n in sorted(report['insufficient'].items())] or ['- 없음']
+    lines += ['', '## 재현도 (기록된 정체 이벤트를 다시 계산해 ±2초 안에 같은 종류가 나온 수)', '']
+    for name, label in (('fit', '개발'), ('eval', '평가')):
+        f = report['fidelity'][name]
+        lines.append(f"- {label}: 기록 {f['recorded']}개 중 재현 {f['reproduced']}개 (재생에서 나온 정체 {f['replayed']}개)")
+    return '\n'.join(lines) + '\n'

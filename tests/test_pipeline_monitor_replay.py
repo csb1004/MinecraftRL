@@ -1,10 +1,11 @@
+import importlib.util
 import json
 import tempfile
 import unittest
 from pathlib import Path
 
-from minecraftrl.pipeline.monitor_replay import (TimeEntry, fit_times, found_time, load_run, policy_rows, replay_step,
-                                                 sample_from_row, unit_count)
+from minecraftrl.pipeline.monitor_replay import (TimeEntry, evaluate, fit_times, found_time, load_run, policy_rows,
+                                                 replay_step, sample_from_row, stall_fidelity, unit_count)
 from minecraftrl.pipeline.monitor_spec import parse_spec
 from minecraftrl.pipeline.rm import sample_from
 
@@ -97,7 +98,7 @@ class LoadRunTest(unittest.TestCase):
         self.assertEqual([r['step'] for r in policy_rows(unfinished, unfinished.steps[0])][-1], 34)
 
 
-SPEC = parse_spec({
+SPEC_RAW = {
     'version': 'replay-test', 'author': 'human', 'margin': 0.2,
     'subgoals': {
         'craft': {'ending': 'bounded', 'unit': 'step'},
@@ -107,7 +108,8 @@ SPEC = parse_spec({
                            'waste': ['moving_but_stuck', 'looking_down', 'revisiting_area']},
     },
     'constraints': [],
-})
+}
+SPEC = parse_spec(SPEC_RAW)
 AFTER_FOUND = {'mine_iron_text:after_found': TimeEntry(3, 2., 5.)}
 
 
@@ -238,6 +240,97 @@ class FitAndReplayTest(unittest.TestCase):
         run = steps_run(self.root, 'eval', [('teleport', 5., 'completed', 1, 'home')])
         result = replay_step(run, run.steps[0], SPEC.for_step('teleport', 'home'), AFTER_FOUND, 0.2)
         self.assertEqual((result['note'], result['check_s'], result['skill']), ('no_spec', None, 'teleport'))
+
+
+def load_script():
+    path = Path(__file__).resolve().parents[1] / 'scripts' / 'replay_monitor_spec.py'
+    spec = importlib.util.spec_from_file_location('replay_monitor_spec_under_test', path)
+    module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+    return module
+
+
+def craft_timeline(durations, status='completed'):
+    timeline, t = [], 0.
+    for i, d in enumerate(durations):
+        timeline += [started(f'c{i}', 'craft', t, 10 * i, target='stick'),
+                     finished(f'c{i}', 'craft', t + d, 10 * i + 10, status, target='stick')]
+        t += d
+    return timeline
+
+
+class EvaluateAndScriptTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory(); self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+        self.spec_path = self.root / 'spec.json'; self.spec_path.write_text(json.dumps(SPEC_RAW), encoding='utf-8')
+
+    def test_evaluate_counts_problem_and_success(self):
+        table = {'craft': TimeEntry(3, 10., 20.)}
+        slow = steps_run(self.root, 'slow', [('craft', 30., 'time_limit', 1, 'stick')], 104729)
+        done = steps_run(self.root, 'done', [('craft', 10., 'completed', 1, 'stick'),
+                                             ('craft', 25., 'completed', 1, 'stick')], 104729)
+        result = evaluate([slow, done], SPEC, table, (0.2, 1.0))
+        tight, loose = result['margins']['0.2'], result['margins']['1']
+        self.assertEqual((tight['problem']['n'], tight['problem']['detected']), (1, 1))
+        self.assertAlmostEqual(tight['problem']['saved_s_median'], 6.)
+        self.assertEqual((tight['success']['n'], tight['success']['false_checks']), (2, 1))
+        self.assertEqual((loose['problem']['detected'], loose['success']['false_checks']), (0, 0))
+        self.assertEqual(tight['by_skill']['craft']['success']['false_checks'], 1)
+        self.assertEqual(len(result['steps']), 3)
+
+    def test_fidelity_reproduces_recorded_event(self):
+        rows = stationary(402)
+        timeline = [started('iron', 'mine_iron_text', rows[0]['t'], 1, block='iron_ore'),
+                    {'t': 3., 'step': 60, 'kind': 'monitor_event', 'step_id': 'iron',
+                     'event': {'kind': 'harvest_without_drop', 'hold': False}},
+                    {'t': 20.06, 'step': 402, 'kind': 'anomaly', 'step_id': 'iron',
+                     'event': {'kind': 'stationary_repetition', 'hold': True, 'tick': 401, 'step': 'iron'}},
+                    finished('iron', 'mine_iron_text', 20.1, 402, 'anomaly_hold', block='iron_ore')]
+        run = load_run(write_run(self.root / 'held', timeline, rows))
+        fidelity = stall_fidelity(run)
+        self.assertEqual((fidelity['recorded'], fidelity['reproduced']), (1, 1))
+
+    def dev_and_eval(self, eval_seed=104729):
+        dev = [write_run(self.root / 'dev' / f'A{i}', craft_timeline([10. + i, 12.]), []) for i in range(3)]
+        evaluation = [write_run(self.root / 'eval' / 'E1', craft_timeline([30.], 'time_limit'), [], eval_seed)]
+        return dev, evaluation
+
+    def run_main(self, dev, evaluation, out):
+        args = ['--spec', str(self.spec_path), '--fit', *map(str, dev), '--eval', *map(str, evaluation), '--out', str(out)]
+        return load_script().main(args)
+
+    def test_overlapping_runs_rejected(self):
+        dev, _ = self.dev_and_eval()
+        out = self.root / 'out'
+        self.assertEqual(self.run_main(dev, dev[:1], out), 2)
+        self.assertFalse(out.exists())
+
+    def test_shared_seed_rejected(self):
+        dev, evaluation = self.dev_and_eval(eval_seed=130363)
+        out = self.root / 'out'
+        self.assertEqual(self.run_main(dev, evaluation, out), 2)
+        self.assertFalse(out.exists())
+
+    def test_existing_out_dir_rejected(self):
+        dev, evaluation = self.dev_and_eval()
+        out = self.root / 'out'; out.mkdir()
+        self.assertEqual(self.run_main(dev, evaluation, out), 2)
+        self.assertEqual(list(out.iterdir()), [])
+
+    def test_main_writes_report(self):
+        dev, evaluation = self.dev_and_eval()
+        (self.root / 'dev' / 'kb').mkdir()
+        out = self.root / 'out'
+        self.assertEqual(self.run_main(dev + [self.root / 'dev' / 'kb'], evaluation, out), 0)
+        report = json.loads((out / 'report.json').read_text(encoding='utf-8'))
+        self.assertEqual([r['seed'] for r in report['inputs']['fit']], [130363] * 3)
+        self.assertTrue(all(len(r['timeline_sha256']) == 64 and len(r['telemetry_sha256']) == 64
+                            for r in report['inputs']['fit'] + report['inputs']['eval']))
+        self.assertEqual(report['inputs']['skipped'], [str(self.root / 'dev' / 'kb')])
+        self.assertEqual(sorted(report['source']), ['monitor_replay.py', 'monitor_spec.py', 'spec'])
+        self.assertEqual(report['times']['craft']['worst'], 12.)
+        self.assertEqual(report['evaluation']['margins']['0.2']['problem']['detected'], 1)
+        self.assertIn('| 0.2 |', (out / 'report.md').read_text(encoding='utf-8'))
 
 
 if __name__ == '__main__':
