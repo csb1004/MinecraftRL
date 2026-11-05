@@ -3,7 +3,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from minecraftrl.pipeline.monitor_replay import load_run, policy_rows, sample_from_row
+from minecraftrl.pipeline.monitor_replay import (TimeEntry, fit_times, found_time, load_run, policy_rows, replay_step,
+                                                 sample_from_row, unit_count)
+from minecraftrl.pipeline.monitor_spec import parse_spec
 from minecraftrl.pipeline.rm import sample_from
 
 
@@ -93,6 +95,149 @@ class LoadRunTest(unittest.TestCase):
         self.assertEqual([r['step'] for r in policy_rows(run, run.steps[0])], [s for s in range(10, 20) if s != 12])
         unfinished = load_run(write_run(self.root / 'A5', [started('iron', 'mine_iron_text', 0.5, 10)], rows))
         self.assertEqual([r['step'] for r in policy_rows(unfinished, unfinished.steps[0])][-1], 34)
+
+
+SPEC = parse_spec({
+    'version': 'replay-test', 'author': 'human', 'margin': 0.2,
+    'subgoals': {
+        'craft': {'ending': 'bounded', 'unit': 'step'},
+        'climb_out_text': {'ending': 'bounded', 'unit': 'block'},
+        'mine_iron_text': {'ending': 'until_found', 'unit': 'item', 'found': 'iron_ore',
+                           'anomaly': ['no_progress', 'repeated_cycle', 'stationary_repetition'],
+                           'waste': ['moving_but_stuck', 'looking_down', 'revisiting_area']},
+    },
+    'constraints': [],
+})
+AFTER_FOUND = {'mine_iron_text:after_found': TimeEntry(3, 2., 5.)}
+
+
+def steps_run(root, name, items, seed=130363):
+    """Sequential steps without telemetry: items are (skill, duration_s, status, count, target)."""
+    timeline, t = [], 0.
+    for i, (skill, duration, status, count, target) in enumerate(items):
+        sid = f'{skill}-{i}'
+        timeline += [started(sid, skill, t, 10 * i, target=target, count=count),
+                     finished(sid, skill, t + duration, 10 * i + 10, status, target=target, count=count)]
+        t += duration
+    return load_run(write_run(Path(root) / name, timeline, [], seed))
+
+
+def search_run(root, name, rows, status='time_limit', seed=130363):
+    """One mine_iron_text step spanning the rows; it ends one tick after the last row."""
+    first, last = rows[0], rows[-1]
+    timeline = [started('iron', 'mine_iron_text', first['t'], first['step'], block='iron_ore'),
+                finished('iron', 'mine_iron_text', last['t'] + .05, last['step'] + 1, status, block='iron_ore')]
+    return load_run(write_run(Path(root) / name, timeline, rows, seed))
+
+
+def moving(ticks, *, hit_from=None, stride=2):
+    """Walking east half a block per tick: a new 2-block cell every few ticks, so the detector sees progress."""
+    return [row(k, pos=(0.5 + 0.5 * k, 64., 0.5), keys=('forward',),
+                hit='iron_ore' if hit_from is not None and k >= hit_from else 'air') for k in range(1, ticks, stride)]
+
+
+def stationary(ticks, *, start=1, stride=2):
+    return [row(k, keys=('forward',)) for k in range(start, start + ticks, stride)]
+
+
+def replay(run, margin=0.2, table=None):
+    step = run.steps[0]
+    return replay_step(run, step, SPEC.for_step(step.skill, step.target), AFTER_FOUND if table is None else table, margin)
+
+
+class FitAndReplayTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory(); self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+
+    def crafts(self, name, durations, status='completed'):
+        return steps_run(self.root, name, [('craft', d, status, 1, 'stick') for d in durations])
+
+    def test_bounded_check_fires_after_worst_plus_margin(self):
+        table, insufficient = fit_times([self.crafts('dev', [10., 12., 20.])], SPEC)
+        self.assertEqual(table['craft'], TimeEntry(3, 10., 20.))
+        self.assertNotIn('craft', insufficient)
+        late = replay(self.crafts('slow', [30.], 'time_limit'), table=table)
+        self.assertAlmostEqual(late['check_s'], 24.)
+        self.assertAlmostEqual(late['saved_s'], 6.)
+        self.assertEqual((late['check_reason'], late['ending'], late['note']), ('over_check_time', 'bounded', None))
+        within = replay(self.crafts('ok', [23.]), table=table)
+        self.assertIsNone(within['check_s']); self.assertIsNone(within['saved_s'])
+
+    def test_per_unit_normalisation(self):
+        dev = steps_run(self.root, 'dev', [('climb_out_text', 9., 'completed', 3, 'height'),
+                                           ('climb_out_text', 12., 'completed', 6, 'height'),
+                                           ('climb_out_text', 8., 'completed', 2, 'height')])
+        table, _ = fit_times([dev], SPEC)
+        self.assertEqual(table['climb_out_text'], TimeEntry(3, 2., 4.))
+        climb = steps_run(self.root, 'eval', [('climb_out_text', 30., 'time_limit', 5, 'height')])
+        self.assertEqual(unit_count(climb.steps[0], SPEC.for_step('climb_out_text', 'height')), 5)
+        self.assertAlmostEqual(replay(climb, table=table)['check_s'], 24.)
+
+    def test_fit_needs_min_records(self):
+        table, insufficient = fit_times([self.crafts('dev', [10., 12.])], SPEC)
+        self.assertNotIn('craft', table)
+        self.assertEqual(insufficient['craft'], 2)
+        self.assertEqual(insufficient['mine_iron_text:after_found'], 0)
+        self.assertEqual(replay(self.crafts('eval', [99.]), table=table)['note'], 'no_records')
+
+    def test_fit_ignores_non_completed(self):
+        dev = steps_run(self.root, 'dev', [('craft', d, s, 1, 'stick') for d, s in
+                                           ((10., 'completed'), (100., 'time_limit'), (12., 'completed'),
+                                            (50., 'anomaly_hold'), (20., 'completed'))])
+        self.assertEqual(fit_times([dev], SPEC)[0]['craft'], TimeEntry(3, 10., 20.))
+
+    def test_fit_after_found_uses_time_after_target_seen(self):
+        runs = [search_run(self.root, f'dev{i}', moving(tail, hit_from=600), 'completed') for i, tail in
+                enumerate((640, 660, 700))]
+        self.assertAlmostEqual(found_time(policy_rows(runs[0], runs[0].steps[0]), runs[0].steps[0]), 30.05)
+        table, _ = fit_times(runs, SPEC)
+        self.assertNotIn('mine_iron_text', table)
+        entry = table['mine_iron_text:after_found']
+        self.assertEqual(entry.n, 3)
+        # Last rows at ticks 639/659/699 end the steps at 32.0/33.0/35.0 s; the target was first seen at 30.05 s.
+        self.assertAlmostEqual(entry.best, 1.95)
+        self.assertAlmostEqual(entry.worst, 4.95)
+
+    def test_until_found_has_no_time_check_before_found(self):
+        result = replay(search_run(self.root, 'eval', moving(12000)))
+        self.assertGreater(result['duration_s'], 599.)
+        self.assertIsNone(result['found_s'])
+        self.assertIsNone(result['check_s'])
+
+    def test_until_found_stall_check(self):
+        result = replay(search_run(self.root, 'eval', stationary(1200)))
+        self.assertEqual(result['check_reason'], 'stationary_repetition')
+        self.assertAlmostEqual(result['check_s'], 20.)
+
+    def test_found_switches_to_bounded(self):
+        result = replay(search_run(self.root, 'eval', moving(1200, hit_from=600)))
+        self.assertAlmostEqual(result['found_s'], 30.)
+        self.assertAlmostEqual(result['check_s'], 36.)
+        self.assertEqual(result['check_reason'], 'over_check_time')
+
+    def test_observation_gap_resets_stall(self):
+        jump = stationary(300) + stationary(300, start=351)
+        unavailable = (stationary(300) + [row(k, keys=('forward',), available=0.) for k in range(303, 351, 2)]
+                       + stationary(300, start=351))
+        for name, rows in (('jump', jump), ('unavailable', unavailable)):
+            with self.subTest(name=name):
+                self.assertIsNone(replay(search_run(self.root, name, rows))['check_s'])
+
+    def test_waste_fractions(self):
+        rows = [row(k, keys=('forward',), pitch=70. if k >= 120 else 0.) for k in range(160)]
+        waste = replay(search_run(self.root, 'stuck', rows))['waste']
+        self.assertEqual(waste, {'moving_but_stuck': 0.75, 'looking_down': 0.25, 'revisiting_area': 0.})
+        walk = [row(k, pos=(0.1 * k, 64., 0.5), keys=('forward',)) for k in range(80)]
+        self.assertEqual(replay(search_run(self.root, 'walk', walk))['waste']['moving_but_stuck'], 0.)
+        # Out to x=5.85 through cells 0, 1, 2 and back: rows 53-79 walk into cells 1 and 0 again.
+        back = [row(k, pos=(0.15 * (k if k < 40 else 79 - k), 64., 0.5), keys=('forward',)) for k in range(80)]
+        self.assertAlmostEqual(replay(search_run(self.root, 'back', back))['waste']['revisiting_area'], 27 / 80)
+
+    def test_step_without_spec_reported(self):
+        run = steps_run(self.root, 'eval', [('teleport', 5., 'completed', 1, 'home')])
+        result = replay_step(run, run.steps[0], SPEC.for_step('teleport', 'home'), AFTER_FOUND, 0.2)
+        self.assertEqual((result['note'], result['check_s'], result['skill']), ('no_spec', None, 'teleport'))
 
 
 if __name__ == '__main__':
