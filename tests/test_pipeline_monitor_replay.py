@@ -294,6 +294,14 @@ class EvaluateAndScriptTest(unittest.TestCase):
         self.assertEqual(tight['by_skill']['craft']['success']['false_checks'], 1)
         self.assertEqual(len(result['steps']), 3)
 
+    def test_unfinished_step_is_neither_problem_nor_success(self):
+        rows = moving(200, hit_from=100)
+        cut = load_run(write_run(self.root / 'cut', [started('iron', 'mine_iron_text', rows[0]['t'], 1, block='iron_ore'),
+                                                     {'t': rows[-1]['t'], 'step': 200, 'kind': 'stop_acknowledged'}], rows))
+        self.assertIsNotNone(replay(cut)['found_s'])
+        summary = evaluate([cut], SPEC, AFTER_FOUND, (0.2,))['margins']['0.2']
+        self.assertEqual((summary['problem']['n'], summary['success']['n'], summary['other']['n']), (0, 0, 1))
+
     def test_fidelity_reproduces_recorded_event(self):
         rows = stationary(402)
         timeline = [started('iron', 'mine_iron_text', rows[0]['t'], 1, block='iron_ore'),

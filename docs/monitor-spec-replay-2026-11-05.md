@@ -6,6 +6,8 @@
 - 명세: [`configs/monitor-specs/iron-demo-v1.json`](../configs/monitor-specs/iron-demo-v1.json) (사람 작성, 여유 0.2)
 - 결과 폴더: `results/monitor-spec-replay-20261105-r2/report.json`, `report.md` (Git 제외)
 - 해시 (SHA256 앞 12자리): `monitor_spec.py` c2dc17b677f6, `monitor_replay.py` f01738cb4fe8, 명세 300229234a9e
+- 재생 뒤 최종 검토에서 분류 버그를 하나 고쳤다. 기록이 중간에 끊긴 탐색 단계가 대상을 봤으면 '성공'으로 세던 것을 '기타'로 바꿨다.
+  평가 기록에는 끊긴 단계가 없어 아래 수치는 그대로다.
 
 ## 요약
 

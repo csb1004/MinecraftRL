@@ -208,7 +208,9 @@ def run_label(run):
 
 
 def category(r):
-    """problem: hit the run time limit. success: completed, or an until_found step that saw its target."""
+    """problem: hit the run time limit. success: completed, or an until_found step that saw its target.
+    A step the record cut off (no step_finished) is neither."""
+    if r['status'] == 'unfinished': return 'other'
     if r['status'] == 'time_limit': return 'problem'
     if r['status'] == 'completed' or (r['ending'] == 'until_found' and r['found_s'] is not None): return 'success'
     return 'other'
