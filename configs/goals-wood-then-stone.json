@@ -1,0 +1,27 @@
+{
+  "schema": "goal_queue_v1",
+  "goals": [
+    {
+      "id": "get-wood",
+      "objective": "Acquire one new wood log before collecting stone.",
+      "priority": 80,
+      "depends_on": [],
+      "items": ["oak_log", "birch_log", "spruce_log", "jungle_log", "acacia_log", "dark_oak_log"],
+      "count": 1,
+      "skill": "wood_memory",
+      "requires": []
+    },
+    {
+      "id": "get-stone",
+      "objective": "Acquire one new cobblestone after the wood goal is complete.",
+      "priority": 70,
+      "depends_on": ["get-wood"],
+      "items": ["cobblestone"],
+      "count": 1,
+      "skill": "stone_collect",
+      "requires": [
+        {"any_of": ["wooden_pickaxe", "stone_pickaxe", "iron_pickaxe", "diamond_pickaxe", "netherite_pickaxe"], "count": 1}
+      ]
+    }
+  ]
+}

@@ -95,11 +95,19 @@ def start_pose(blocks,*,start_xz=None,mirror_z=False,start_yaw=None):
     return [float(x),201.,float(z)],yaw
 
 
-def make_arena(source,output,kind,*,wall_end=None,mirror_z=False,start_xz=None,start_yaw=None):
+def make_arena(source,output,kind,*,wall_end=None,mirror_z=False,start_xz=None,start_yaw=None,step_layout=None):
     if (start_xz is not None or start_yaw is not None) and kind!='recovery':raise ValueError('custom start requires recovery arena')
+    if kind=='step_navigation':
+        if wall_end is not None or mirror_z is not False:raise ValueError('step layout cannot mix recovery geometry')
+        from .step_navigation import geometry,step_contract
+        blocks,relative,yaw,step_points=geometry(step_layout)
+    else:
+        if step_layout is not None:raise ValueError('step layout requires explicit step arena')
+        blocks=arena(kind,wall_end=wall_end,mirror_z=mirror_z)
+        relative,yaw=start_pose(blocks,start_xz=start_xz,mirror_z=mirror_z,start_yaw=start_yaw)
     source=Path(source);output=Path(output)
     if output.exists() or output.with_suffix('.json').exists():raise FileExistsError(output)
-    validate_archive(source);source_sha=digest(source);blocks=arena(kind,wall_end=wall_end,mirror_z=mirror_z)
+    validate_archive(source);source_sha=digest(source)
     manifest=json.loads(source.with_suffix('.json').read_text())
     if manifest['sha256']!=source_sha:raise ValueError('source archive hash mismatch')
     with zipfile.ZipFile(source) as original:
@@ -123,7 +131,6 @@ def make_arena(source,output,kind,*,wall_end=None,mirror_z=False,start_xz=None,s
         for i,value in enumerate(heights):packed[i//7]|=value<<((i%7)*9)
         for key in data['Heightmaps']:data['Heightmaps'][key]=n.LongArray([signed(v) for v in packed])
         replacements={region_name:replace_chunk(region,index,encode(chunk))}
-        relative,yaw=start_pose(blocks,start_xz=start_xz,mirror_z=mirror_z,start_yaw=start_yaw)
         position=[cx*16+relative[0],relative[1],cz*16+relative[2]]
         def player(p):
             p['Pos']=n.List[n.Double](position);p['Motion']=n.List[n.Double]([0.,0.,0.])
@@ -153,7 +160,16 @@ def make_arena(source,output,kind,*,wall_end=None,mirror_z=False,start_xz=None,s
                 scope='offline synthetic arena; no policy actions or acquisition credit in construction')
     if wall_end is not None or mirror_z:result['curriculum']=dict(wall_end=13 if wall_end is None else wall_end,mirror_z=mirror_z)
     if start_xz is not None or start_yaw is not None:result['start_pose']=dict(canonical_xz=list(start_xz or (3.5,3.5)),relative_position=relative,yaw=yaw,pitch=-13.)
+    if kind=='step_navigation':
+        result.update(step_layout=dict(step_layout),navigation_goals=step_contract(step_layout,[cx,cz],result['sha256']),
+                      start_pose=dict(relative_position=relative,yaw=yaw,pitch=-13.),target=None)
     output.with_suffix('.json').write_text(json.dumps(result,indent=2))
     from .saved_block import saved_block
     for (x,y,z),name in blocks.items():assert saved_block(output,(cx*16+x,y,cz*16+z))==name
+    if kind=='step_navigation':
+        for x,y,z in [relative]+step_points:
+            for bx in range(math.floor(x-.3+1e-7),math.floor(x+.3-1e-7)+1):
+                for bz in range(math.floor(z-.3+1e-7),math.floor(z+.3-1e-7)+1):
+                    assert saved_block(output,(cx*16+bx,int(y)-1,cz*16+bz))==step_layout['material']
+                    for by in (int(y),int(y)+1):assert saved_block(output,(cx*16+bx,by,cz*16+bz))=='minecraft:air'
     return result

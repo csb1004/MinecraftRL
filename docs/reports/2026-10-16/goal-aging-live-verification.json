@@ -1,0 +1,475 @@
+{
+  "protocol": "docs/goal-aging-live-protocol-2026-10-16.md",
+  "scope": "local WSL development, structured goal commands, official STEVE-1",
+  "seed": 104761,
+  "phases": [
+    {
+      "phase": 0,
+      "status": "cancelled",
+      "execution_valid": false,
+      "steps": 425,
+      "elapsed_control_s": 120.26595116899995,
+      "elapsed_cleanup_s": 5.132308248000072,
+      "inference_ms": {
+        "count": 426,
+        "median": 52.16844950001587,
+        "p95": 63.109429500030956
+      },
+      "control_cycle_ms": {
+        "count": 425,
+        "median": 183.54360000000725,
+        "p95": 281.96697460002713
+      },
+      "gpu": {
+        "torch_peak_allocated_mib": 2098.71728515625,
+        "torch_peak_reserved_mib": 2144.0,
+        "scope": "PyTorch process including model loading, not total device VRAM"
+      },
+      "device_vram": {
+        "sampled_peak_used_mib": 2911.0,
+        "sample_count": 1486,
+        "sampling_error": null,
+        "scope": "entire device 0 including other processes; sampled, may miss short peaks"
+      },
+      "initial_inventory": {},
+      "final_inventory": {
+        "oak_log": 2,
+        "wheat_seeds": 1
+      },
+      "net_inventory": {
+        "oak_log": 2,
+        "wheat_seeds": 1
+      },
+      "goals": {
+        "wood": {
+          "task_id": "wood",
+          "revision": 1,
+          "status": "running",
+          "goal": "wood",
+          "policy_goal": "collect wood",
+          "target_items": [
+            "oak_log",
+            "birch_log",
+            "spruce_log",
+            "jungle_log",
+            "acacia_log",
+            "dark_oak_log"
+          ],
+          "target_count": 64,
+          "baseline": 0,
+          "progress": 2
+        },
+        "dirt": {
+          "task_id": "dirt",
+          "revision": 1,
+          "status": "running",
+          "goal": "dirt",
+          "policy_goal": "collect dirt",
+          "target_items": [
+            "dirt"
+          ],
+          "target_count": 4,
+          "baseline": 0,
+          "progress": 0
+        }
+      },
+      "priorities": {
+        "schema": 1,
+        "settings": {
+          "quantum_s": 10.0,
+          "max_wait_s": 60.0,
+          "age_step_s": 30.0,
+          "age_gain": 5.0,
+          "age_cap": 30.0,
+          "deadline_window_s": 30.0,
+          "deadline_cap": 30.0
+        },
+        "records": {
+          "wood": {
+            "priority": 100,
+            "depends_on": [],
+            "deadline_s": null,
+            "status": "pending",
+            "age_s": 120.17854033399999,
+            "wait_s": 0.44978075999995326,
+            "service_s": 60.30787254500018,
+            "direct_service_s": 60.30787254500018,
+            "service_credit_s": 0.3078725450001798
+          },
+          "dirt": {
+            "priority": 0,
+            "depends_on": [],
+            "deadline_s": null,
+            "status": "pending",
+            "age_s": 120.107343646,
+            "wait_s": 33.408497667000006,
+            "service_s": 10.054985996000141,
+            "direct_service_s": 10.054985996000141,
+            "service_credit_s": 0.05498599600014131
+          }
+        }
+      },
+      "world_save": {
+        "status": "saved",
+        "generation": "42e2930ecb954ca89c3fafec9cc73be3",
+        "world_id": "58132d0de7e24e69bf3ab9868b1bbb20"
+      },
+      "world_restore": null,
+      "policy_resets": [
+        {
+          "goal": "wood",
+          "seconds": 8.413674069000024
+        },
+        {
+          "goal": "dirt",
+          "seconds": 0.013337501999956203
+        },
+        {
+          "goal": "wood",
+          "seconds": 0.014087006000011115
+        }
+      ],
+      "selections": [
+        {
+          "elapsed_s": 0.08027507999997852,
+          "goal_id": "wood",
+          "effective_priority": 100.0,
+          "own_priority": 100.0,
+          "inherited_from": null,
+          "wait_s": 0.0,
+          "reason": "priority"
+        },
+        {
+          "elapsed_s": 69.53516399,
+          "goal_id": "dirt",
+          "effective_priority": 11.562635691999997,
+          "own_priority": 11.562635691999997,
+          "inherited_from": null,
+          "wait_s": 69.37581415199998,
+          "reason": "maximum_wait"
+        },
+        {
+          "elapsed_s": 87.08134908599999,
+          "goal_id": "wood",
+          "effective_priority": 114.500273266,
+          "own_priority": 114.500273266,
+          "inherited_from": null,
+          "wait_s": 18.148870961999876,
+          "reason": "priority"
+        }
+      ],
+      "stop_request_s": 120.16797600199999,
+      "stop_ack_delay_ms": 48.17966699999943,
+      "first_resume_s": null,
+      "process_cleanup": {
+        "owned_processes_seen": 9,
+        "remaining_live_pids": [],
+        "method": "Linux subreaper + descendant PID/start-time ownership"
+      },
+      "audit": {
+        "checks": {
+          "policy_executed": true,
+          "neutral_shutdown": true,
+          "owned_processes_gone": true,
+          "world_saved": true,
+          "stop_acknowledged": true,
+          "no_dispatch_after_stop": true,
+          "inflight_result_discarded": true,
+          "overdue_goal_served_before_high_complete": true,
+          "low_goal_service_quantum_or_completion": true,
+          "switch_release_and_reset": true
+        },
+        "passed": true,
+        "unexercised": [],
+        "dispatch_by_goal": {
+          "wood": 352,
+          "dirt": 73
+        },
+        "switches": 2
+      },
+      "evidence_hashes": {
+        "events.jsonl": "9d956b8dd9e1de55b598aedd1fe7b22bbd69edca2a71b02fe68d2d0d211fd20d",
+        "summary.json": "4a200f2dbe3e52f42b7d769f7a24d94a0eac155ebdc0cff551626779e1972931",
+        "task-checkpoint.json": "43ae342c2fbe27eb08bfd2309fd6c35a8347895241038d94ad5b5be0f5990a61",
+        "scenario-control.json": "05fc0131740027802815e1eadbf96ba7581a303a8b15c8aac32194e32668eee5",
+        "scenario-audit.json": "1c3763b0964547e9e5883d29310a64cfa955385ea8e1f94c88e190008e05dba7"
+      },
+      "frames": 426
+    },
+    {
+      "phase": 1,
+      "status": "cancelled",
+      "execution_valid": false,
+      "steps": 28,
+      "elapsed_control_s": 20.25859802100001,
+      "elapsed_cleanup_s": 4.337887690000002,
+      "inference_ms": {
+        "count": 29,
+        "median": 48.20040399999925,
+        "p95": 55.863368599989364
+      },
+      "control_cycle_ms": {
+        "count": 28,
+        "median": 183.42929749996983,
+        "p95": 274.83459449996417
+      },
+      "gpu": {
+        "torch_peak_allocated_mib": 2097.68603515625,
+        "torch_peak_reserved_mib": 2144.0,
+        "scope": "PyTorch process including model loading, not total device VRAM"
+      },
+      "device_vram": {
+        "sampled_peak_used_mib": 2855.0,
+        "sample_count": 553,
+        "sampling_error": null,
+        "scope": "entire device 0 including other processes; sampled, may miss short peaks"
+      },
+      "initial_inventory": {
+        "oak_log": 2,
+        "wheat_seeds": 1
+      },
+      "final_inventory": {
+        "oak_log": 2,
+        "wheat_seeds": 1
+      },
+      "net_inventory": {},
+      "goals": {
+        "wood": {
+          "task_id": "wood",
+          "revision": 1,
+          "status": "running",
+          "goal": "wood",
+          "policy_goal": "collect wood",
+          "target_items": [
+            "oak_log",
+            "birch_log",
+            "spruce_log",
+            "jungle_log",
+            "acacia_log",
+            "dark_oak_log"
+          ],
+          "target_count": 64,
+          "baseline": 0,
+          "progress": 2
+        },
+        "dirt": {
+          "task_id": "dirt",
+          "revision": 1,
+          "status": "running",
+          "goal": "dirt",
+          "policy_goal": "collect dirt",
+          "target_items": [
+            "dirt"
+          ],
+          "target_count": 4,
+          "baseline": 0,
+          "progress": 0
+        }
+      },
+      "priorities": {
+        "schema": 1,
+        "settings": {
+          "quantum_s": 10.0,
+          "max_wait_s": 60.0,
+          "age_step_s": 30.0,
+          "age_gain": 5.0,
+          "age_cap": 30.0,
+          "deadline_window_s": 30.0,
+          "deadline_cap": 30.0
+        },
+        "records": {
+          "wood": {
+            "priority": 100,
+            "depends_on": [],
+            "deadline_s": null,
+            "status": "pending",
+            "age_s": 138.347753774,
+            "wait_s": 2.8467722970001432,
+            "service_s": 73.926606477,
+            "direct_service_s": 73.926606477,
+            "service_credit_s": 3.926606477000007
+          },
+          "dirt": {
+            "priority": 0,
+            "depends_on": [],
+            "deadline_s": null,
+            "status": "pending",
+            "age_s": 138.27655708600003,
+            "wait_s": 51.57771110700003,
+            "service_s": 10.054985996000141,
+            "direct_service_s": 10.054985996000141,
+            "service_credit_s": 0.05498599600014131
+          }
+        }
+      },
+      "world_save": {
+        "status": "saved",
+        "generation": "716407a9ea8f4b7692975b770a88d373",
+        "world_id": "58132d0de7e24e69bf3ab9868b1bbb20"
+      },
+      "world_restore": {
+        "inventory_match": true,
+        "position_distance_blocks": 0.0,
+        "position_tolerance_blocks": 2.0,
+        "actual": {
+          "inventory": {
+            "oak_log": 2,
+            "wheat_seeds": 1
+          },
+          "location_stats": {
+            "biome_id": 0,
+            "biome_rainfall": 0.5,
+            "biome_temperature": 0.8,
+            "can_see_sky": false,
+            "is_raining": false,
+            "light_level": 13,
+            "pitch": -30.614521,
+            "sea_level": 63,
+            "sky_light_level": 0.71,
+            "sun_brightness": 0.94,
+            "xpos": 222.5583301171995,
+            "yaw": 83.10919,
+            "ypos": 64.0,
+            "zpos": -769.471208856172
+          },
+          "life_stats": {
+            "air": 300,
+            "food": 20,
+            "is_alive": true,
+            "life": 20.0,
+            "saturation": 5.0,
+            "score": 0,
+            "xp": 0
+          }
+        }
+      },
+      "policy_resets": [
+        {
+          "goal": "wood",
+          "seconds": 1.3097405579999304
+        }
+      ],
+      "selections": [
+        {
+          "elapsed_s": 2.368995060999964,
+          "goal_id": "wood",
+          "effective_priority": 120.02975672233333,
+          "own_priority": 120.02975672233333,
+          "inherited_from": null,
+          "wait_s": 0.44978075999995326,
+          "reason": "priority"
+        }
+      ],
+      "stop_request_s": 20.17601890900005,
+      "stop_ack_delay_ms": 41.64425199996913,
+      "first_resume_s": 2.2649625159999687,
+      "process_cleanup": {
+        "owned_processes_seen": 6,
+        "remaining_live_pids": [],
+        "method": "Linux subreaper + descendant PID/start-time ownership"
+      },
+      "audit": {
+        "checks": {
+          "policy_executed": true,
+          "neutral_shutdown": true,
+          "owned_processes_gone": true,
+          "world_saved": true,
+          "stop_acknowledged": true,
+          "no_dispatch_after_stop": true,
+          "inflight_result_discarded": true,
+          "inventory_restored": true,
+          "no_policy_before_resume": true,
+          "switch_release_and_reset": true,
+          "goals_and_history_restored": true
+        },
+        "passed": true,
+        "unexercised": [],
+        "dispatch_by_goal": {
+          "wood": 28,
+          "dirt": 0
+        },
+        "switches": 0
+      },
+      "evidence_hashes": {
+        "events.jsonl": "cfd75fdcbfd7f4ff1e9232b6ebb941e743f0be5d82e03ea72498125c64f576f1",
+        "summary.json": "a4f767e2de0b9908c7d02bb8d144b8c568655c184b29802ff1c96b9ee0b43667",
+        "task-checkpoint.json": "667bd418cbe23fe43e9476c435474893e02fdf8eeba62f4c40eaff62144ebf7f",
+        "scenario-control.json": "5bd2262431f5ee070a1b8e8de2491ffbde962bf80964747bc4cfc7fcb0147ff7",
+        "scenario-audit.json": "159cd1f77be4f8193bc2442a6fdf33ab25aeb7b864d065d85e33c78c2418a5d2"
+      },
+      "frames": 29
+    }
+  ],
+  "world_generations": [
+    {
+      "generation": "42e2930ecb954ca89c3fafec9cc73be3",
+      "world_id": "58132d0de7e24e69bf3ab9868b1bbb20",
+      "bytes": 3223201,
+      "sha256": "90a52079b0551d52ec7289065d8d7803351133362051b837d83d4a69a99f36c8"
+    },
+    {
+      "generation": "716407a9ea8f4b7692975b770a88d373",
+      "world_id": "58132d0de7e24e69bf3ab9868b1bbb20",
+      "bytes": 3671586,
+      "sha256": "0dfc13641dd634a8d24a3a02c4584bb5c78f8c5e990e937ec1c7460c716b6909"
+    }
+  ],
+  "paid_api_calls": 0,
+  "colab_connections": 0,
+  "new_training_updates": 0,
+  "source_manifest": "results/goal-aging-live-20261016-preparation/source-manifest.json",
+  "limitation": "Neutral MineRL command acknowledged; this task-session path does not record independent server held_key_count.",
+  "acceptance": {
+    "passed": true,
+    "audits": [
+      {
+        "checks": {
+          "policy_executed": true,
+          "neutral_shutdown": true,
+          "owned_processes_gone": true,
+          "world_saved": true,
+          "stop_acknowledged": true,
+          "no_dispatch_after_stop": true,
+          "inflight_result_discarded": true,
+          "overdue_goal_served_before_high_complete": true,
+          "low_goal_service_quantum_or_completion": true,
+          "switch_release_and_reset": true
+        },
+        "passed": true,
+        "unexercised": [],
+        "dispatch_by_goal": {
+          "wood": 352,
+          "dirt": 73
+        },
+        "switches": 2
+      },
+      {
+        "checks": {
+          "policy_executed": true,
+          "neutral_shutdown": true,
+          "owned_processes_gone": true,
+          "world_saved": true,
+          "stop_acknowledged": true,
+          "no_dispatch_after_stop": true,
+          "inflight_result_discarded": true,
+          "inventory_restored": true,
+          "no_policy_before_resume": true,
+          "switch_release_and_reset": true,
+          "goals_and_history_restored": true
+        },
+        "passed": true,
+        "unexercised": [],
+        "dispatch_by_goal": {
+          "wood": 28,
+          "dirt": 0
+        },
+        "switches": 0
+      }
+    ],
+    "errors": [],
+    "phases_run": 2,
+    "phases_unrun": 0,
+    "additional_paid_api_calls": 0,
+    "interpretation": "scheduler/control validation; not policy success rate"
+  }
+}

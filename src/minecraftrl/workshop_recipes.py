@@ -13,8 +13,8 @@ class RecipeCatalog:
         self.by_output={short(r['result']['item']):key for key,r in recipes.items()}
 
     @classmethod
-    def from_jar(cls,jar):
-        ids=['stick','crafting_table','wooden_pickaxe','wooden_axe','oak_slab']
+    def from_jar(cls,jar,extra_ids=()):
+        ids=['stick','crafting_table','wooden_pickaxe','wooden_axe','stone_axe','oak_slab',*extra_ids]
         ids += [kind+'_planks' for kind in ('oak','birch','spruce','jungle','acacia','dark_oak')]
         with zipfile.ZipFile(jar) as z:
             recipes={key:json.loads(z.read('data/minecraft/recipes/'+key+'.json')) for key in ids}
@@ -46,7 +46,7 @@ class RecipeCatalog:
         r=self.recipes[key]
         return [r['key'][char] for row in r['pattern'] for char in row if char!=' '] if 'pattern' in r else r['ingredients']
 
-    def plan(self,inventory,goals):
+    def plan(self,inventory,goals,*,workstation_available=False):
         stock=Counter(inventory);steps=[]
         def ensure(item,count,trail=()):
             if stock[item]>=count:return
@@ -62,7 +62,7 @@ class RecipeCatalog:
                         except ValueError:stock.clear();stock.update(before);del steps[n:]
                     else:raise ValueError('no available ingredient for '+key)
                 steps.append(key);stock[item]+=r['result'].get('count',1)
-        if any(max(self.dimensions(self.by_output[g]))>2 for g in goals):ensure('crafting_table',1)
+        if not workstation_available and any(max(self.dimensions(self.by_output[g]))>2 for g in goals):ensure('crafting_table',1)
         for goal in goals:ensure(goal,1)
         return steps,{k:v for k,v in stock.items() if v}
 

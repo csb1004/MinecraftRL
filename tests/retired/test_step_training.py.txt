@@ -1,0 +1,175 @@
+import itertools
+import unittest
+from collections import Counter
+import torch
+from minecraftrl import step_training as training
+
+
+class StepTrainingTests(unittest.TestCase):
+    def test_step_strata_preserve_other_source_indices_and_global_rng(self):
+        groups=['flat']*23+['step']*14+['human']*11
+        jumps=[False]*23+[True]*3+[False]*11+[False]*11
+        torch.manual_seed(14101);uniform=training.training_batches(groups,12);expected_rng=torch.get_rng_state()
+        torch.manual_seed(14101);actual=training.stratified_step_batches(groups,jumps,12)
+        self.assertTrue(torch.equal(torch.get_rng_state(),expected_rng))
+        torch.manual_seed(14101);self.assertEqual(actual,training.stratified_step_batches(groups,jumps,12))
+        for first,second in zip(uniform,actual):
+            self.assertEqual([i for i in first if groups[i]!='step'],[i for i in second if groups[i]!='step'])
+            self.assertEqual(Counter(groups[i] for i in second),training.BATCH_COUNTS)
+            self.assertEqual(sum(jumps[i] for i in second),1)
+        for positive in (False,True):
+            wanted={i for i,g in enumerate(groups) if g=='step' and jumps[i]==positive}
+            stream=[i for b in actual for i in b if groups[i]=='step' and jumps[i]==positive]
+            for start in range(0,len(stream)-len(wanted)+1,len(wanted)):
+                self.assertEqual(set(stream[start:start+len(wanted)]),wanted)
+
+    def test_step_stratification_preserves_objective_and_gradient_in_expectation(self):
+        groups=['flat']*2+['step']*3+['human']*2;population=Counter(groups)
+        jumps=[False,False,True,False,False,False,False]
+        weights=torch.tensor(training.balanced_weights([1.,2.,3.,1.,4.,2.,1.],groups),dtype=torch.float64)
+        first=torch.tensor([.1,.2,.4,.6,.8,1.,1.2],dtype=torch.float64,requires_grad=True)
+        second=first.detach().clone().requires_grad_()
+        def objective(values,indices,importance):
+            selected=values[indices];chosen=[groups[i] for i in indices]
+            row_kl=selected.exp()*importance
+            return (selected.square()*weights[indices]*importance).mean()+.01*training.anchor_kl(
+                row_kl,chosen,retained_fraction=4/7)+training.anchor_kl(
+                row_kl,chosen,flat_only=True,retained_fraction=4/7)
+        expected=objective(first,list(range(7)),torch.ones(7,dtype=torch.float64))
+        sampled=[]
+        for flat,negative,human in itertools.product(range(2),(3,4),range(5,7)):
+            indices=[flat]*16+[2]+[negative]*7+[human]*8
+            chosen=[groups[i] for i in indices];flags=[jumps[i] for i in indices]
+            importance=torch.tensor(training.stratified_step_importance(chosen,flags,population,1),dtype=torch.float64)
+            old=training.mixture_importance(chosen,population)
+            self.assertEqual(importance[:16].tolist(),old[:16]);self.assertEqual(importance[24:].tolist(),old[24:])
+            sampled.append(objective(second,indices,importance))
+        actual=torch.stack(sampled).mean()
+        self.assertAlmostEqual(expected.item(),actual.item(),places=12)
+        expected.backward();actual.backward()
+        self.assertTrue(torch.allclose(first.grad,second.grad,atol=1e-12,rtol=0))
+
+    def test_step_strata_reject_empty_classes_and_misbound_annotations(self):
+        groups=['flat','step','step','human'];valid=[False,True,False,False]
+        for jumps in ([False]*4,[False,True,True,False],[True,False,False,False],[False,1,False,False],valid[:-1]):
+            with self.assertRaises(ValueError):training.stratified_step_batches(groups,jumps,2)
+        for count in (0,2,True,-1):
+            with self.assertRaises(ValueError):training.stratified_step_importance(groups,valid,Counter(groups),count)
+        with self.assertRaises(ValueError):training.stratified_step_importance(groups,[False]*4,Counter(groups),1)
+
+    def test_added_nonjump_queries_do_not_dilute_original_jump_mass(self):
+        near=[0.,1.,.02,0.,0.,1.,0.,0.,0.,1.];far=[0.,-1.,.2,0.,0.,1.,0.,0.,0.,1.]
+        expected=None
+        for extra in (1,100):
+            groups=['flat','human','step','step']+['step']*extra
+            goals=[near,near,near,far]+[far]*extra
+            jumps=[False,False,True,False]+[False]*extra;queries=[False]*4+[True]*extra
+            weights=training.balanced_weights(training.base_weights(goals,groups),groups)
+            weights,_=training.reweight_step_requests(weights,groups,jumps)
+            result,receipt=training.preserve_step_jump_mass(weights,groups,jumps,queries,goals)
+            self.assertEqual(result[:2],weights[:2])
+            total=sum(result[2:]);fraction=result[2]/total
+            if expected is None:expected=fraction
+            self.assertAlmostEqual(fraction,expected,places=12)
+            self.assertAlmostEqual(total,sum(weights[2:]),places=10)
+            self.assertEqual(receipt['original_step_labels'],2)
+            self.assertEqual(receipt['goal_query_labels'],extra)
+        with self.assertRaises(ValueError):training.preserve_step_jump_mass(weights,groups,jumps,[False]*len(groups),goals)
+
+    def test_new_step_frequencies_do_not_change_old_bucket_weights(self):
+        from minecraftrl.navigation_refinement import correction_weights
+        near=[0.,1.,.02,0.,0.,1.,0.,0.,0.,1.];far=[0.,-1.,.2,0.,0.,1.,0.,0.,0.,1.]
+        goals=[near,far,far,near];groups=['flat','human','flat','step']
+        first=training.base_weights(goals,groups)
+        more=training.base_weights(goals+[far]*100,groups+['step']*100)
+        self.assertEqual(first[:3],correction_weights(goals[:3]))
+        self.assertEqual(first[:3],more[:3])
+        first=training.balanced_weights(first,groups)
+        more=training.balanced_weights(more,groups+['step']*100)
+        for i in range(3):self.assertAlmostEqual(first[i]/4,more[i]/104,places=12)
+
+    def test_loss_mass_and_jump_reweighting_preserve_other_sources(self):
+        groups=['flat']*3+['step']*2+['human']*2
+        weights=training.balanced_weights([1.,2.,5.,3.,1.,2.,4.],groups)
+        for group,share in training.SHARES.items():
+            self.assertAlmostEqual(sum(w for w,g in zip(weights,groups) if g==group)/len(weights),share)
+        changed,receipt=training.reweight_step_requests(weights,groups,[False]*3+[True,False]+[False]*2)
+        self.assertAlmostEqual(changed[3]/changed[4],12.)
+        self.assertEqual(changed[:3]+changed[5:],weights[:3]+weights[5:])
+        self.assertAlmostEqual(receipt['total_step_mass_before'],receipt['total_step_mass_after'])
+
+    def test_fixed_budget_reproducible_group_cycles(self):
+        groups=['flat']*23+['step']*7+['human']*11
+        torch.manual_seed(14101);first=training.training_batches(groups,5)
+        torch.manual_seed(14101);self.assertEqual(first,training.training_batches(groups,5))
+        self.assertEqual(len(first),5)
+        for batch in first:self.assertEqual(Counter(groups[i] for i in batch),training.BATCH_COUNTS)
+        for group in training.GROUPS:
+            wanted={i for i,g in enumerate(groups) if g==group}
+            stream=[i for b in first for i in b if groups[i]==group]
+            for start in range(0,len(stream)-len(wanted)+1,len(wanted)):
+                self.assertEqual(set(stream[start:start+len(wanted)]),wanted)
+
+    def test_importance_preserves_population_objective_and_gradients(self):
+        groups=['flat']*2+['step']*3+['human']*2;population=Counter(groups)
+        weights=torch.tensor(training.balanced_weights([1.,2.,3.,1.,4.,2.,1.],groups),dtype=torch.float64)
+        first=torch.tensor([.1,.2,.4,.6,.8,1.,1.2],dtype=torch.float64,requires_grad=True)
+        second=first.detach().clone().requires_grad_()
+        def objective(values,indices,importance):
+            selected=values[indices];chosen=[groups[i] for i in indices]
+            row_kl=selected.exp()*importance
+            return (selected.square()*weights[indices]*importance).mean()+.01*training.anchor_kl(row_kl,chosen)+training.anchor_kl(row_kl,chosen,flat_only=True)
+        expected=objective(first,list(range(7)),torch.ones(7,dtype=torch.float64))
+        sampled=[]
+        for indices in itertools.product(range(2),range(2,5),range(5,7)):
+            indices=list(indices);chosen=[groups[i] for i in indices]
+            importance=torch.tensor(training.mixture_importance(chosen,population),dtype=torch.float64)
+            sampled.append(objective(second,indices,importance))
+        actual=torch.stack(sampled).mean()
+        self.assertAlmostEqual(expected.item(),actual.item(),places=12)
+        expected.backward();actual.backward()
+        self.assertTrue(torch.allclose(first.grad,second.grad,atol=1e-12,rtol=0))
+
+    def test_failed_source_step_behavior_has_no_anchor_gradient(self):
+        groups=['flat','step','human'];value=torch.tensor([.3,20.,.2],requires_grad=True)
+        (.01*training.anchor_kl(value,groups)+training.anchor_kl(value,groups,flat_only=True)).backward()
+        self.assertEqual(value.grad[1].item(),0.)
+        self.assertGreater(value.grad[0].item(),value.grad[2].item())
+
+    def test_new_rows_do_not_dilute_original_retention_normalization(self):
+        values=torch.tensor([.3,20.,.6],dtype=torch.float64)
+        groups=['flat','step','human']
+        self.assertAlmostEqual(training.anchor_kl(values,groups,retained_fraction=2/3).item(),.45)
+        self.assertAlmostEqual(training.anchor_kl(values,groups,flat_only=True,retained_fraction=2/3).item(),.15)
+        for value in (0.,float('nan'),2.,True):
+            with self.assertRaises(ValueError):training.anchor_kl(values,groups,retained_fraction=value)
+
+    def test_incomplete_unknown_or_misbound_groups_are_rejected(self):
+        for groups in ([],['flat','human'],['flat','step','unknown']):
+            with self.assertRaises(ValueError):training.training_batches(groups,2)
+        with self.assertRaises(ValueError):training.supervision_groups([dict(bc_source='fabricated')])
+        with self.assertRaises(ValueError):training.reweight_step_requests([1.,1.,1.],list(training.GROUPS),[True,False,False])
+
+    def test_trainer_guard_excludes_new_steps_without_dropping_their_bc_loss(self):
+        import sys
+        from pathlib import Path
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
+        import train_navigation_refinement as trainer
+        rows=[dict(motion_goal=[0.,1.,.1,0.,0.,1.,0.,0.,0.,1.],bc_action={},bc_source=source)
+              for source in (None,'procedural_step','hindsight_reference')]
+        head=SimpleNamespace(logprob=lambda actions,pd:torch.tensor([[-1.,-2.,-3.]]),
+            kl_divergence=lambda before,after:torch.tensor([[.2,100.,.4]]))
+        pd={'buttons':torch.zeros(1,3,2)};actions={'buttons':torch.zeros(1,3,1,dtype=torch.long)}
+        with patch.object(trainer,'batch',return_value=(None,actions)),patch.object(trainer,'guided_minibatch',return_value=pd):
+            default=trainer.measure(head,rows,reference=head)
+            step=trainer.measure(head,rows,reference=head,exclude_step_anchor=True)
+        self.assertEqual(default['nll'],step['nll'])
+        self.assertEqual(step['labels'],3)
+        self.assertEqual(step['anchor_labels'],2)
+        self.assertAlmostEqual(step['kl'],.3,places=7)
+        self.assertGreater(default['kl'],30)
+
+
+if __name__=='__main__':unittest.main()

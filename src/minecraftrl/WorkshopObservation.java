@@ -12,6 +12,8 @@ import net.minecraft.inventory.container.Slot;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.entity.player.ServerPlayerEntity;
+import net.minecraft.entity.MobEntity;
+import net.minecraft.entity.monster.IMob;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.registry.Registry;
 import net.minecraft.util.math.*;
@@ -81,6 +83,24 @@ public final class WorkshopObservation {
         catch(ReflectiveOperationException e) {throw new IllegalStateException(e);}
     }
     private static void number(JsonObject j,String key,double value) {j.addProperty(key,value);}
+    private static void threats(JsonObject j,ServerPlayerEntity sp) {
+        int count=0,pursuers=0;double nearest=-1,pursuerNearest=-1;
+        if(sp!=null)for(MobEntity mob:sp.getServerWorld().getEntitiesWithinAABB(
+                MobEntity.class,sp.getBoundingBox().grow(32.0D))) {
+            // Privileged 360-degree line of sight, not a pixel detector or a future safety guarantee.
+            if(!(mob instanceof IMob) || !mob.isAlive() || mob.getAttackTarget()!=sp)continue;
+            double distance=sp.getDistance(mob);
+            // A pursuing mob does not become safe merely because a tree occludes it.
+            if(distance>32.0D)continue;
+            pursuers++;pursuerNearest=pursuerNearest<0?distance:Math.min(pursuerNearest,distance);
+            if(distance>24.0D || !sp.canEntityBeSeen(mob))continue;
+            count++;nearest=nearest<0?distance:Math.min(nearest,distance);
+        }
+        number(j,"threat_valid",sp==null?0:1);number(j,"threat_scan_radius",24);
+        number(j,"threat_count",count);number(j,"threat_distance",nearest);
+        number(j,"pursuit_valid",sp==null?0:1);number(j,"pursuit_scan_radius",32);
+        number(j,"pursuit_count",pursuers);number(j,"pursuit_distance",pursuerNearest);
+    }
     public static JsonObject read() {
         Minecraft mc=Minecraft.getInstance();JsonObject j=new JsonObject();
         ServerPlayerEntity sp=mc.player==null || mc.getIntegratedServer()==null ? null :
@@ -98,6 +118,18 @@ public final class WorkshopObservation {
         j.addProperty("cursor_item",name(cursor));number(j,"cursor_count",cursor.getCount());
         number(j,"server_available",sp==null?0:1);number(j,"server_cursor",sp==null?-1:sp.inventory.getItemStack().getCount());
         number(j,"server_health",sp==null?-1:sp.getHealth());number(j,"server_alive",sp!=null && sp.isAlive()?1:0);
+        number(j,"server_food",sp==null?-1:sp.getFoodStats().getFoodLevel());
+        number(j,"server_inside_opaque_block",sp!=null && sp.isEntityInsideOpaqueBlock()?1:0);
+        number(j,"server_eye_y",sp==null?-1:sp.getPosYEye());
+        net.minecraft.util.DamageSource recentDamage=sp==null?null:sp.getLastDamageSource();
+        String damageType=recentDamage==null?"none":recentDamage.getDamageType();
+        if (!(damageType.equals("none") || damageType.equals("inWall") || damageType.equals("drown") ||
+              damageType.equals("fall") || damageType.equals("starve")))damageType="other";
+        // Vanilla retains this source for up to 40 world ticks; it is not a new-hit counter.
+        j.addProperty("server_recent_damage_type",damageType);
+        number(j,"server_on_ground",sp!=null && sp.isOnGround()?1:0);
+        number(j,"server_fall_distance",sp==null?-1:sp.fallDistance);
+        threats(j,sp);
         int heldKeys=0;
         for(net.minecraft.client.settings.KeyBinding key:mc.gameSettings.keyBindings)if(key.isKeyDown())heldKeys++;
         number(j,"held_key_count",heldKeys);
@@ -105,11 +137,25 @@ public final class WorkshopObservation {
         number(j,"render_ready",mc.world!=null && mc.worldRenderer.hasNoChunkUpdates()?1:0);
         number(j,"world_time",sp==null?-1:sp.getServerWorld().getGameTime());
         number(j,"server_x",sp==null?0:sp.getPosX());number(j,"server_y",sp==null?0:sp.getPosY());number(j,"server_z",sp==null?0:sp.getPosZ());
+        // The rendered client pose is current; server position packets can lag several ticks.
+        // Expose both without changing vanilla networking or authoritative success evidence.
+        number(j,"client_available",mc.player==null?0:1);
+        number(j,"client_tick",mc.player==null?-1:mc.player.ticksExisted);
+        number(j,"client_x",mc.player==null?0:mc.player.getPosX());
+        number(j,"client_y",mc.player==null?0:mc.player.getPosY());
+        number(j,"client_z",mc.player==null?0:mc.player.getPosZ());
+        number(j,"client_on_ground",mc.player!=null && mc.player.isOnGround()?1:0);
         JsonObject inventory=new JsonObject();
         for (ResourceLocation key:Registry.ITEM.keySet())number(inventory,key.getPath(),0);
         if (sp!=null)for(ItemStack stack:sp.inventory.mainInventory)
             number(inventory,name(stack),inventory.get(name(stack)).getAsInt()+stack.getCount());
         j.add("server_inventory",inventory);
+        number(j,"server_harvests",sp==null?0:sp.interactionManager.minecraftRLHarvests);
+        number(j,"server_axe_logs",sp==null?0:sp.interactionManager.minecraftRLAxeLogs);
+        number(j,"server_pick_stone",sp==null?0:sp.interactionManager.minecraftRLPickStone);
+        number(j,"server_log_harvests",sp==null?0:sp.interactionManager.minecraftRLLogHarvests);
+        j.addProperty("server_last_harvest_tool",sp==null?"air":sp.interactionManager.minecraftRLLastTool);
+        number(j,"server_tool_damage",sp==null?0:sp.getHeldItemMainhand().getDamage());
         BlockPos mining=sp!=null && sp.isAlive()?sp.interactionManager.minecraftRLMiningTarget():null;
         if(mining!=null && !logBlock(sp,mining))mining=null;
         number(j,"wood_server_mining",mining==null?0:1);
@@ -129,24 +175,40 @@ public final class WorkshopObservation {
         }
         j.add("slots",slots);
         String[] ids={"oak_planks","birch_planks","spruce_planks","jungle_planks","acacia_planks","dark_oak_planks",
-            "stick","crafting_table","wooden_pickaxe","wooden_axe","oak_slab"};
+            "stick","crafting_table","wooden_pickaxe","wooden_axe","stone_axe","oak_slab"};
         JsonObject recipes=new JsonObject();
         for(String id:ids) {
             JsonObject r=new JsonObject();ResourceLocation key=new ResourceLocation("minecraft",id);
             number(r,"known",mc.player!=null && mc.player.getRecipeBook().isUnlocked(key)?1:0);
             number(r,"server_known",sp!=null && sp.getRecipeBook().isUnlocked(key)?1:0);
-            number(r,"x",-1);number(r,"y",-1);number(r,"single",0);number(r,"craftable",0);recipes.add(id,r);
+            number(r,"x",-1);number(r,"y",-1);number(r,"single",0);number(r,"craftable",0);
+            number(r,"group_x",-1);number(r,"group_y",-1);number(r,"overlay",0);recipes.add(id,r);
         }
         j.add("recipes",recipes);
         for(String key:new String[]{"next_x","next_y","previous_x","previous_y","search_x","search_y","page","pages"})number(j,key,-1);
         number(j,"search_tab",0);
+        number(j,"overlay_open",0);
         if(book!=null && book.isVisible())try {
             RecipeBookPage page=(RecipeBookPage)field(book,"recipeBookPage");
             for(RecipeWidget button:(List<RecipeWidget>)field(page,"buttons")) {
-                if(!button.visible)continue;String id=button.getRecipe().getId().getPath();
-                if(!recipes.has(id))continue;JsonObject r=recipes.getAsJsonObject(id);
-                number(r,"x",button.x+12);number(r,"y",button.y+12);number(r,"single",button.isOnlyOption()?1:0);
-                number(r,"craftable",button.getList().isCraftable(button.getRecipe())?1:0);
+                if(!button.visible)continue;
+                List<net.minecraft.item.crafting.IRecipe<?>> members=new java.util.ArrayList<>();
+                members.addAll(button.getList().getDisplayRecipes(true));
+                members.addAll(button.getList().getDisplayRecipes(false));
+                for(net.minecraft.item.crafting.IRecipe<?> recipe:members) {
+                    String id=recipe.getId().getPath();if(!recipes.has(id))continue;JsonObject r=recipes.getAsJsonObject(id);
+                    number(r,"group_x",button.x+12);number(r,"group_y",button.y+12);
+                    number(r,"single",button.isOnlyOption()?1:0);number(r,"craftable",button.getList().isCraftable(recipe)?1:0);
+                    if(button.isOnlyOption()) {number(r,"x",button.x+12);number(r,"y",button.y+12);}
+                }
+            }
+            net.minecraft.client.gui.recipebook.RecipeOverlayGui overlay=(net.minecraft.client.gui.recipebook.RecipeOverlayGui)field(page,"overlay");
+            number(j,"overlay_open",overlay.isVisible()?1:0);
+            if(overlay.isVisible())for(Widget button:(List<Widget>)field(overlay,"buttonList")) {
+                net.minecraft.item.crafting.IRecipe<?> recipe=(net.minecraft.item.crafting.IRecipe<?>)field(button,"recipe");
+                String id=recipe.getId().getPath();if(!recipes.has(id))continue;JsonObject r=recipes.getAsJsonObject(id);
+                number(r,"x",button.x+12);number(r,"y",button.y+12);number(r,"overlay",1);
+                number(r,"craftable",(Boolean)field(button,"isCraftable")?1:0);
             }
             number(j,"page",(Integer)field(page,"currentPage"));number(j,"pages",(Integer)field(page,"totalPages"));
             for(String direction:new String[]{"next","previous"}) {
@@ -162,6 +224,7 @@ public final class WorkshopObservation {
         Vector3d eye=mc.player==null?Vector3d.ZERO:mc.player.getEyePosition(1);
         number(j,"eye_x",eye.x);number(j,"eye_y",eye.y);number(j,"eye_z",eye.z);
         j.addProperty("selected_item",mc.player==null?"air":name(mc.player.getHeldItemMainhand()));
+        j.addProperty("server_selected_item",sp==null?"air":name(sp.getHeldItemMainhand()));
         for(String key:new String[]{"hit_x","hit_y","hit_z","hit_face","candidate_x","candidate_y","candidate_z",
                                     "table_x","table_y","table_z"})number(j,key,-999);
         number(j,"hit_table",0);number(j,"table_count",0);number(j,"candidate",0);

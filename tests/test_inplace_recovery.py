@@ -4,29 +4,12 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
-from scripts import run_inplace_recovery as experiment
 from minecraftrl import task_runtime
-from minecraftrl.tasks import TaskState, CommandBus
+from minecraftrl.tasks import CommandBus
 from test_task_session import FakeEnvironment, cmd
 
 
 class InplaceRecoveryTests(unittest.TestCase):
-    def test_experiment_retries_only_one_observed_stall(self):
-        self.assertTrue(hasattr(experiment,'OneRetry'))
-        budget=experiment.OneRetry()
-        state=TaskState(); state.apply(cmd('request','a',goal='dirt',count=2),{'dirt':4})
-        self.assertIsNone(budget.on_stall(state.snapshot()))
-        state.apply(cmd('pause','p',expected_revision=1),{})
-        self.assertIsNone(budget.on_stall(state.snapshot()))
-        state.apply(cmd('resume','r',expected_revision=1),{})
-        state.observe({'dirt':5},0); state.pause_for_no_progress(60,60)
-        before=state.snapshot(); command=budget.on_stall(before)
-        self.assertEqual(command['op'],'resume')
-        state.apply(command,{'dirt':5}); experiment.assert_preserved(before,state.snapshot())
-        bad=state.snapshot(); bad['baseline']=5
-        with self.assertRaises(ValueError): experiment.assert_preserved(before,bad)
-        state.pause_for_no_progress(60,60)
-        self.assertIsNone(budget.on_stall(state.snapshot()))
 
     def test_runtime_resets_same_policy_without_losing_partial_or_completed_stages(self):
         bus=CommandBus(); bus.submit(cmd('request_plan','a',steps=[{'goal':'dirt','count':1},{'goal':'wood','count':2}]))

@@ -77,22 +77,10 @@ fi
 if [ "$probe_operation" = download ]; then
     exec "$probe_mamba" run -p "$probe_env" python scripts/download_models.py --policy "$probe_policy"
 fi
-case "$probe_operation" in preflight|episode|suite|session|task-scenario|dialogue-scenario|world-scenario|semantic-world-scenario) ;; *) echo 'Unknown operation' >&2; exit 2;; esac
+case "$probe_operation" in preflight|episode|suite|session) ;; *) echo 'Unknown or retired experiment operation' >&2; exit 2;; esac
 if [ -e results/STOP ]; then
     echo 'results/STOP is latched. Inspect prior shutdown logs, then remove this file to explicitly re-arm.' >&2
     exit 2
-fi
-if [ "$probe_operation" = world-scenario ] || [ "$probe_operation" = semantic-world-scenario ]; then
-    if [ "$probe_policy" != steve1 ]; then echo 'World scenario requires STEVE-1' >&2; exit 2; fi
-    probe_world_args=(--root "$probe_root")
-    if [ "$probe_operation" = semantic-world-scenario ]; then probe_world_args+=(--semantic-fixture); fi
-    exec "$probe_mamba" run -p "$probe_env" python scripts/run_world_scenario.py "${probe_world_args[@]}"
-fi
-if [ "$probe_operation" = task-scenario ] || [ "$probe_operation" = dialogue-scenario ]; then
-    if [ "$probe_policy" != steve1 ]; then echo 'Task scenario requires STEVE-1' >&2; exit 2; fi
-    probe_scenario_args=(--root "$probe_root" --seed "$probe_seed" --limit-s "$probe_seconds")
-    if [ "$probe_operation" = dialogue-scenario ]; then probe_scenario_args+=(--dialogue); fi
-    exec "$probe_mamba" run -p "$probe_env" python scripts/run_task_scenario.py "${probe_scenario_args[@]}"
 fi
 probe_args=(-m minecraftrl.cli "$probe_operation" --root "$probe_root" --policy "$probe_policy" --seed "$probe_seed" --limit-s "$probe_seconds" --stop-file "$probe_root/results/STOP")
 if [ -n "$probe_condition" ]; then probe_args+=(--condition "$probe_condition"); fi

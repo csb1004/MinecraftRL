@@ -82,11 +82,69 @@ def patch_mining_observation(source):
 ''')
 
 
-def build_save_jar(root,minecraft_dir,*,craft_monitor=False,workshop_monitor=False):
+def patch_harvest_observation(source):
+    declaration='public class PlayerInteractionManager {'
+    harvested='block.harvestBlock(this.world, this.player, pos, blockstate, tileentity, itemstack1);'
+    if source.count(declaration)!=1 or source.count(harvested)!=1:
+        raise ValueError('unexpected_harvest_observation_source')
+    source=source.replace(declaration,declaration+'''
+   // Evidence only: increment after vanilla survival harvest, using the pre-damage tool copy.
+   public long minecraftRLHarvests = 0, minecraftRLAxeLogs = 0, minecraftRLPickStone = 0;
+   public long minecraftRLLogHarvests = 0;
+   public String minecraftRLLastBlock = "air", minecraftRLLastTool = "air";
+   public BlockPos minecraftRLLastHarvest = BlockPos.ZERO;
+   private void minecraftRLRecordHarvest(Block block, ItemStack tool, BlockPos pos) {
+      String b = net.minecraft.util.registry.Registry.BLOCK.getKey(block).getPath();
+      String t = net.minecraft.util.registry.Registry.ITEM.getKey(tool.getItem()).getPath();
+      minecraftRLHarvests++; minecraftRLLastBlock=b; minecraftRLLastTool=t;
+      minecraftRLLastHarvest=pos.toImmutable();
+      boolean log = b.equals("oak_log") || b.equals("birch_log") || b.equals("spruce_log") ||
+                    b.equals("jungle_log") || b.equals("acacia_log") || b.equals("dark_oak_log");
+      if (log) minecraftRLLogHarvests++;
+      if (log && t.equals("stone_axe")) minecraftRLAxeLogs++;
+      if ((b.equals("stone") || b.equals("cobblestone")) && t.equals("wooden_pickaxe")) minecraftRLPickStone++;
+   }
+''')
+    return source.replace(harvested,harvested+'\n                  minecraftRLRecordHarvest(block, itemstack1, pos);')
+
+
+def patch_destroy_observation(source):
+    declaration='public class PlayerInteractionManager {'
+    permission='boolean flag1 = this.player.func_234569_d_(blockstate);'
+    harvested='block.harvestBlock(this.world, this.player, pos, blockstate, tileentity, itemstack1);'
+    if (source.count(declaration)!=1 or source.count(permission)!=1 or source.count(harvested)!=1 or
+            source.index(permission)>source.index(harvested)):
+        raise ValueError('unexpected_destroy_observation_source')
+    source=source.replace(declaration,declaration+'''
+   // Evidence only: every survival destroy, including tool-gated blocks that drop nothing.
+   public long minecraftRLDestroys = 0, minecraftRLLastDestroyTick = -1;
+   public String minecraftRLLastDestroyed = "air", minecraftRLLastDestroyTool = "air";
+   public boolean minecraftRLLastDestroyRemoved = false, minecraftRLLastDestroyHarvestable = false;
+   public BlockPos minecraftRLLastDestroy = BlockPos.ZERO;
+   private void minecraftRLRecordDestroy(Block block, ItemStack tool, BlockPos pos, boolean removed, boolean harvestable) {
+      minecraftRLDestroys++; minecraftRLLastDestroyTick = this.world.getGameTime();
+      minecraftRLLastDestroyed = net.minecraft.util.registry.Registry.BLOCK.getKey(block).getPath();
+      minecraftRLLastDestroyTool = net.minecraft.util.registry.Registry.ITEM.getKey(tool.getItem()).getPath();
+      minecraftRLLastDestroyRemoved = removed; minecraftRLLastDestroyHarvestable = harvestable;
+      minecraftRLLastDestroy = pos.toImmutable();
+   }
+''')
+    return source.replace(permission,permission+'\n               minecraftRLRecordDestroy(block, itemstack1, pos, flag, flag1);')
+
+
+def patch_demo_recipe_ids(source):
+    anchor='"stone_axe",'
+    if source.count(anchor)!=1 or '"stone_pickaxe"' in source:raise ValueError('unexpected_recipe_ids_source')
+    return source.replace(anchor,anchor+'"stone_pickaxe",')
+
+
+def patched_sources(root,minecraft_dir,*,craft_monitor=False,workshop_monitor=False,startup_control=False,demo_monitor=False):
+    """Patched ReplaySender, extra sources, and their hash; no compilation."""
     if workshop_monitor and not craft_monitor:raise ValueError('workshop monitor requires craft monitor')
-    root=Path(root); minecraft_dir=Path(minecraft_dir)
-    upstream=minecraft_dir/'build/libs/mcprec-6.13.jar'
-    if digest(upstream)!=UPSTREAM_SHA256: raise ValueError('unsupported_upstream_world_jar')
+    if startup_control and not workshop_monitor:raise ValueError('startup control requires workshop monitor')
+    if demo_monitor and not workshop_monitor:raise ValueError('demo monitor requires workshop monitor')
+    minecraft_dir=Path(minecraft_dir)
+    if digest(minecraft_dir/'build/libs/mcprec-6.13.jar')!=UPSTREAM_SHA256: raise ValueError('unsupported_upstream_world_jar')
     source=minecraft_dir/('src/main/java/'+CLASS+'.java')
     patched=patch_source(source.read_text(encoding='utf-8'))
     server=minecraft_dir/'src/main/java/com/minerl/multiagent/env/EnvServer.java'
@@ -100,8 +158,15 @@ def build_save_jar(root,minecraft_dir,*,craft_monitor=False,workshop_monitor=Fal
         if workshop_monitor:
             extra['EnvServer.java']=extra['EnvServer.java'].replace(marker,marker+'\n        infoJson.add("workshop", net.minecraft.client.gui.screen.inventory.WorkshopObservation.snapshot());')
             extra['WorkshopObservation.java']=Path(__file__).with_name('WorkshopObservation.java').read_text(encoding='utf-8')
+            if startup_control:
+                boundary='public static void capture() {snapshot=read();}'
+                if extra['WorkshopObservation.java'].count(boundary)!=1:
+                    raise ValueError('unexpected_startup_control_boundary')
+                extra['WorkshopObservation.java']=extra['WorkshopObservation.java'].replace(boundary,
+                    'public static void capture() {StartupRandomTicks.capture();snapshot=read();}')
+                extra['StartupRandomTicks.java']=Path(__file__).with_name('StartupRandomTicks.java').read_text(encoding='utf-8')
             interaction=minecraft_dir/'src/main/java/net/minecraft/server/management/PlayerInteractionManager.java'
-            extra['PlayerInteractionManager.java']=patch_mining_observation(interaction.read_text(encoding='utf-8'))
+            extra['PlayerInteractionManager.java']=patch_harvest_observation(patch_mining_observation(interaction.read_text(encoding='utf-8')))
             recorder=minecraft_dir/'src/main/java/com/minerl/multiagent/recorder/PlayRecorder.java'
             recorder_text=recorder.read_text(encoding='utf-8');capture='tickCounter++;'
             death_screen=minecraft_dir/'src/main/java/net/minecraft/client/gui/screen/DeathScreen.java'
@@ -112,7 +177,26 @@ def build_save_jar(root,minecraft_dir,*,craft_monitor=False,workshop_monitor=Fal
             # The socket thread neither loads chunks nor races snapshot publication.
             extra['PlayRecorder.java']=recorder_text.replace(capture,
                 'net.minecraft.client.gui.screen.inventory.WorkshopObservation.capture();\n        '+capture)
-    patch_hash=hashlib.sha256((patched+''.join(extra.values())).encode()).hexdigest()
+            if demo_monitor:
+                if extra['EnvServer.java'].count(marker)!=1:raise ValueError('unexpected_demo_monitor_source')
+                extra['EnvServer.java']=extra['EnvServer.java'].replace(marker,marker+'\n        infoJson.add("demo", net.minecraft.client.gui.screen.inventory.DemoObservation.snapshot());')
+                boundary='public static void capture() {'
+                if extra['WorkshopObservation.java'].count(boundary)!=1:raise ValueError('unexpected_demo_capture_boundary')
+                # Same render/server-thread boundary as the workshop snapshot, before it is published.
+                extra['WorkshopObservation.java']=patch_demo_recipe_ids(extra['WorkshopObservation.java'].replace(
+                    boundary,boundary+'DemoObservation.capture();'))
+                extra['PlayerInteractionManager.java']=patch_destroy_observation(extra['PlayerInteractionManager.java'])
+                for name in ('DemoObservation.java','DemoFixture.java'):
+                    extra[name]=Path(__file__).with_name(name).read_text(encoding='utf-8')
+    return patched,extra,hashlib.sha256((patched+''.join(extra.values())).encode()).hexdigest()
+
+
+def build_save_jar(root,minecraft_dir,*,craft_monitor=False,workshop_monitor=False,startup_control=False,demo_monitor=False):
+    root=Path(root); minecraft_dir=Path(minecraft_dir)
+    patched,extra,patch_hash=patched_sources(root,minecraft_dir,craft_monitor=craft_monitor,
+        workshop_monitor=workshop_monitor,startup_control=startup_control,demo_monitor=demo_monitor)
+    upstream=minecraft_dir/'build/libs/mcprec-6.13.jar'
+    source=minecraft_dir/('src/main/java/'+CLASS+'.java')
     base=root/'.runtime/world-save'; base.mkdir(parents=True,exist_ok=True)
     with file_lock(base/'build.lock'):
         receipt=base/(patch_hash+'.json')
@@ -144,5 +228,7 @@ def build_save_jar(root,minecraft_dir,*,craft_monitor=False,workshop_monitor=Fal
                             'source_sha256':digest(source),'patched_source_sha256':patch_hash,
                             'replaced_classes':sorted(replacements),'scope':'save barrier + fresh world storage identity' +
                             (' + read-only craft GUI monitor' if craft_monitor else '') +
-                            (' + read-only workshop telemetry + opt-in terminal death handshake' if workshop_monitor else '')})
+                            (' + read-only workshop telemetry + opt-in terminal death handshake' if workshop_monitor else '')+
+                            (' + opt-in startup random block tick restoration' if startup_control else '')+
+                            (' + opt-in demo destroy/aim telemetry and fixture' if demo_monitor else '')})
         return artifact

@@ -56,6 +56,30 @@ class RefinedRMTests(unittest.TestCase):
         self.assertEqual(g.state['held_key_count'],0)
         self.assertTrue(all(v['outcome'] in ('unrun','interrupted') for v in p.navigation_receipts()))
 
+    def test_rm_navigation_uses_checkpoint_client_pose_with_server_success_evidence(self):
+        class ClientBound(RefinedBound):
+            def attach_navigation(self):
+                super().attach_navigation();self.navigation_pose_source='client'
+        original=test_rm_navigation.test_planning_recovery.gui
+        def observation():
+            g=original();g.update(client_available=1,client_tick=g['server_tick']+50)
+            g.update({'client_'+k:g['server_'+k]+(.2 if k=='z' else 0.) for k in 'xyz'})
+            return g
+        def change(g):
+            if g.policy.phase=='waypoint':
+                g.state.update(zip(('server_x','server_y','server_z'),g.policy.navigation_cap['arguments']['target']))
+            elif g.policy.phase=='subgoal':g.state['wood_v3_reachable']=1
+            elif g.policy.phase=='resumed':g.state['server_inventory']['oak_log']=1
+            g.state['client_tick']=g.state['server_tick']+50
+            g.state.update({'client_'+k:g.state['server_'+k]+(.2 if k=='z' else 0.) for k in 'xyz'})
+        with patch('test_rm_navigation.Bound',ClientBound),patch('test_planning_recovery.gui',observation):
+            p,a,g,r,events,provider=test_rm_navigation.RMNavigationTests.case(self,change=change)
+        self.assertNotIn('error',r);self.assertEqual(r['status'],'target_reached')
+        rows=[v for v in p.rows if 'waypoint_goal' in v];self.assertEqual(len(rows),1)
+        row=rows[0];index=p.rows.index(row);previous=p.rows[index-1]['server_before'] if index else None
+        self.assertEqual(row['waypoint_goal'],motion_goal(row['server_before'],row['waypoint_target'],previous,pose_source='client'))
+        self.assertNotEqual(row['waypoint_goal'],motion_goal(row['server_before'],row['waypoint_target'],previous))
+
 
 try:
     import torch
@@ -67,7 +91,7 @@ except ImportError:
 class CheckpointBindingTests(unittest.TestCase):
     def test_refined_checkpoint_binds_parent_and_routes_root_without_motion(self):
         from minecraftrl.rm_navigation import RMNavigationController
-        from minecraftrl.navigation_model import refinement_head
+        from minecraftrl.navigation_model import refinement_head,rescale_distance_input
         from minecraftrl.waypoint_actor import navigation_head
         from minecraftrl.world_store import digest
         class Head(torch.nn.Module):
@@ -89,6 +113,31 @@ class CheckpointBindingTests(unittest.TestCase):
             p.nav_head.goal=[0.,1.,.2,0.,0.,1.,0.,0.,0.,1.]
             self.assertEqual(p.nav_head(x)['buttons'].shape,(2,1,7))
             p.student.agent.policy.pi_head=root
+            saved.update(pose_source='client',coordinate_source='privileged_client');torch.save(saved,path)
+            p.attach_navigation();self.assertEqual(p.navigation_pose_source,'client')
+            p.student.agent.policy.pi_head=root
+            rescale_distance_input(head,16)
+            saved.update(schema='navigation_refinement_v2',residual_distance_scale=16,actor=head.state_dict())
+            torch.save(saved,path);p.attach_navigation()
+            p.nav_head.goal=[0.,1.,.2,0.,0.,1.,0.,0.,0.,1.]
+            from minecraftrl.navigation_model import append_motion
+            expected=head(append_motion(x,p.nav_head.goal))
+            self.assertTrue(all(torch.equal(v,p.nav_head(x)[k]) for k,v in expected.items()))
+            from minecraftrl.navigation_model import set_root_context_mode
+            p.student.agent.policy.pi_head=root
+            set_root_context_mode(head,'ignored')
+            saved.update(schema='navigation_refinement_v3',root_context_mode='ignored',actor=head.state_dict())
+            torch.save(saved,path);p.attach_navigation()
+            self.assertEqual(p.navigation_root_context_mode,'ignored')
+            for k,v in root(x).items():self.assertTrue(torch.equal(v,p.nav_head(x)[k]))
+            p.nav_head.goal=[0.,1.,.2,0.,0.,1.,0.,0.,0.,1.]
+            changed=x.clone();changed[...,2048:]=100
+            expected=head(append_motion(x,p.nav_head.goal))
+            self.assertTrue(all(torch.equal(v,p.nav_head(changed)[k]) for k,v in expected.items()))
+            p.student.agent.policy.pi_head=root
+            saved['coordinate_source']='privileged_server';torch.save(saved,path)
+            with self.assertRaises(ValueError):p.attach_navigation()
+            saved['coordinate_source']='privileged_client'
             saved['parent_sha256']='0'*64;torch.save(saved,path)
             with self.assertRaises(ValueError):p.attach_navigation()
 

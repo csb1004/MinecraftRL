@@ -1,6 +1,7 @@
 """Pixel-input adapters around pinned official code. Recurrent state stays here."""
 import gc
 import hashlib
+import math
 import pickle
 import sys
 from pathlib import Path
@@ -11,6 +12,14 @@ class Policy(Protocol):
     def reset(self, goal: Optional[str] = None) -> None: ...
     def act(self, screen: Any) -> dict: ...
     def close(self) -> None: ...
+
+
+def steve_guidance(value):
+    if isinstance(value,bool):raise ValueError('STEVE-1 guidance must be a finite number in [0, 7]')
+    value=float(value)
+    if not math.isfinite(value) or not 0<=value<=7:
+        raise ValueError('STEVE-1 guidance must be a finite number in [0, 7]')
+    return value
 
 
 def model_kwargs(path):
@@ -53,9 +62,17 @@ class Steve1Policy:
         'collect dirt':'get dirt, dig hole, dig dirt, gather a ton of dirt, collect dirt',
         'collect wood':'chop down the tree, gather wood, pick up wood, chop it down, break tree',
     }
+    # Official download_weights.sh at 903b244796322f4d0073a8f62c05f51eac3aed52.
+    # Converted without numeric changes from the published visual prompt arrays.
+    OFFICIAL_VISUAL={
+        'dig':('dig.npy','ba1fbe4516e3804ca270d3327c1dbfaed9589b5027bb8c554b76e73a22ffaa47'),
+        'collect wood':('wood.npy','768bb35ed2914b3e89769acc4bfee82889e2db2f9909d395a7ef36899366827c'),
+        'collect dirt':('dirt.npy','cd15f2c913b3ef2014c6112ff0d0c944472c3addc9cf7988bba539812bceab25'),
+    }
 
-    def __init__(self, env, root, device='cuda',prompt_profile='short'):
-        if prompt_profile not in ('short','official'): raise ValueError('unknown STEVE-1 prompt profile')
+    def __init__(self, env, root, device='cuda',prompt_profile='short',guidance=None):
+        if prompt_profile not in ('short','official','official-visual'): raise ValueError('unknown STEVE-1 prompt profile')
+        self.guidance=None if guidance is None else steve_guidance(guidance)
         self.prompt_profile=prompt_profile; self.condition_metadata=None
         import torch
         self.torch = torch; self.device = device; self.root = Path(root); self.goal_embed = None
@@ -69,6 +86,9 @@ class Steve1Policy:
         self.agent = MineRLConditionalAgent(env, device=device, policy_kwargs=kwargs, pi_head_kwargs=head)
         state = torch.load(str(self.root / 'weights/steve1/steve1.weights'), map_location=device)
         self.agent.policy.load_state_dict(state, strict=True); self.agent.policy.eval(); del state
+        if prompt_profile=='official-visual':
+            self.mineclip=self.prior=self.embed=None
+            return
         import copy
         clip_config = copy.deepcopy(MINECLIP_CONFIG)
         clip_config['ckpt']['path'] = str(self.root / 'weights/steve1/attn.pth')
@@ -78,14 +98,34 @@ class Steve1Policy:
 
     def reset(self, goal=None):
         if not goal or not goal.strip(): raise ValueError('STEVE-1 requires a text goal')
+        scale=getattr(self,'guidance',None)
+        if scale is None:scale=7. if self.prompt_profile=='official-visual' else 6.
+        if self.prompt_profile=='official-visual':
+            import io
+            import numpy as np
+            if goal not in self.OFFICIAL_VISUAL:raise ValueError('unsupported official visual collection goal')
+            name,expected=self.OFFICIAL_VISUAL[goal]
+            relative=Path('weights/steve1/visual-prompts')/name
+            path=self.root/relative
+            if path.stat().st_size>16384:raise ValueError('oversized official visual embedding')
+            raw=path.read_bytes()
+            if hashlib.sha256(raw).hexdigest()!=expected:raise ValueError('official visual embedding hash mismatch')
+            value=np.load(io.BytesIO(raw),allow_pickle=False)
+            if value.shape!=(1,512) or value.dtype!=np.float32 or not np.isfinite(value).all():
+                raise ValueError('invalid official visual embedding')
+            self.agent.reset(cond_scale=scale);self.goal_embed=value
+            self.condition_metadata=dict(profile=self.prompt_profile,requested_goal=goal,effective_prompt=None,
+                cond_scale=scale,embedding_sha256=hashlib.sha256(value.tobytes()).hexdigest(),
+                source='official_video_embedding',source_file=relative.as_posix(),source_file_sha256=expected)
+            return
         if self.prompt_profile=='official':
             if goal not in self.OFFICIAL_PROMPTS: raise ValueError('unsupported official collection goal')
             prompt=self.OFFICIAL_PROMPTS[goal]
         else: prompt=goal
-        self.agent.reset(cond_scale=6.0)
+        self.agent.reset(cond_scale=scale)
         self.goal_embed = self.embed(prompt, self.mineclip, self.prior, self.device)
         self.condition_metadata={'profile':self.prompt_profile,'requested_goal':goal,'effective_prompt':prompt,
-                                 'cond_scale':6.0,'embedding_sha256':hashlib.sha256(self.goal_embed.tobytes()).hexdigest()}
+                                 'cond_scale':scale,'embedding_sha256':hashlib.sha256(self.goal_embed.tobytes()).hexdigest()}
 
     def act(self, screen):
         if self.goal_embed is None: raise RuntimeError('reset(goal) must precede act')
@@ -100,13 +140,16 @@ class Steve1Policy:
 class MineRLEnvironment:
     def __init__(self, raw):
         self.raw = raw; self.terminal = False; self.initialized = False; self.last_observation = None
+        self.last_info = {}
     def seed(self, seed): return self.raw.seed(seed)
     def reset(self):
         observation = self.raw.reset(); self.terminal = False; self.initialized = True
+        self.last_info = {}
         self.last_observation = observation
         return observation
     def step(self, action):
         transition = self.raw.step(action); self.terminal = bool(transition[2])
+        self.last_info = transition[3]
         self.last_observation = transition[0]
         return transition
     def release(self):

@@ -34,6 +34,22 @@ class Policy:
 
 
 class RuntimeTests(unittest.TestCase):
+    def test_opt_in_initial_completion_releases_without_inference_or_action(self):
+        report,env,policy=self.run_case(check_completion_on_reset=True,
+            completion_check=lambda obs:obs['inventory']['oak_log']==2)
+        self.assertEqual(report['status'],'target_reached')
+        self.assertTrue(report['completed_on_reset']);self.assertTrue(report['execution_valid'])
+        self.assertEqual(report['steps'],0);self.assertEqual(report['inference_ms']['count'],0)
+        self.assertEqual(env.actions,[]);self.assertFalse(report['target_observed'])
+
+    def test_initial_completion_does_not_override_user_stop(self):
+        clock=Clock();env=Environment();policy=Policy(clock);gate=StopGate();gate.stop('user_stop')
+        with tempfile.TemporaryDirectory() as tmp:
+            report=run_episode(policy,env,tmp,seed=1,goal=None,clock=clock,gate=gate,
+                save_screen=lambda *a:None,check_completion_on_reset=True,completion_check=lambda obs:True)
+        self.assertEqual(report['status'],'cancelled');self.assertFalse(report['execution_valid'])
+        self.assertFalse(report.get('completed_on_reset',False));self.assertEqual(env.actions,[])
+
     def test_stop_between_capture_and_policy_guard_opens_closed_control_archive(self):
         clock=Clock();env=Environment();policy=Policy(clock);calls=[]
         with tempfile.TemporaryDirectory() as tmp:

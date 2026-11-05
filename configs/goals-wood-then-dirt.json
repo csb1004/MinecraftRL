@@ -1,0 +1,26 @@
+{
+  "schema": "goal_queue_v1",
+  "progress_limits": {"stall_ticks": 1200, "recovery_ticks": 300},
+  "goals": [
+    {
+      "id": "get-wood",
+      "objective": "Acquire one new wood log before collecting dirt.",
+      "priority": 80,
+      "depends_on": [],
+      "items": ["oak_log", "birch_log", "spruce_log", "jungle_log", "acacia_log", "dark_oak_log"],
+      "count": 1,
+      "skill": "wood_memory",
+      "requires": []
+    },
+    {
+      "id": "get-dirt",
+      "objective": "Acquire one new dirt block after the wood goal is complete.",
+      "priority": 70,
+      "depends_on": ["get-wood"],
+      "items": ["dirt"],
+      "count": 1,
+      "skill": "dirt_fixed",
+      "requires": []
+    }
+  ]
+}

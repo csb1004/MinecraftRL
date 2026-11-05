@@ -69,7 +69,7 @@ def save_png(frame, path):
 def run_episode(policy, env, output, *, seed, goal, target_items=(), target_count=1,
                 limit_s=180., gate=None, stop_file=None, clock=time.monotonic,
                 save_screen=save_png, synchronize=lambda: None, gpu_metrics=lambda: {}, completion_check=None,
-                completion_status='target_reached',on_control_closed=None):
+                completion_status='target_reached',on_control_closed=None,check_completion_on_reset=False):
     if completion_status not in ('target_reached','craft_ready_for_recovery'): raise ValueError('invalid completion status')
     if not 0 < limit_s <= 180: raise ValueError('limit_s must be in (0, 180]')
     if target_count < 1: raise ValueError('target_count must be positive')
@@ -94,6 +94,9 @@ def run_episode(policy, env, output, *, seed, goal, target_items=(), target_coun
         policy.reset(goal)
         baseline = inventory_counts(obs); latest = dict(baseline)
         started = clock(); emit('episode_started', seed=seed, goal=goal, baseline_inventory=baseline)
+        if check_completion_on_reset and not stop_reason() and completion_check is not None and completion_check(obs):
+            report['status']=completion_status;report['completed_on_reset']=True
+            gate.stop(completion_status);emit(completion_status,step=0,source='reset',policy_action_credit=False)
         while not gate.requested.is_set():
             if stop_reason(): break
             cycle_start = clock()
@@ -105,7 +108,9 @@ def run_episode(policy, env, output, *, seed, goal, target_items=(), target_coun
             context_only = getattr(policy, 'next_action_kind', 'policy') == 'context_only'
             event_prefix = 'context_encoding' if context_only else 'inference'
             frame_path = frames / ('%06d.png' % report['steps'])
+            frame_started = clock()
             save_screen(obs['pov'], frame_path)
+            frame_ms = (clock()-frame_started)*1000
             synchronize()
             emit(event_prefix+'_started', step=report['steps'] + 1)
             before = clock()
@@ -144,7 +149,7 @@ def run_episode(policy, env, output, *, seed, goal, target_items=(), target_coun
                  context_encoding_ms=inference_ms if context_only else None, gpu=gpu_metrics())
             # Includes capture, inference, environment step and transition log flush.
             cycles.append((clock() - cycle_start) * 1000)
-            emit('cycle_timing', step=report['steps'], cycle_ms=cycles[-1])
+            emit('cycle_timing', step=report['steps'], cycle_ms=cycles[-1], frame_write_ms=frame_ms)
             if completion_check is not None and completion_check(obs):
                 report['status']=completion_status
                 gate.stop(completion_status)
@@ -155,7 +160,7 @@ def run_episode(policy, env, output, *, seed, goal, target_items=(), target_coun
         if report['status'] == 'initializing':
             report['status'] = gate.reason if gate.reason in ('time_limit','planning_paused') else 'cancelled'
         if 'pov' in obs: save_screen(obs['pov'], frames / 'final.png')
-        report['execution_valid'] = report['steps'] > 0 and report['status'] in ('environment_done', 'time_limit', 'target_reached','craft_ready_for_recovery')
+        report['execution_valid'] = bool(report['steps'] > 0 or report.get('completed_on_reset')) and report['status'] in ('environment_done', 'time_limit', 'target_reached','craft_ready_for_recovery')
     except BaseException as exc:
         # A policy may observe STOP after the loop's check and before inference.
         # Its guard is expected cancellation, not a backend failure. Preserve real

@@ -36,3 +36,11 @@ class RLControlTests(unittest.TestCase):
             with patch.object(Path,'rename',concurrent_stop):
                 with self.assertRaises(InterruptedError):claim_automatic_stop(stop,claimed)
             self.assertEqual(stop.read_text(),'new manual stop')
+
+    def test_manual_stop_appended_to_automatic_marker_cannot_rearm(self):
+        with tempfile.TemporaryDirectory() as directory:
+            stop=Path(directory)/'STOP';claimed=Path(directory)/'previous'
+            message='RL collection ended; completed.\nUser requested STOP.'
+            stop.write_text(message)
+            with self.assertRaises(InterruptedError):claim_automatic_stop(stop,claimed)
+            self.assertEqual(stop.read_text(),message)

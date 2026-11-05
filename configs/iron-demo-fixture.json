@@ -1,0 +1,25 @@
+{
+  "schema": "iron_demo_fixture_v1",
+  "description": "Prepared iron demo arena (evaluation: empty start inventory). Offsets are relative to the player's start block: dx right, dy up, dz forward of the start horizontal facing. Fill regions apply first, then single blocks.",
+  "rotate_with_facing": true,
+  "fill": [
+    {"from": [-4, -1, 1], "to": [4, -1, 8], "block": "grass_block"},
+    {"from": [-4, 0, 1], "to": [4, 3, 7], "block": "air"},
+    {"from": [-2, 0, 8], "to": [2, 2, 8], "block": "stone"}
+  ],
+  "blocks": [
+    {"dx": -3, "dy": 0, "dz": 3, "block": "oak_log"},
+    {"dx": -3, "dy": 1, "dz": 3, "block": "oak_log"},
+    {"dx": -3, "dy": 2, "dz": 3, "block": "oak_log"},
+    {"dx": -3, "dy": 3, "dz": 3, "block": "oak_log"},
+    {"dx": -3, "dy": 4, "dz": 3, "block": "oak_log"},
+    {"dx": 3, "dy": 0, "dz": 3, "block": "oak_log"},
+    {"dx": 3, "dy": 1, "dz": 3, "block": "oak_log"},
+    {"dx": 3, "dy": 2, "dz": 3, "block": "oak_log"},
+    {"dx": 3, "dy": 3, "dz": 3, "block": "oak_log"},
+    {"dx": 3, "dy": 4, "dz": 3, "block": "oak_log"},
+    {"dx": -1, "dy": 1, "dz": 8, "block": "iron_ore"},
+    {"dx": 1, "dy": 1, "dz": 8, "block": "iron_ore"}
+  ],
+  "give": []
+}

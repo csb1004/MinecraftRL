@@ -2,6 +2,13 @@
 from pathlib import Path
 
 
+def is_automatic_completion(message):
+    text=message.strip()
+    return len(text.splitlines())==1 and any(
+        text==prefix or text.startswith(prefix+';')
+        for prefix in ('RL collection ended','RL training ended'))
+
+
 def publish_completion(stop,message):
     try:
         with Path(stop).open('x',encoding='utf-8') as stream:stream.write(message)
@@ -12,7 +19,7 @@ def claim_automatic_stop(stop,claimed):
     stop=Path(stop);claimed=Path(claimed)
     if claimed.exists():raise FileExistsError(claimed)
     stop.rename(claimed)
-    automatic=claimed.read_text(encoding='utf-8-sig').startswith(('RL collection ended','RL training ended'))
+    automatic=is_automatic_completion(claimed.read_text(encoding='utf-8-sig'))
     if not automatic or stop.exists():
         # Never replace a stop that arrived concurrently with the claim.
         try:

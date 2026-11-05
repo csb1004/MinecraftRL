@@ -94,19 +94,25 @@ class RMNavigationController(NeuralSubgoalController):
         self.navigation_coverage_start=None
         super().__init__(*args,**kwargs)
         self.navigation_path=Path(navigation_checkpoint);self.navigation_start=None;self.route_memory=None
-        self.navigation_refined=False
+        self.navigation_refined=False;self.navigation_pose_source='server'
+        self.navigation_root_context_mode='observed'
         self.waypoint_context=None;self.attach_navigation()
 
     def attach_navigation(self):
         from .navigation_model import load_navigation,NavigationSwitch
         from .world_store import digest
         saved=self.student.torch.load(self.navigation_path,map_location='cpu')
-        if (saved.get('schema') not in ('waypoint_actor_v1','navigation_refinement_v1') or
-                (saved['schema']=='navigation_refinement_v1' and saved.get('motion_dim')!=10) or
+        self.navigation_pose_source=saved.get('pose_source','server')
+        if (self.navigation_pose_source not in ('server','client') or
+                saved.get('coordinate_source','privileged_'+self.navigation_pose_source)!='privileged_'+self.navigation_pose_source):
+            raise ValueError('incompatible navigation coordinate source')
+        if (saved.get('schema') not in ('waypoint_actor_v1','navigation_refinement_v1','navigation_refinement_v2','navigation_refinement_v3','navigation_refinement_v4') or
+                (saved['schema'].startswith('navigation_refinement_') and saved.get('motion_dim')!=10) or
                 digest(self.student.checkpoint)!=saved['parent_sha256'] or
                 digest(self.student.embed_path)!=saved['embedding_sha256']):raise ValueError('incompatible navigation checkpoint')
         parent=self.student.agent.policy.pi_head;head,self.navigation_refined=load_navigation(parent,saved)
         head.eval().requires_grad_(False)
+        self.navigation_root_context_mode=saved.get('root_context_mode','observed')
         self.nav_head=NavigationSwitch(parent,head,self.navigation_refined);self.student.agent.policy.pi_head=self.nav_head
         self.navigation_sha256=digest(self.navigation_path)
 
@@ -116,6 +122,8 @@ class RMNavigationController(NeuralSubgoalController):
             navigation_actor_sha256=self.navigation_sha256,experimental=True,
             navigation_strategy=self.navigation_strategy,
             navigation_input='motion_goal_10' if self.navigation_refined else 'relative_goal_6',
+            navigation_pose_source=self.navigation_pose_source,
+            navigation_root_context_mode=self.navigation_root_context_mode,
             diagnostics='observed hypotheses; no certified terrain',root_goal_and_reward_preserved=True)
 
     def navigation_receipts(self):
@@ -226,8 +234,8 @@ class RMNavigationController(NeuralSubgoalController):
             if self.rows and self.rows[-1]['server_after']!=self.environment.gui:
                 raise ValueError('navigation motion requires the last committed observation')
             remaining=self.active_plan_node['budget_ticks']-(len(self.rows)-self.navigation_start['sequence'])
-            self.nav_head.goal=motion_goal(self.environment.gui,target,previous,remaining=remaining)
-        else:self.nav_head.goal=goal_features(self.environment.gui,target)
+            self.nav_head.goal=motion_goal(self.environment.gui,target,previous,remaining=remaining,pose_source=self.navigation_pose_source)
+        else:self.nav_head.goal=goal_features(self.environment.gui,target,pose_source=self.navigation_pose_source)
         action=GoalRecoveryController.act(self,screen)
         self.pending.update(waypoint_goal=list(self.nav_head.goal),waypoint_target=deepcopy(target),
             rm_plan=dict(revision=self.scheduler.state['revision'],node_id=self.scheduler.state['active_node'],

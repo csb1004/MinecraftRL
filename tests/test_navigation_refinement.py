@@ -93,6 +93,24 @@ class NavigationContractTests(unittest.TestCase):
         d['split']='train';d['rows'][0]['owner']='teacher'
         with self.assertRaises(ValueError):validate_dataset(d,'ppo')
 
+    def test_deterministic_navigation_cannot_enter_ppo(self):
+        from minecraftrl.navigation_refinement import validate_dataset
+        d=dict(schema='navigation_trials_v1',split='train',eligible=True,rows=[dict(owner='student')],
+               config=dict(action_selection='delivered_mode'))
+        with self.assertRaisesRegex(ValueError,'deterministic'):validate_dataset(d,'ppo')
+
+    def test_action_selection_requires_versioned_evaluation_protocol(self):
+        from minecraftrl.navigation_refinement import navigation_action_selection
+        self.assertEqual(navigation_action_selection(dict(schema='navigation_trial_config_v1')),'sample')
+        self.assertEqual(navigation_action_selection(dict(schema='navigation_trial_config_v2',
+            mode='evaluate',action_selection='delivered_mode')),'delivered_mode')
+        for config in (dict(schema='navigation_trial_config_v1',action_selection='delivered_mode'),
+                       dict(schema='navigation_trial_config_v2',mode='ppo',action_selection='delivered_mode'),
+                       dict(schema='navigation_trial_config_v2',mode='correction',action_selection='delivered_mode'),
+                       dict(schema='navigation_trial_config_v2',mode='evaluate'),
+                       dict(schema='unknown')):
+            with self.subTest(config=config),self.assertRaises(ValueError):navigation_action_selection(config)
+
     def test_gae_does_not_propagate_reward_between_different_goals(self):
         from minecraftrl.navigation_refinement import navigation_returns
         rows=[dict(index=0,value=0.,navigation_reward=dict(total=1.,terminal=True)),
@@ -128,6 +146,7 @@ class NavigationHeadTests(unittest.TestCase):
             def sample(self,*args,**kwargs):raise AssertionError('invalid distribution reached sampling')
         policy=object.__new__(NavigationTrial);policy.is_stopped=lambda:False;policy.ended=False
         policy.pending=None;policy.previous=None;policy.root_reward=object()
+        policy.pose_source='server'
         policy.environment=SimpleNamespace(gui=pose(),reward=policy.root_reward)
         policy.state=TrialState([[0.,201.,3.]],'evaluate')
         policy.switch=InvalidHead()

@@ -1,4 +1,3 @@
-import argparse
 import datetime
 import json
 import math
@@ -15,12 +14,8 @@ from .preflight import inspect, command
 from .runtime import run_episode, StopGate, write_json
 from .reporting import aggregate
 from .processes import ProcessOwner
-
-
-def sampling_seed(value):
-    value=int(value)
-    if not 0<=value<2**32:raise argparse.ArgumentTypeError('sampling seed must be in [0, 2**32)')
-    return value
+from .policies import steve_guidance
+from .cli_arguments import parser, sampling_seed
 
 
 def resolve_rl_sampling_seed(args):
@@ -28,61 +23,31 @@ def resolve_rl_sampling_seed(args):
     return args.seed if value is None else value
 
 
-def parser():
-    p = argparse.ArgumentParser(description='MinecraftRL official policy execution probe')
-    p.add_argument('operation', choices=['preflight', 'episode', 'suite', 'session', 'craft-probe', '_worker'])
-    p.add_argument('--craft-probe',action='store_true',help=argparse.SUPPRESS)
-    p.add_argument('--craft-stop-on-success',action='store_true',help='Stop experimental crafting at verified inventory recovery')
-    p.add_argument('--craft-recover-cursor',action='store_true',help='Experimental read-only GUI monitor and explicit cursor-return cleanup')
-    p.add_argument('--craft-no-quick-move',action='store_true',help='Experimental explicit sneak/Shift action constraint in craft-probe')
-    p.add_argument('--craft-result-slot-guard',action='store_true',help='Experimental Shift constraint at predicted crafting result slot')
-    p.add_argument('--craft-workshop',action='store_true',help='Explicit multi-recipe workstation GUI experiment')
-    p.add_argument('--workshop-goals',nargs='+',choices=['wooden_pickaxe','wooden_axe'],default=['wooden_pickaxe','wooden_axe'])
-    p.add_argument('--craft-recipe-book',action='store_true',help='Explicit recipe-book GUI experiment without learned policy')
-    p.add_argument('--rl-collect',action='store_true')
-    p.add_argument('--rl-checkpoint',type=Path)
-    p.add_argument('--rl-embed',type=Path)
-    p.add_argument('--rl-waypoint-actor',type=Path,help='Development-only learned waypoint head with known fixture goals')
-    p.add_argument('--rl-navigation-trial',type=Path,help='Explicit bounded navigation correction/evaluation/RL protocol')
-    p.add_argument('--rl-waypoint-start',choices=['stall','initial'],default='stall',help='Explicit initial-state diagnostic or normal stall handoff')
-    p.add_argument('--rl-waypoint-planner',choices=['fixture','visit_memory','adaptive_rule','adaptive_llm'],default='fixture',help='Development route planner; adaptive_llm needs a separately authorized Windows broker')
-    p.add_argument('--rl-navigation-strategy',choices=['visited','coverage','coverage_motion'],default='visited',help='RM candidate ranking: destination visits or observed path coverage with optional motion feedback; no terrain oracle')
-    p.add_argument('--rl-recovery-embed',type=Path,help='Eval-only single graph-stall goal-conditioning intervention')
-    planner=p.add_mutually_exclusive_group()
-    planner.add_argument('--rl-planner-choice',choices=['explore_then_resume','remain_paused'],help='Local fixed planner fixture; no API calls')
-    planner.add_argument('--rl-planner-exchange',type=Path,help='One-use Windows broker exchange under project results')
-    planner.add_argument('--rl-rm-plan-fixture',choices=['explore','unsupported','subgoals'],help='Fixed subgoal DAG fixture; no LLM')
-    p.add_argument('--rl-skill-catalogue',type=Path,help='Opt-in verified neural subgoal embedding catalogue')
-    p.add_argument('--rl-rm-navigation-actor',type=Path,help='Experimental waypoint executor inside the RM subgoal planner')
-    p.add_argument('--rl-rm-plan',action='store_true',help='Opt-in subgoal DAG protocol for the planner mailbox')
-    p.add_argument('--rl-planner-max-requests',type=int,choices=[1,2,3],default=1)
-    p.add_argument('--rl-planner-exchange-live',action='store_true',help='Accept separately authorized live advisory scope')
-    p.add_argument('--rl-planner-delay',type=float,default=5.,help='Local fixed response delay in seconds')
-    p.add_argument('--rl-split',choices=['train','eval'],default='train')
-    p.add_argument('--rl-world',type=Path)
-    p.add_argument('--rl-sampling-seed',type=sampling_seed,help='Policy RNG only; defaults to world seed')
-    p.add_argument('--rl-prepare',action='store_true')
-    p.add_argument('--rl-probe-route',choices=['break','detour','death'])
-    p.add_argument('--rl-teacher',action='store_true',help='Explicit privileged correction demonstration on training fixtures')
-    p.add_argument('--rl-student-correction',action='store_true',help='Explicit student stall -> neutral -> privileged teacher demonstration')
-    p.add_argument('--rl-reward-mode',choices=['sparse','wood-potential-v1','wood-potential-v2','wood-potential-v3','wood-potential-v4'],default='sparse')
-    p.add_argument('--task-session', action='store_true')
-    p.add_argument('--task-priorities',action='store_true',help='Persistent multiple collection goals with aging and prerequisite priority inheritance')
-    p.add_argument('--world-slot', help='Persistent local world slot (session only; default companion)')
-    p.add_argument('--world-store-root',type=Path,help='Project-local isolated world store for experiments')
-    p.add_argument('--root', type=Path, default=Path(__file__).resolve().parents[2])
-    p.add_argument('--policy', required=True, choices=['vpt', 'steve1'])
-    p.add_argument('--condition', choices=['spontaneous', 'wood', 'dirt', 'planks', 'sticks', 'table'])
-    p.add_argument('--seed', type=int, default=104729)
-    p.add_argument('--limit-s', type=float, default=180)
-    p.add_argument('--no-progress-s', type=float, default=60, help='Task-session inventory stall threshold, seconds (0,180]')
-    p.add_argument('--steve-prompt-profile', choices=['short','official'],default='short')
-    p.add_argument('--output', type=Path)
-    p.add_argument('--stop-file', type=Path)
-    return p
+def validate_steve_guidance_args(args):
+    guidance=getattr(args,'steve_cond_scale',None)
+    if guidance is None:return None
+    guidance=steve_guidance(guidance)
+    if not (getattr(args,'task_session',False) and args.policy=='steve1') or any(
+            getattr(args,k,False) for k in ('rl_collect','craft_probe','craft_recipe_book','craft_workshop')):
+        raise ValueError('explicit guidance requires a STEVE-1 task session')
+    return guidance
+
+
+def validate_policy_memory_args(args):
+    if getattr(args,'task_policy_memory',False) and not (
+            getattr(args,'task_session',False) and args.policy=='steve1' and getattr(args,'world_slot',None)
+            and getattr(args,'steve_prompt_profile','short')=='official-visual' and not any(
+                getattr(args,k,False) for k in ('rl_collect','craft_probe','craft_recipe_book','craft_workshop'))):
+        raise ValueError('policy memory requires an official-visual STEVE-1 persistent task session')
+
+
 
 
 def condition_for(root, policy, name):
+    if policy=='steve1' and name in ('tool_cobblestone','tool_axe_wood','tool_workstation_access','tool_recover_axe','tool_evade_hostile'):
+        from .tool_collection import PHASES
+        spec=PHASES[name.removeprefix('tool_')]
+        return dict(policy=policy,name=name,goal=spec['prompt'],target_items=list(spec['items']),target_count=spec['count'])
     if policy=='steve1' and name in ('planks','sticks','table'):
         from .crafting_probe import RECIPES
         recipe=RECIPES[name]
@@ -120,15 +85,17 @@ def worker(args, condition):
         jar=None
         if getattr(args,'world_slot',None):
             from .world_save_patch import build_save_jar
-            jar=build_save_jar(args.root,minecraft_dir,craft_monitor=getattr(args,'craft_recover_cursor',False),workshop_monitor=getattr(args,'craft_workshop',False))
+            monitored_recovery=bool(getattr(args,'task_recovery_catalogue',None) or getattr(args,'tool_collection',None))
+            jar=build_save_jar(args.root,minecraft_dir,craft_monitor=getattr(args,'craft_recover_cursor',False) or monitored_recovery,workshop_monitor=getattr(args,'craft_workshop',False) or monitored_recovery)
             from .minerl_runtime import configure_player_identity
             player_uuid=configure_player_identity(minecraft_dir,args.world_slot)
             write_json(output/'player-identity.json',{'slot':args.world_slot,'requested_uuid':player_uuid,
                                                     'launcher_username':'MinecraftRL'})
-        if args.rl_collect:
+        if args.rl_collect or getattr(args,'rm_conditioning',None):
             from .world_save_patch import build_save_jar
             from .workshop_monitor import workshop_survival
-            jar=build_save_jar(args.root,minecraft_dir,craft_monitor=True,workshop_monitor=True)
+            jar=build_save_jar(args.root,minecraft_dir,craft_monitor=True,workshop_monitor=True,
+                startup_control=getattr(args,'rl_controlled_start',False))
             HumanSurvival=workshop_survival
             from .minerl_runtime import configure_player_identity
             identity=configure_player_identity(minecraft_dir,'rl-seed-'+str(args.seed))
@@ -149,10 +116,11 @@ def worker(args, condition):
             if getattr(args,'craft_recover_cursor',False):
                 from .craft_gui import monitored_survival
                 survival=monitored_survival
-            if args.craft_workshop:
+            if args.craft_workshop or getattr(args,'task_recovery_catalogue',None) or getattr(args,'tool_collection',None):
                 from .workshop_monitor import workshop_survival
                 survival=workshop_survival
-            raw=survival(**ENV_KWARGS,load_filename=restore_bundle['archive'] if restore_bundle else None).make()
+            extra={'terminate_on_death':True} if (getattr(args,'task_recovery_catalogue',None) or getattr(args,'tool_collection',None)) else {}
+            raw=survival(**ENV_KWARGS,load_filename=restore_bundle['archive'] if restore_bundle else None,**extra).make()
             env=PersistentMineRLEnvironment(raw,minecraft_dir,temporary)
         elif args.rl_collect:
             from .rl_worlds import checked_world
@@ -161,6 +129,9 @@ def worker(args, condition):
             temporary=args.root/'data/worlds/runtime'/uuid.uuid4().hex;temporary.mkdir(parents=True)
             os.environ['JAVA_TOOL_OPTIONS']=os.environ.get('JAVA_TOOL_OPTIONS','')+' -Djava.io.tmpdir="'+str(temporary)+'"'
             world=checked_world(args.rl_world,args.seed) if args.rl_world else None
+            from .startup_control import configure_startup_control
+            startup_control=configure_startup_control(args.root,args.rl_world,world,output,
+                enabled=getattr(args,'rl_controlled_start',False))
             if args.rl_teacher or args.rl_student_correction:
                 from .correction_teacher import validate_teacher_world
                 validate_teacher_world(world or {},args.rl_split)
@@ -169,9 +140,22 @@ def worker(args, condition):
             raw=HumanSurvival(**ENV_KWARGS,load_filename=str(args.rl_world) if args.rl_world else None,
                               terminate_on_death=True).make()
             env=PersistentMineRLEnvironment(raw,minecraft_dir,temporary)
+        elif getattr(args,'recovery_world',None) or getattr(args,'recovery_prepare',False):
+            from .rl_worlds import checked_world
+            from .policies import PersistentMineRLEnvironment
+            import uuid
+            temporary=args.root/'data/worlds/runtime'/uuid.uuid4().hex;temporary.mkdir(parents=True)
+            os.environ['JAVA_TOOL_OPTIONS']=os.environ.get('JAVA_TOOL_OPTIONS','')+' -Djava.io.tmpdir="'+str(temporary)+'"'
+            world=checked_world(args.recovery_world,args.seed) if args.recovery_world else None
+            raw=HumanSurvival(**ENV_KWARGS,load_filename=str(args.recovery_world) if args.recovery_world else None,
+                              terminate_on_death=True).make()
+            env=PersistentMineRLEnvironment(raw,minecraft_dir,temporary)
+            env.recovery_world=world
         else:
-            env = MineRLEnvironment(HumanSurvival(**ENV_KWARGS).make())
-        if args.rl_collect and args.rl_prepare:
+            extra={'terminate_on_death':True} if getattr(args,'rm_conditioning',None) else {}
+            env = MineRLEnvironment(HumanSurvival(**ENV_KWARGS,**extra).make())
+        if args.rl_collect:env.startup_control=startup_control
+        if (args.rl_collect and args.rl_prepare) or getattr(args,'recovery_prepare',False):
             from .rl_worlds import prepare_world
             report=prepare_world(env,output,args.seed,gate,args.stop_file)
             return 0 if report['execution_valid'] else 2
@@ -244,17 +228,60 @@ def worker(args, condition):
         elif args.craft_workshop:
             from .workshop import WorkshopController
             from .workshop_recipes import RecipeCatalog
-            policy=WorkshopController(RecipeCatalog.from_jar(jar),restore_bundle['observation']['inventory'],args.workshop_goals,output)
+            policy=WorkshopController(None if args.workshop_equip_only else RecipeCatalog.from_jar(jar),
+                restore_bundle['observation']['inventory'],args.workshop_goals,output,equip=args.workshop_equip,
+                equip_only=args.workshop_equip_only,equip_slot=args.workshop_equip_slot,consume_food=args.workshop_consume_food)
+        elif getattr(args,'rm_conditioning',None):
+            from .rm_conditioning import ConditioningPolicy
+            policy_extra={}
+            if args.rm_conditioning in ('official','purpose-fixed','purpose-switch'):
+                from .rm_purpose_conditioning import PurposeConditioningPolicy
+                ConditioningPolicy = PurposeConditioningPolicy
+            elif args.rm_conditioning in ('logo-staged','logo-fixed'):
+                from .rm_logo_conditioning import LogoConditioningPolicy
+                ConditioningPolicy = LogoConditioningPolicy
+            elif args.rm_conditioning=='goal-queue':
+                from .rm_program import ProgramPolicy
+                ConditioningPolicy=ProgramPolicy
+                policy_extra['program']=args.rm_program
+                if getattr(args,'s1_record',False):
+                    from .s1_learning import LearningPolicy
+                    ConditioningPolicy=LearningPolicy
+                    policy_extra.update(checkpoint=args.s1_checkpoint,split=args.s1_split)
+                if getattr(args,'s2_variant',None):
+                    from .s2_learning import SemanticPolicy
+                    ConditioningPolicy=SemanticPolicy
+                    policy_extra.update(variant=args.s2_variant,checkpoint=args.s2_checkpoint,
+                                        split=args.s2_split,action_budget=args.s2_action_budget)
+                if getattr(args,'recovery_variant',None):
+                    from .recovery_learning import RecoveryPolicy
+                    ConditioningPolicy=RecoveryPolicy
+                    if getattr(args,'effect_learning',False):
+                        from .effect_learning import EffectPolicy
+                        ConditioningPolicy=EffectPolicy
+                    if getattr(args,'execution_learning',False):
+                        from .execution_learning import ExecutionPolicy
+                        ConditioningPolicy=ExecutionPolicy
+                    policy_extra.update(variant=args.recovery_variant,checkpoint=args.recovery_checkpoint,
+                        split=args.recovery_split,action_budget=args.recovery_action_budget,task=args.recovery_task)
+            policy_seed=args.seed if getattr(args,'recovery_sampling_seed',None) is None else args.recovery_sampling_seed
+            policy=ConditioningPolicy(env.raw,args.root,output,args.rm_conditioning,args.rm_goal_bank,policy_seed,
+                lambda:gate.requested.is_set() or bool(args.stop_file and args.stop_file.exists()),**policy_extra)
         elif args.craft_recipe_book:
             from .recipe_book import RecipeBookController
             policy=RecipeBookController(args.condition,output)
         else: policy = (VPTPolicy(env.raw,args.root) if args.policy=='vpt' else
-                  Steve1Policy(env.raw,args.root,prompt_profile=args.steve_prompt_profile))
+                  Steve1Policy(env.raw,args.root,prompt_profile=args.steve_prompt_profile,
+                               guidance=getattr(args,'steve_cond_scale',None)))
         def gpu():
             return {'torch_peak_allocated_mib': torch.cuda.max_memory_allocated()/2**20,
                     'torch_peak_reserved_mib': torch.cuda.max_memory_reserved()/2**20,
                     'scope': 'PyTorch process including model loading, not total device VRAM'}
-        if args.rl_collect and getattr(args,'rl_navigation_trial',None):
+        if getattr(args,'rm_conditioning',None):
+            from .rm_conditioning import run_conditioning
+            report=run_conditioning(policy,env,output,seed=args.seed,limit_s=args.limit_s,
+                gate=gate,stop_file=args.stop_file,synchronize=torch.cuda.synchronize,gpu_metrics=gpu)
+        elif args.rl_collect and getattr(args,'rl_navigation_trial',None):
             from .navigation_trial import run_navigation_trial
             report=run_navigation_trial(policy,env,output,world=world,seed=args.seed,limit_s=args.limit_s,
                 gate=gate,stop_file=args.stop_file,synchronize=torch.cuda.synchronize,gpu_metrics=gpu)
@@ -299,14 +326,47 @@ def worker(args, condition):
                 result_slot_guard=args.craft_result_slot_guard,
                 seed=args.seed,limit_s=args.limit_s,gate=gate,stop_file=args.stop_file,
                 synchronize=torch.cuda.synchronize,gpu_metrics=gpu)
+        elif args.tool_collection:
+            from .tool_collection import run_tool_collection
+            report=run_tool_collection(policy,env,output,bundle=restore_bundle,store=world_store,phase=args.tool_collection,
+                condition_path=args.tool_condition,health_profile=args.tool_health_profile,
+                seed=args.seed,limit_s=args.limit_s,gate=gate,stop_file=args.stop_file,
+                synchronize=torch.cuda.synchronize,gpu_metrics=gpu)
         elif args.task_session:
             from .task_runtime import run_task_session
             from .scheduled_tasks import ScheduledTasks
+            from .cuda_startup import prime_convolution
+            # Load CUDA convolution kernels before reset and the control clock.
+            # This invokes no recurrent state, sampling, or environment actions.
+            write_json(output/'backend-preparation-started.json',dict(phase='task_session_policy_initialization'))
+            preparation=prime_convolution(policy.agent.policy.net.img_process.cnn.stacks[0].firstconv.layer)
+            write_json(output/'backend-preparation.json',dict(enabled=True,**preparation))
+            policy_memory=None
+            if getattr(args,'task_policy_memory',False):
+                from .policy_memory import PolicyMemory,memory_identity,initialized_template
+                policy_memory=PolicyMemory(policy,memory_identity(policy,args.root),initialized_template(policy),restore_bundle)
+            recovery=None
+            if getattr(args,'task_recovery_catalogue',None):
+                from .session_recovery import SessionRecovery
+                from .subgoal_skills import load_catalogue
+                skill=load_catalogue(args.task_recovery_catalogue,args.root)['leave_stalled_area']
+                np.save(output/'recovery-embed.npy',skill['embedding'])
+                hazard_skill=None
+                if getattr(args,'task_hazard_condition',None):
+                    from .hazard_condition import load_condition
+                    hazard_skill=load_condition(args.task_hazard_condition,args.root)
+                    np.save(output/'hazard-embed.npy',hazard_skill['embedding'])
+                recovery=SessionRecovery(policy,skill,(restore_bundle or {}).get('controller_state',{}).get('neural_recovery'),
+                    threat_guard=getattr(args,'task_threat_guard',False),hazard_skill=hazard_skill,
+                    pursuit_guard=getattr(args,'task_pursuit_guard',False))
             report = run_task_session(policy,env,output,seed=args.seed,limit_s=args.limit_s,
                                      no_progress_s=args.no_progress_s,
                                      gate=gate,stop_file=args.stop_file,
                                      synchronize=torch.cuda.synchronize,gpu_metrics=gpu,
                                      world_store=world_store,restore_bundle=restore_bundle,
+                                     allow_startup_pickups=getattr(args,'allow_startup_pickups',False),
+                                     recovery=recovery,
+                                     policy_memory=policy_memory,
                                      scheduled_tasks=ScheduledTasks() if getattr(args,'task_priorities',False) else None)
         else:
             report = run_episode(policy, env, output, seed=args.seed, goal=condition['goal'],
@@ -341,9 +401,26 @@ def worker(args, condition):
 
 def episode(args, condition):
     task_session=getattr(args,'task_session',False)
+    validate_policy_memory_args(args)
+    guidance=validate_steve_guidance_args(args)
     prompt_profile=getattr(args,'steve_prompt_profile','short')
     world_store_root=getattr(args,'world_store_root',None)
     if task_session and args.policy!='steve1': raise ValueError('task sessions require STEVE-1')
+    if getattr(args,'allow_startup_pickups',False) and not (task_session and getattr(args,'world_slot',None)):
+        raise ValueError('Startup pickup accounting requires a persistent task session')
+    if getattr(args,'task_threat_guard',False) and not getattr(args,'task_recovery_catalogue',None):
+        raise ValueError('Threat guard requires neural session recovery')
+    if getattr(args,'task_pursuit_guard',False) and not getattr(args,'task_threat_guard',False):
+        raise ValueError('Pursuit guard requires threat guard')
+    if getattr(args,'task_hazard_condition',None):
+        if not getattr(args,'task_threat_guard',False):raise ValueError('Hazard condition requires threat guard')
+        from .hazard_condition import load_condition
+        load_condition(args.task_hazard_condition,args.root)
+    if getattr(args,'task_recovery_catalogue',None):
+        if not (task_session and getattr(args,'world_slot',None)):
+            raise ValueError('Neural session recovery requires a persistent task session')
+        from .subgoal_skills import load_catalogue
+        load_catalogue(args.task_recovery_catalogue,args.root)
     args.output.mkdir(parents=True, exist_ok=False)
     readiness = inspect(args.root, args.policy); write_json(args.output/'preflight.json', readiness)
     write_json(args.output/'request.json', {'policy':args.policy,'condition':condition,'seed':args.seed,
@@ -351,7 +428,15 @@ def episode(args, condition):
                                           'limit_s':args.limit_s,'controller':'workshop_gui' if getattr(args,'craft_workshop',False) else 'recipe_book_gui' if getattr(args,'craft_recipe_book',False) else 'policy','task_session':task_session,
                                           'learned_policy_loaded':not (getattr(args,'craft_recipe_book',False) or getattr(args,'craft_workshop',False) or getattr(args,'rl_prepare',False) or getattr(args,'rl_teacher',False) or getattr(args,'rl_probe_route',None)),
                                           'steve_prompt_profile':prompt_profile,
-                                          'world_store_root':str(world_store_root) if world_store_root else None})
+                                          'steve_cond_scale':guidance,
+                                          'task_policy_memory':getattr(args,'task_policy_memory',False),
+                                          'world_store_root':str(world_store_root) if world_store_root else None,
+                                          'allow_startup_pickups':getattr(args,'allow_startup_pickups',False),
+                                          'task_recovery_catalogue':str(args.task_recovery_catalogue) if getattr(args,'task_recovery_catalogue',None) else None,
+                                          'task_threat_guard':getattr(args,'task_threat_guard',False),
+                                          'task_pursuit_guard':getattr(args,'task_pursuit_guard',False),
+                                          'task_hazard_condition':str(args.task_hazard_condition) if getattr(args,'task_hazard_condition',None) else None,
+                                          'recovery_source':'local_rule_privileged_server' if getattr(args,'task_recovery_catalogue',None) else None})
     if readiness['status'] == 'blocked':
         report = {'status':'blocked','execution_valid':False,'steps':0,'problems':readiness['problems']}
         write_json(args.output/'summary.json', report); return report
@@ -360,8 +445,30 @@ def episode(args, condition):
     argv = [sys.executable,'-m','minecraftrl.cli','_worker','--root',str(args.root),'--policy',args.policy,
             '--condition',condition['name'],'--seed',str(args.seed),'--limit-s',str(args.limit_s),
             '--output',str(args.output),'--stop-file',str(stop)]
+    if getattr(args,'rm_conditioning',None):
+        argv.extend(['--rm-conditioning',args.rm_conditioning,'--rm-goal-bank',str(args.rm_goal_bank)])
+    if getattr(args,'rm_program',None):argv.extend(['--rm-program',str(args.rm_program)])
+    if getattr(args,'s1_record',False):argv.extend(['--s1-record','--s1-split',args.s1_split])
+    if getattr(args,'s1_checkpoint',None):argv.extend(['--s1-checkpoint',str(args.s1_checkpoint)])
+    if getattr(args,'s2_variant',None):
+        argv.extend(['--s2-variant',args.s2_variant,'--s2-split',args.s2_split,'--s2-action-budget',str(args.s2_action_budget)])
+    if getattr(args,'s2_checkpoint',None):argv.extend(['--s2-checkpoint',str(args.s2_checkpoint)])
+    if getattr(args,'recovery_variant',None):
+        argv.extend(['--recovery-variant',args.recovery_variant,'--recovery-task',args.recovery_task,
+            '--recovery-split',args.recovery_split,'--recovery-action-budget',str(args.recovery_action_budget)])
+    for name in ('recovery_checkpoint','recovery_world','recovery_sampling_seed'):
+        if getattr(args,name,None) is not None:argv.extend(['--'+name.replace('_','-'),str(getattr(args,name))])
+    if getattr(args,'recovery_prepare',False):argv.append('--recovery-prepare')
+    if getattr(args,'effect_learning',False):argv.append('--effect-learning')
+    if getattr(args,'execution_learning',False):argv.append('--execution-learning')
     if task_session: argv.extend(['--task-session','--no-progress-s',str(getattr(args,'no_progress_s',60.))])
+    if getattr(args,'allow_startup_pickups',False): argv.append('--allow-startup-pickups')
+    if getattr(args,'task_recovery_catalogue',None):argv.extend(['--task-recovery-catalogue',str(args.task_recovery_catalogue)])
+    if getattr(args,'task_threat_guard',False):argv.append('--task-threat-guard')
+    if getattr(args,'task_pursuit_guard',False):argv.append('--task-pursuit-guard')
+    if getattr(args,'task_hazard_condition',None):argv.extend(['--task-hazard-condition',str(args.task_hazard_condition)])
     if getattr(args,'task_priorities',False): argv.append('--task-priorities')
+    if getattr(args,'task_policy_memory',False):argv.append('--task-policy-memory')
     if getattr(args,'craft_probe',False): argv.append('--craft-probe')
     if getattr(args,'craft_stop_on_success',False): argv.append('--craft-stop-on-success')
     if getattr(args,'craft_recover_cursor',False): argv.append('--craft-recover-cursor')
@@ -369,6 +476,13 @@ def episode(args, condition):
     if getattr(args,'craft_result_slot_guard',False): argv.append('--craft-result-slot-guard')
     if getattr(args,'craft_recipe_book',False): argv.append('--craft-recipe-book')
     if getattr(args,'craft_workshop',False): argv.extend(['--craft-workshop','--workshop-goals',*args.workshop_goals])
+    if getattr(args,'workshop_equip',None): argv.extend(['--workshop-equip',args.workshop_equip])
+    if getattr(args,'workshop_equip_only',False):argv.append('--workshop-equip-only')
+    if getattr(args,'workshop_equip_slot',None) is not None:argv.extend(['--workshop-equip-slot',str(args.workshop_equip_slot)])
+    if getattr(args,'workshop_consume_food',None):argv.extend(['--workshop-consume-food',args.workshop_consume_food])
+    if getattr(args,'tool_collection',None): argv.extend(['--tool-collection',args.tool_collection])
+    if getattr(args,'tool_condition',None): argv.extend(['--tool-condition',str(args.tool_condition)])
+    if getattr(args,'tool_health_profile','standard')!='standard': argv.extend(['--tool-health-profile',args.tool_health_profile])
     if getattr(args,'rl_collect',False):
         argv.extend(['--rl-collect','--rl-split',args.rl_split])
         argv.extend(['--rl-reward-mode',getattr(args,'rl_reward_mode','sparse')])
@@ -395,8 +509,10 @@ def episode(args, condition):
             argv.extend(['--rl-planner-exchange',str(args.rl_planner_exchange)])
             if args.rl_planner_exchange_live:argv.append('--rl-planner-exchange-live')
         if args.rl_world:argv.extend(['--rl-world',str(args.rl_world)])
+        if getattr(args,'rl_controlled_start',False):argv.append('--rl-controlled-start')
         if args.rl_prepare:argv.append('--rl-prepare')
     argv.extend(['--steve-prompt-profile',prompt_profile])
+    if guidance is not None:argv.extend(['--steve-cond-scale',str(guidance)])
     if getattr(args,'world_slot',None): argv.extend(['--world-slot',args.world_slot])
     if world_store_root: argv.extend(['--world-store-root',str(world_store_root)])
     config = json.loads((args.root/'configs/experiment.json').read_text())
@@ -424,9 +540,11 @@ def episode(args, condition):
                             event = json.loads(first)
                             if event.get('event') == 'episode_started': active_deadline = event['monotonic_s'] + args.limit_s
                 deadline = active_deadline if active_deadline is not None else startup_deadline
-                if getattr(args,'rl_collect',False) and finalization_deadline is None:
+                if (getattr(args,'rl_collect',False) or getattr(args,'tool_collection',None) or getattr(args,'rm_conditioning',None)) and finalization_deadline is None:
                     try:
-                        marker=json.loads((args.output/'rl-control-finished.json').read_text())
+                        marker_name=('rm-control-finished.json' if getattr(args,'rm_conditioning',None) else
+                                     'tool-control-finished.json' if getattr(args,'tool_collection',None) else 'rl-control-finished.json')
+                        marker=json.loads((args.output/marker_name).read_text())
                         stamp=float(marker['monotonic_s'])
                         if marker['control_closed'] is True and marker['release']=='neutral_command_sent' and math.isfinite(stamp) and supervisor_worker_started<=stamp<=now:
                             finalization_deadline=stamp+rl_finalization_grace
@@ -437,7 +555,9 @@ def episode(args, condition):
                 if finalization_deadline is not None and (cancelled_archive or (not stop.exists() and force_reason!='cancelled')):
                     if now>=finalization_deadline:
                         archive_timed_out=True
-                        if force_reason!='cancelled':force_reason='rl_finalize_timeout'
+                        if force_reason!='cancelled':
+                            force_reason=('rm_finalize_timeout' if getattr(args,'rm_conditioning',None) else
+                                          'tool_finalize_timeout' if getattr(args,'tool_collection',None) else 'rl_finalize_timeout')
                         break
                 elif stop.exists() or now >= deadline:
                     if stop_requested_at is None:
@@ -496,6 +616,12 @@ def episode(args, condition):
         report['rl_cancelled_archive']=cancelled_archive
         report['rl_archive_timed_out']=archive_timed_out
         if not report['execution_valid']: report['rl_training_eligible']=False
+    if getattr(args,'tool_collection',None):
+        report['tool_finalization_deadline']=finalization_deadline
+        report['tool_archive_timed_out']=archive_timed_out
+    if getattr(args,'rm_conditioning',None):
+        report['rm_finalization_deadline']=finalization_deadline
+        report['rm_archive_timed_out']=archive_timed_out
     report['device_vram'] = {'sampled_peak_used_mib':max((x['device_used_mib'] for x in samples),default=None),
         'sample_count':len(samples),'sampling_error':gpu_error,'scope':'entire device 0 including other processes; sampled, may miss short peaks'}
     write_json(args.output/'device-vram-samples.json', samples); write_json(path, report)
@@ -569,13 +695,50 @@ def validate_navigation_trial_args(args):
             args.rl_teacher or args.rl_student_correction or args.rl_waypoint_actor or args.rl_recovery_embed or
             args.rl_rm_navigation_actor):raise SystemExit('navigation trial requires isolated parent/world/embedding and v4')
     if not path.resolve().is_relative_to(args.root.resolve()/'results'):raise SystemExit('navigation protocol must be project-local')
+    from .navigation_refinement import navigation_action_selection
+    navigation_action_selection(json.loads(path.read_text(encoding='utf-8-sig')))
+
+
+def validate_controlled_start_args(args):
+    if not getattr(args,'rl_controlled_start',False):return
+    if (not args.rl_collect or not args.rl_world or not args.rl_navigation_trial or
+            args.rl_prepare or args.rl_teacher or args.rl_student_correction or args.rl_probe_route):
+        raise SystemExit('controlled startup currently requires an explicit navigation evaluation')
+    trial=json.loads(args.rl_navigation_trial.read_text(encoding='utf-8-sig'))
+    if trial.get('mode')!='evaluate' or trial.get('split') not in ('train','development'):
+        raise SystemExit('controlled startup is restricted to train/development evaluation')
 
 
 def main():
     args = parser().parse_args(); args.root = args.root.resolve()
+    # The old custom checkpoints, worlds and dedicated workflows were retired by
+    # the user. Reject their CLI before preflight, environment startup or loading.
+    # Shared collection/math utilities remain available for the new RL design.
+    if any(token == '--rl-collect' or token.startswith('--rl-') for token in sys.argv[1:]):
+        raise SystemExit('Legacy RL experiment paths were removed on 2026-10-25. Use the official STEVE-1 baseline; the new RL learning loop is not implemented yet.')
+    from .rm_conditioning import validate_args as validate_rm_conditioning_args
+    validate_rm_conditioning_args(args)
+    if args.effect_learning:
+        from .goal_contract import read_json
+        if (args.rm_conditioning!='goal-queue' or args.recovery_variant!='nonlinear-on'
+                or args.recovery_prepare or args.rm_program is None
+                or read_json(args.rm_program).get('schema')!='goal_spec_v1'):
+            raise ValueError('E1 requires canonical saved-start nonlinear-on recovery controls')
+    if args.execution_learning:
+        from .goal_contract import read_json
+        if (args.effect_learning or args.rm_conditioning!='goal-queue' or args.recovery_variant!='nonlinear-on'
+                or args.recovery_prepare or args.rm_program is None
+                or read_json(args.rm_program).get('schema')!='goal_spec_v2'):
+            raise ValueError('E2 requires v2 saved-start nonlinear-on controls and excludes E1')
+    if (any(getattr(args,k,None) for k in ('recovery_variant','recovery_prepare','recovery_world','recovery_checkpoint'))
+            or args.recovery_sampling_seed is not None or args.recovery_task!='collection'
+            or args.recovery_split!='development' or args.recovery_action_budget!=1200):
+        from .recovery_learning import validate_args as validate_recovery_args
+        validate_recovery_args(args)
     validate_goal_recovery_args(args)
     validate_waypoint_args(args)
     validate_navigation_trial_args(args)
+    validate_controlled_start_args(args)
     if args.rl_student_correction and (not args.rl_collect or not args.rl_world or not args.rl_checkpoint or not args.rl_embed
             or args.rl_teacher or args.rl_probe_route or args.rl_prepare or args.rl_reward_mode!='wood-potential-v4'):
         raise SystemExit('student correction requires an explicit checkpoint, embedding, reserved world and v4; no other controller')
@@ -599,6 +762,12 @@ def main():
         raise SystemExit('recipe-book experiment uses its own explicit no-Shift GUI controller')
     if args.craft_workshop and (not (args.craft_probe and args.craft_recover_cursor) or args.craft_recipe_book or args.craft_no_quick_move or args.craft_result_slot_guard):
         raise SystemExit('workshop requires a separate craft-probe with cursor recovery')
+    if args.workshop_equip_only and (not args.craft_workshop or not args.workshop_equip or args.workshop_goals!=[args.workshop_equip]):
+        raise SystemExit('equipment-only assistance requires a single explicit workshop tool')
+    if args.workshop_equip_slot is not None and (not args.craft_workshop or not args.workshop_equip):
+        raise SystemExit('tool slot relocation requires explicit workshop equipment')
+    if args.workshop_consume_food and not args.workshop_equip_only:
+        raise SystemExit('food assistance requires explicit equipment-only mode')
     if args.craft_probe:
         if args.operation not in ('craft-probe','_worker') or args.condition not in ('planks','sticks','table'):
             raise SystemExit('craft-probe is a separate experimental operation')
@@ -612,13 +781,46 @@ def main():
         if args.policy!='steve1': raise SystemExit('session requires --policy steve1')
         args.task_session=True; args.condition='wood'
         args.world_slot=args.world_slot or 'companion'
+    validate_steve_guidance_args(args)
+    validate_policy_memory_args(args)
     if args.task_priorities and not args.task_session: raise SystemExit('--task-priorities requires a task session')
-    if args.world_slot and not (args.task_session or args.craft_probe): raise SystemExit('--world-slot requires a task session or craft-probe')
+    if args.allow_startup_pickups and not (args.task_session and args.world_slot):
+        raise SystemExit('--allow-startup-pickups requires a persistent task session')
+    if args.task_recovery_catalogue and not (args.task_session and args.world_slot):
+        raise SystemExit('--task-recovery-catalogue requires a persistent task session')
+    if args.task_threat_guard and not args.task_recovery_catalogue:
+        raise SystemExit('--task-threat-guard requires --task-recovery-catalogue')
+    if args.task_hazard_condition and not args.task_threat_guard:
+        raise SystemExit('--task-hazard-condition requires --task-threat-guard')
+    if args.task_pursuit_guard and not args.task_threat_guard:
+        raise SystemExit('--task-pursuit-guard requires --task-threat-guard')
+    if args.tool_collection:
+        if (args.operation not in ('episode','_worker') or args.policy!='steve1' or args.seed!=104761
+                or args.steve_prompt_profile!='official-visual' or not args.world_slot or not args.world_store_root
+                or args.task_session or args.craft_probe or args.rl_collect):
+            raise SystemExit('tool collection requires a separate official-visual STEVE-1 development episode on seed104761')
+        if args.condition!='tool_'+args.tool_collection:raise SystemExit('tool phase and condition must match')
+        from .tool_collection import validate_condition_phase,health_limits_for_phase
+        try:
+            validate_condition_phase(args.tool_collection,args.tool_condition)
+            health_limits_for_phase(args.tool_collection,args.tool_health_profile)
+        except ValueError as exc:raise SystemExit(str(exc)) from exc
+        if not args.world_store_root.resolve().is_relative_to(args.root/'results'):
+            raise SystemExit('tool collection world store must be inside project results')
+    elif (args.condition in ('tool_cobblestone','tool_axe_wood','tool_workstation_access','tool_recover_axe','tool_evade_hostile')
+            or args.tool_condition or args.tool_health_profile!='standard'):
+        raise SystemExit('tool condition requires explicit tool collection mode')
+    if args.world_slot and not (args.task_session or args.craft_probe or args.tool_collection): raise SystemExit('--world-slot requires a persistent experiment')
     if args.world_store_root:
         args.world_store_root=args.world_store_root.resolve()
-        if not (args.task_session or args.craft_probe) or not args.world_store_root.is_relative_to(args.root):
+        if not (args.task_session or args.craft_probe or args.tool_collection) or not args.world_store_root.is_relative_to(args.root):
             raise SystemExit('--world-store-root requires a task session and a path inside the project')
     if not 0 < args.limit_s <= 180: raise SystemExit('--limit-s must be in (0, 180]')
+    if getattr(args,'s2_variant',None):
+        if args.rm_conditioning!='goal-queue' or args.rm_program is None or args.s1_record or args.s1_checkpoint:
+            raise SystemExit('S2 requires goal-queue/program and cannot mix with S1')
+        if not 1 <= args.s2_action_budget <= 1200: raise SystemExit('S2 action budget must be 1 to 1200')
+    elif getattr(args,'s2_checkpoint',None): raise SystemExit('S2 checkpoint requires an explicit variant')
     if not 0 < args.no_progress_s <= 180: raise SystemExit('--no-progress-s must be in (0,180]')
     if args.output: args.output = args.output.resolve()
     if args.stop_file: args.stop_file = args.stop_file.resolve()

@@ -1,0 +1,139 @@
+import sys,unittest
+from pathlib import Path
+
+try:
+    import torch
+    sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
+    import train_navigation_refinement as trainer
+except ImportError:
+    torch=None
+
+
+@unittest.skipIf(torch is None,'Torch unavailable')
+class NavigationSamplingTests(unittest.TestCase):
+    def test_fixed_group_counts_and_uniform_optimizer_budget(self):
+        groups=[False]*17240+[True]*212
+        batches=trainer.stratified_training_batches(groups)
+        self.assertEqual(len(batches),546)
+        self.assertTrue(all(len(b)==32 and sum(groups[i] for i in b)==8 for b in batches))
+        self.assertEqual(sum(not groups[i] for b in batches for i in b),13104)
+        self.assertEqual(sum(groups[i] for b in batches for i in b),4368)
+
+    def test_each_group_cycles_without_omissions_before_reshuffling(self):
+        groups=[False]*13+[True]*7
+        torch.manual_seed(41);batches=trainer.stratified_training_batches(groups,8,2)
+        local=[i for b in batches for i in b if not groups[i]]
+        self.assertEqual(set(local[:13]),set(range(13)))
+        # Small groups may repeat across explicit reshuffle boundaries; labels stay unique in the dataset.
+        small=[False]*3+[True]*2
+        batches=trainer.stratified_training_batches(small,32,8)
+        for flag,count in ((False,3),(True,2)):
+            stream=[i for b in batches for i in b if small[i]==flag]
+            for start in range(0,len(stream)-count+1,count):
+                self.assertEqual(set(stream[start:start+count]),{i for i,v in enumerate(small) if v==flag})
+
+    def test_fixed_seed_reproduces_and_a_different_seed_changes_order(self):
+        flags=[False]*40+[True]*12
+        torch.manual_seed(14101);first=trainer.stratified_training_batches(flags)
+        torch.manual_seed(14101);second=trainer.stratified_training_batches(flags)
+        torch.manual_seed(14102);third=trainer.stratified_training_batches(flags)
+        self.assertEqual(first,second);self.assertNotEqual(first,third)
+
+    def test_importance_preserves_population_kl_mass(self):
+        flags=[False]*24+[True]*8
+        values=trainer.mixture_importance(flags,17240,212)
+        self.assertAlmostEqual(sum(values)/32,1.)
+        self.assertAlmostEqual(sum(values[:24])/32,17240/17452)
+        self.assertAlmostEqual(sum(values[24:])/32,212/17452)
+
+    def test_expected_bc_global_kl_and_local_kl_gradients_match_original_objective(self):
+        flags=[False]*3+[True]*2
+        weights=torch.tensor(trainer.human_loss_weights([1.,2.,3.,4.,5.],flags,.25),dtype=torch.float64)
+        first=torch.tensor([.2,.4,.7,.9,1.2],dtype=torch.float64,requires_grad=True)
+        second=first.detach().clone().requires_grad_()
+        def loss(values,indices,importance):
+            chosen=values[indices];group=[flags[i] for i in indices]
+            per_row_kl=chosen.exp()*importance
+            return (chosen.square()*weights[indices]*importance).mean()+.01*per_row_kl.mean()+trainer.local_retention_kl(per_row_kl,group)
+        original=loss(first,list(range(5)),torch.ones(5,dtype=torch.float64))
+        stratified=[]
+        for local in range(3):
+            for human in range(3,5):
+                importance=torch.tensor(trainer.mixture_importance([False,True],3,2),dtype=torch.float64)
+                stratified.append(loss(second,[local,human],importance))
+        corrected=torch.stack(stratified).mean()
+        self.assertAlmostEqual(original.item(),corrected.item(),places=12)
+        original.backward();corrected.backward()
+        self.assertTrue(torch.allclose(first.grad,second.grad,atol=1e-12,rtol=0))
+
+    def test_importance_does_not_reintroduce_human_retention_gradient(self):
+        values=torch.tensor([.2,.3,5.],requires_grad=True)
+        flags=[False,False,True]
+        importance=torch.tensor(trainer.mixture_importance(flags,90,10))
+        trainer.local_retention_kl(values*importance,flags).backward()
+        self.assertEqual(values.grad[-1].item(),0.)
+        self.assertTrue(torch.all(values.grad[:2]>0))
+
+    def test_source_balanced_bc_has_same_expected_gradient_with_stratified_draws(self):
+        from minecraftrl.human_source_bc import reweight_sources
+        flags=[False]*3+[True]*3
+        before=trainer.human_loss_weights([1.,2.,3.,1.,4.,20.],flags,.25)
+        adjusted,_=reweight_sources(before,flags,['rare','large','large'])
+        weights=torch.tensor(adjusted,dtype=torch.float64)
+        first=torch.tensor([.2,.4,.7,.9,1.2,1.5],dtype=torch.float64,requires_grad=True)
+        second=first.detach().clone().requires_grad_()
+        original=(first.square()*weights).mean()
+        outcomes=[]
+        for local in range(3):
+            for human in range(3,6):
+                # Match the actual 24 local / 8 human draw proportions.
+                indices=[local]*3+[human]
+                correction=torch.tensor(trainer.mixture_importance([False]*3+[True],3,3),dtype=torch.float64)
+                outcomes.append((second[indices].square()*weights[indices]*correction).mean())
+        stratified=torch.stack(outcomes).mean()
+        original.backward();stratified.backward()
+        self.assertAlmostEqual(original.item(),stratified.item(),places=12)
+        self.assertTrue(torch.allclose(first.grad,second.grad,atol=1e-12,rtol=0))
+
+    def test_invalid_or_missing_groups_are_rejected(self):
+        for flags in ([],[False,False],[True,True],[False,1]):
+            with self.assertRaises(ValueError):trainer.stratified_training_batches(flags)
+        for batch,human in ((0,1),(32,0),(32,32),(32,True),(1.5,1)):
+            with self.assertRaises(ValueError):trainer.stratified_training_batches([False,True],batch,human)
+        for flags,local,human in (([False,True],0,1),([False,True],True,1),([False],1,1),([1,False],1,1)):
+            with self.assertRaises(ValueError):trainer.mixture_importance(flags,local,human)
+
+
+
+    def test_explicit_budget_is_independent_of_dataset_size(self):
+        for human in (212,523):
+            flags=[False]*17240+[True]*human
+            batches=trainer.stratified_training_batches(flags,updates=546)
+            self.assertEqual(len(batches),546)
+            self.assertEqual(sum(flags[i] for b in batches for i in b),4368)
+            self.assertTrue(all(len(b)==32 and sum(flags[i] for i in b)==8 for b in batches))
+
+    def test_explicit_default_budget_preserves_rng_and_exact_indices(self):
+        flags=[False]*17240+[True]*212
+        torch.manual_seed(14101);original=trainer.stratified_training_batches(flags)
+        original_rng=torch.random.get_rng_state()
+        torch.manual_seed(14101);explicit=trainer.stratified_training_batches(flags,updates=546)
+        self.assertEqual(original,explicit)
+        self.assertTrue(torch.equal(original_rng,torch.random.get_rng_state()))
+
+    def test_explicit_budget_rejects_ambiguous_or_unbounded_values(self):
+        for value in (True,0,-1,1.5,4097):
+            with self.assertRaises(ValueError):
+                trainer.stratified_training_batches([False,True],updates=value)
+
+    def test_cli_rejects_budget_outside_stratified_bc_before_opening_output(self):
+        import contextlib,io
+        from unittest.mock import patch
+        base=['trainer','bc_continue','unused-output','--actor','unused.pt','--train','unused-run']
+        for extra in (['--updates-per-epoch','546'],
+                      ['--human-minibatch','stratified-8','--human-references','unused.json','--updates-per-epoch','4097']):
+            with patch.object(sys,'argv',base+extra),contextlib.redirect_stderr(io.StringIO()):
+                with self.assertRaises(SystemExit) as stopped:trainer.main()
+                self.assertEqual(stopped.exception.code,2)
+
+if __name__=='__main__':unittest.main()

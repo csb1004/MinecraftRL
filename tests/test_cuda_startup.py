@@ -33,3 +33,19 @@ class ConvolutionPreparationTests(unittest.TestCase):
         with torch.no_grad():layer.weight.fill_(float('nan'))
         with self.assertRaisesRegex(ValueError,'nonfinite'):
             prime_convolution(layer)
+
+    def test_cuda_preparation_preserves_cpu_and_device_rng_and_parameters(self):
+        try:
+            import torch
+        except ImportError:
+            self.skipTest('tensor runtime required')
+        if not torch.cuda.is_available():self.skipTest('CUDA runtime required')
+        layer=torch.nn.Conv2d(3,4,3,padding=1).cuda().eval()
+        weights={k:v.clone() for k,v in layer.state_dict().items()}
+        cpu_rng=torch.get_rng_state().clone();gpu_rng=torch.cuda.get_rng_state().clone()
+        result=prime_convolution(layer)
+        self.assertTrue(result['completed'])
+        self.assertTrue(torch.equal(cpu_rng,torch.get_rng_state()))
+        self.assertTrue(torch.equal(gpu_rng,torch.cuda.get_rng_state()))
+        self.assertFalse(layer.training)
+        self.assertTrue(all(torch.equal(v,layer.state_dict()[k]) for k,v in weights.items()))

@@ -1,19 +1,20 @@
 """Relative navigation goals and labels from explicit, audited teacher waypoints."""
 import math
 from .spatial_memory import xyz
+from .navigation_observation import position
 
 GOAL_DIM=6
 ARRIVAL_RADIUS=.35
 
 
-def goal_features(observation,target):
-    target=xyz(target);position=xyz([observation['server_'+v] for v in 'xyz'])
+def goal_features(observation,target,*,pose_source='server'):
+    target=xyz(target);current_position=position(observation,pose_source)
     yaw,pitch=float(observation['yaw']),float(observation['pitch'])
     if not math.isfinite(yaw) or not math.isfinite(pitch) or abs(pitch)>90:
         raise ValueError('invalid navigation orientation')
     if observation.get('server_available')!=1 or observation.get('error')!=0:
         raise ValueError('navigation observation unavailable')
-    dx,dy,dz=[b-a for a,b in zip(position,target)]
+    dx,dy,dz=[b-a for a,b in zip(current_position,target)]
     distance=math.hypot(dx,dz);angle=math.atan2(-dx,dz)-math.radians(yaw)
     return [math.sin(angle),math.cos(angle),min(distance/16,1.),max(-1.,min(1.,dy/4)),pitch/90,1.]
 

@@ -1,0 +1,40 @@
+# Common recovery R1 work log
+
+Approved scope: common contract, varied saved starts, adapter-only repeated RL, held-out recovery and full-collection comparisons, actual STOP.
+
+- Environment: Windows PowerShell 7.6.5, actual D: workspace, WSL Ubuntu-24.04 available. GTX1060 3GB / 560.94, 2371 MiB free at inspection; D: ~213 GB free.
+- Existing dirty worktree and retired artifacts preserved. No automatic subagents, API calls, GitHub operations or global environment changes.
+- U1 context/adapter lifecycle: implemented; fixed unknown dirt phase and block-vs-item evidence separation; frozen original motor verified by fingerprint.
+- U2 saved start/fixture preparation and validation: all six new natural starts saved, zero policy actions and zero owned remaining PIDs. Prepared 20 immutable case definitions (13 pickup layouts, 7 natural task definitions) plus a separate diagnostic layout. NBT, empty fixture inventory, source preservation and block encoding verified. The existing fixture-tools is a Windows venv, not WSL conda; first wrong-environment command failed with no file mutation and its log is retained.
+- U3 repeated on-policy trainer and tests: implemented. Final relevant WSL regression set: 90 passed in 6.246 seconds, including actual goal-queue/pickup integration. Pickup prompt bank generated and hash/token checks passed; no truncation.
+- U4 frozen actual comparison, audit, STOP and report: completed at 14:46 KST; no candidate promoted.
+
+Protocol: `docs/specs/2026-11-01-common-recovery-r1.md`.
+
+## Sequential pre-measurement review
+
+Per project instructions, no reviewer subagents were used. Applied ce-simplify-code and ce-code-review perspectives sequentially to the new files and the changed hooks (not the unrelated pre-existing dirty tree).
+
+- Reuse: existing dispatcher, STOP lifecycle, authoritative queue, PPO math and safe saved-world loader reused. Existing S2 scope/default context remain unchanged; explicit hooks provide the versioned new contract.
+- Efficiency: removed hundreds of repeated ZIP reads during fixture verification by decoding the checked chunk once. No new per-frame disk/GPU synchronization added to the actor path.
+- Correctness/adversarial: a dirt floor could falsely pass a pickup goal through mining; use a non-harvestable local arena for isolated pickup, and keep natural whole-task evaluation separate. Reject startup acquisition and incorrect restored fixture position. No claim of natural-scene pickup generalization from synthetic arenas alone.
+- Data integrity: only fresh train data from the exact parent checkpoint, matching frozen motor/bank, log-probability and critic replay, finite features/rewards and valid terminal boundaries. Evaluation/cancelled/mixed-candidate/disconnected-context inputs rejected.
+- Runtime/contracts: new flags cannot silently affect another mode; phase intent does not imply entity visibility. Original motor fingerprint checked after loading candidates. Dedicated R1 episodes admit one acquisition goal, avoiding untested cross-goal recycling claims.
+- Test detail: a zero-column wider GEMM differed from the narrow original by ~1.2e-7; parity assertion uses float32 tolerance 1e-6, while the real rollout probability admission remains 1e-4. Actual off invariance and frozen motor tensors require exact equality.
+- Publication/permissions: no commit, push, public release, API call, deleted artifact restoration, or global environment change.
+
+Preparation completed at ~10:53 KST. Actual diagnostic completed at ~10:58 KST: 12 neural policy actions, authoritative oak_log gain 1, reward exactly 1, successful termination/release and zero owned remaining PIDs. Initial pose matches the fixture and a dropped log is visible. The final client image still shows pickup animation/lag; acquisition is established by the server inventory, not the image. This diagnostic is excluded from training and measured comparison. It establishes existing nearby visible pickup ability, not learned/general recovery. All starts use the unchanged fixed observer JAR (dac9a1c9...).
+
+Measured source freezes at launch of `scripts/Invoke-CommonRecoveryR1.ps1`. Do not edit source/scripts/tests/protocol or rerun completed games during that batch. Actual training replay gates and remaining generalization outcomes still pending.
+
+11:21 KST: first six train games completed (1,202 committed policy actions; five inventory successes, one valid dirt-front action-budget failure). Initial off-candidate PPO update completed: 76 optimizer updates / 2,404 row visits; exact log-probability and critic replay, original motor unchanged, nonzero adapter delta. This confirms actual parameter learning only; development performance is pending.
+
+11:51 KST: round-1 off/on both completed 76 optimizer updates on the same admitted 1,202 actual actions (2,404 row visits per candidate), replay errors zero, original motor unchanged. Off round-2 six fresh candidate games: 1,677 actions, five successes / one valid occluded-dirt failure. Round-2 off trained 106 updates / 3,354 row visits, logp replay error zero and value max error 2.98e-7; motor unchanged. Two-stage on-policy learning is actually executed; held-out performance remains pending. Failure screen notes are preserved under results/live-analysis-notes.md.
+
+12:18 KST: all 18 train games complete, 3,847 actual actions (shared initial 1,202; off fresh 1,677; on fresh 968). Successes: initial 5/6, off round2 5/6, on round2 6/6; training outcomes only. On round2: 62 updates / 1,936 row visits, no KL early stop, logp replay error 0 and value error 2.38e-7, frozen motor unchanged. All four training jobs finished; held-out development comparison now starts. User raised competence/model-based two-phase planning and concern about over-reliance on STEVE-1. Research notes and primary sources saved in results/common-recovery-r1-20261101/research-notes.md; no changes to this frozen baseline, no model-based architecture claimed implemented.
+
+13:24 KST: all 15 held-out pickup development games complete. Initial 4/5, off 2/5, on 3/5. Per-case steps (initial/off/on; failure at 400): front 18/400F/81; side 400F/400F/400F; turned 63/80/145; step 62/23/23; occluded 204/400F/400F. This is negative evidence for general recovery improvement in this pilot; neither candidate is promoted. Natural whole-collection comparisons (15 games), independent raw audit and actual STOP still running/pending. First-frame pixel differences must be included in final interpretation.
+
+14:30 KST: all 48 measured games and four training jobs finished. Natural development success: initial 5/5, off 5/5, on 4/5. Last on/81112013 wood run ended after 945 actions / 138.34 s with no confirmed progress, zero log gain, search 611 / approach 334 / mine 0 / collect 0. It is not an isolated late-pickup failure. Independent audit is streaming 2.13 GiB of raw event records; actual STOP and final identity checks follow automatically. Both candidates remain unpromoted. Draft report: `docs/common-recovery-r1-results-2026-11-01.md`.
+
+14:46 KST completed: driver exit 0, 48/48 valid measured games / 10,483 actual actions, independent raw audit issues 0. Start pose equal in 20/20 pairs; initial pixels equal in 12/20. Last natural failure's raw mine stage occurred in two two-step bursts, below the existing three-confirmation threshold; server mining flag one two-tick segment, actual log harvest 0. This does not prove a perception defect. Actual STOP after 10 actions passed: dispatch after visible request/ack 0/0, neutral input verified, held keys 0, owned remaining PIDs 0; deliberate worker exit 2. All 325 frozen source, 55 input and 5 official/research files unchanged. Total measured control 1,548.93 s; overall batch 227.38 min includes startup, saves, training, audit and STOP. Postprocessing succeeded and preserved audit SHA. Final report: `docs/common-recovery-r1-results-2026-11-01.md`. No further STEVE-specific tuning, no promotion, API or publication; STOP remains latched. Model-based/competence direction is a proposal, not an implemented architecture.

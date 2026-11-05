@@ -115,6 +115,28 @@ class StallDetectionTests(unittest.TestCase):
         self.assertEqual(len(alerts),1)
         self.assertEqual(alerts[0]['reason'],'no_goal_progress')
 
+    def test_new_targets_and_block_breaks_cannot_hide_flat_inventory_forever(self):
+        d=StallDetector();alerts=[]
+        for i in range(900):
+            target=(i//20,64,1)
+            r=d.update(sample(i,stage='mine',target=target,block_removed=target if i%20==19 else None,
+                              inventory_count=10))
+            if r['event']=='stalled':alerts.append(r)
+        self.assertEqual(len(alerts),1)
+        self.assertEqual(alerts[0]['tick'],800)
+        self.assertEqual(alerts[0]['reason'],'no_goal_progress')
+        self.assertLess(alerts[0]['no_progress_ticks'],20)
+        r=d.update(sample(900,inventory_count=11))
+        self.assertEqual(r['event'],'progress_resumed')
+
+    def test_only_a_new_inventory_high_water_renews_goal_budget(self):
+        d=StallDetector();alerts=[]
+        for i in range(1300):
+            inventory=10 if i<400 else 10+i%2 if i>400 else 11
+            r=d.update(sample(i,stage='mine',target=(i//20,64,1),inventory_count=inventory))
+            if r['event']=='stalled':alerts.append(r)
+        self.assertEqual([r['tick'] for r in alerts],[1200])
+
     def test_different_world_or_goal_revision_cannot_mix_history(self):
         d=StallDetector();d.update(sample(0,context_id='world1/task1/r1'))
         with self.assertRaises(ValueError):d.update(sample(1,context_id='world1/task1/r2'))

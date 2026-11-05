@@ -1,5 +1,4 @@
 """Read-only readiness check; never installs packages or downloads weights."""
-import hashlib
 import importlib.metadata
 import importlib.util
 import json
@@ -10,13 +9,7 @@ import subprocess
 import sys
 from pathlib import Path
 from .runtime import write_json
-
-
-def sha256(path):
-    value = hashlib.sha256()
-    with Path(path).open('rb') as stream:
-        for block in iter(lambda: stream.read(1024 * 1024), b''): value.update(block)
-    return value.hexdigest()
+from .artifact_hash import sha256, native_bridge
 
 
 def command(args,*,timeout_s=20):
@@ -76,7 +69,8 @@ def inspect(root, policy):
         if not path.is_file() or not receipt.is_file(): problems.append('artifact/receipt missing: '+spec['file']); continue
         try:
             recorded = json.loads(receipt.read_text()); actual = sha256(path)
-            result['artifacts'][spec['file']] = {'sha256': actual, 'bytes': path.stat().st_size}
+            result['artifacts'][spec['file']] = {'sha256': actual, 'bytes': path.stat().st_size,
+                'hash_backend':'windows_native_full_read' if native_bridge(path) else 'python_full_read'}
             if actual != recorded['sha256']: problems.append('artifact hash mismatch: '+spec['file'])
             if recorded.get('url') != spec.get('url') or recorded.get('gdrive_id') != spec.get('gdrive_id'):
                 problems.append('artifact source mismatch: '+spec['file'])

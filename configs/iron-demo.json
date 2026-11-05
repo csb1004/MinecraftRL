@@ -1,0 +1,25 @@
+{
+  "schema": "iron_demo_config_v1",
+  "seed": 104729,
+  "development_seed": 130363,
+  "limit_s": 900,
+  "fixture": "configs/iron-demo-fixture-v2.json",
+  "settle_steps": 20,
+  "policy_tool_lock": true,
+  "game_context": {"game_version": "1.16.5"},
+  "skills": {
+    "wood_visual": {"embedding": "weights/steve1/visual-prompts/wood.npy", "sha256": "768bb35ed2914b3e89769acc4bfee82889e2db2f9909d395a7ef36899366827c", "cond_scale": 7.0, "source": "official_video_embedding", "target_block": "log", "target_items": ["log"]},
+    "dig_visual": {"embedding": "weights/steve1/visual-prompts/dig.npy", "sha256": "ba1fbe4516e3804ca270d3327c1dbfaed9589b5027bb8c554b76e73a22ffaa47", "cond_scale": 7.0, "source": "official_video_embedding", "target_block": "stone", "target_items": ["cobblestone"]},
+    "mine_stone_text": {"embedding": "results/iron-demo-prompts/mine_stone.npy", "sha256": "4a3d6be7e5a21d07a3e8c819df54bec97d0f74eb880ddbbd0f3f44a1ca5302ca", "cond_scale": 6.0, "source": "text_prompt:mine stone", "target_block": "stone", "target_items": ["cobblestone"]},
+    "mine_iron_text": {"embedding": "results/iron-demo-prompts/mine_iron_ore.npy", "sha256": "bfc5280ee7d3acdcb929aead67bdeacd029454cd6a113abcfcc64e52cfa51b1e", "cond_scale": 6.0, "source": "text_prompt:mine iron ore", "target_block": "iron_ore", "target_items": ["iron_ore"]},
+    "break_iron_text": {"embedding": "results/iron-demo-prompts/break_iron_ore_block.npy", "sha256": "6bac4cd4c80d77155e22fec7f9b2840c9a26e6bdd30fcfffa0744888e657b85b", "cond_scale": 6.0, "source": "text_prompt:break the iron ore block", "target_block": "iron_ore", "target_items": ["iron_ore"]},
+    "climb_out_text": {"embedding": "results/pit-escape-prompts/climb_out.npy", "sha256": "d0028f9570df6d4944227eb8c43080baf111ee314da7673fab3b11065740ee87", "cond_scale": 6.0, "source": "text_prompt:climb out of the hole", "target_block": null, "target_items": []}
+  },
+  "selected": {"log": "wood_visual", "cobblestone": "mine_stone_text", "iron_ore": "mine_iron_text", "escape": "climb_out_text"},
+  "selection_evidence": "results/iron-demo-probe-20261104-arena-v2/probe-selection.json (fixture v2, development seed 130363, policy_tool_lock); escape: results/pit-escape-probe-20261104 (climb out of the hole 3/3, 6 deep, 16 dirt in hand)",
+  "allowed_goals": {"iron_ore": [1, 64]},
+  "success_criterion": {"item": "iron_ore", "count": 1},
+  "budgets": {"llm_calls": 8, "vlm_calls": 12, "slow_wait_s": 120, "step_retries": 3, "knowledge_rounds": 4, "violation_hold_s": 10},
+  "thresholds": {},
+  "models": {"llm": null, "vlm": null}
+}

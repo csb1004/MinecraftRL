@@ -1,5 +1,26 @@
 # 공식 소스 조사 — 2026-10-03
 
+## STEVE-1 호환 Minecraft 버전 재확인 — 2026-10-25
+
+사용자는 환경 복잡도를 줄이기 위해 1.7.10을 제안했고, 다른 낮은 버전도 STEVE-1과 맞으면
+대체해도 된다고 보완했다. 확인한 공식 실행 조합은 **Minecraft 1.16.5 / MineRL v1.0.1**이다.
+현재 설치본도 이 조합을 기준으로 하므로 이번 검토에서는 버전을 교체하지 않는다.
+
+- [고정 STEVE-1 README](https://github.com/Shalev-Lifshitz/STEVE-1/blob/903b244796322f4d0073a8f62c05f51eac3aed52/README.md)는 MineRL v1.0.1을 지정한다.
+- [MineRL v1.0.1 빌드 스크립트](https://github.com/minerllabs/minerl/blob/v1.0.1/scripts/setup_mcp.sh)는 MCP `1.16.5-20210115`를 사용한다.
+- 로컬 `configs/sources.lock.json`, `external/minerl/scripts/setup_mcp.sh`와 설치된
+  `.runtime/steve1/lib/python3.10/site-packages/minerl/MCP-Reborn/build.gradle:193`,
+  `.runtime/vpt/lib/python3.9/site-packages/minerl/MCP-Reborn/build.gradle:193`에서도 1.16.5를 확인했다.
+- [MineRL 버전 설명](https://github.com/minerllabs/minerl/blob/v1.0.1/README.md)은 v1.0에서 게임 버전과
+  행동/관측 인터페이스가 바뀌었음을 명시한다. 구형 MineRL 설치만으로 STEVE-1의 하위 버전 호환을
+  확보했다고 볼 수 없다. 이번에 확인한 공식 경로에서는 1.16.5보다 낮은 STEVE-1 지원 조합을 찾지 못했다.
+
+1.7.10 이식 시 관측/입력/상태 판정 bridge의 재작업과 시각·조작 차이에 대한 정책 검증이 필요하다는
+것은 위 의존 구조에 따른 판단이며, 실제 이식 실패나 성능 저하를 측정한 결과가 아니다.
+초기 복잡도는 1.16.5 안에서 과업과 월드 조건을 제한해 낮추는 방향을 추천한다. 지형·배치·도구 조건과
+평가 시드는 다양하게 유지하고 장기 연구 목표는 축소하지 않는다. 구체적 월드 설정은 아직 변경하지 않았다.
+설치본 설정/공식 소스 확인과 문서 기록만 수행했다. 게임·학습 재개 없음, STOP 유지.
+
 ## 공개 모방 데이터 추가 조사 — 2026-10-08
 
 [VPT contractor/BASALT와 STEVE-1 변환 경로](imitation-data-plan-2026-10-08.md)를 재확인했다.

@@ -1,0 +1,32 @@
+{
+  "schema": "iron_demo_fixture_v1",
+  "description": "Prepared iron demo arena v2 (evaluation: empty start inventory). Same trees, wall and eye-level iron ores as v1, plus a levelled 11x12 floor (grass, 2 dirt, 5 stone) and an invisible barrier box (walls dy -8..8, floor dy -9) so the policy cannot leave the arena or reach outside lava; v1 probes lost most iron trials to 40-120 block wandering and one lava death. Offsets are relative to the player's start block: dx right, dy up, dz forward of the start horizontal facing. Fill regions apply in order, then single blocks.",
+  "rotate_with_facing": true,
+  "fill": [
+    {"from": [-5, -8, -2], "to": [5, -4, 9], "block": "stone"},
+    {"from": [-5, -3, -2], "to": [5, -2, 9], "block": "dirt"},
+    {"from": [-5, -1, -2], "to": [5, -1, 9], "block": "grass_block"},
+    {"from": [-5, 0, -2], "to": [5, 6, 9], "block": "air"},
+    {"from": [-2, 0, 8], "to": [2, 2, 8], "block": "stone"},
+    {"from": [-6, -8, -3], "to": [-6, 8, 10], "block": "barrier"},
+    {"from": [6, -8, -3], "to": [6, 8, 10], "block": "barrier"},
+    {"from": [-5, -8, -3], "to": [5, 8, -3], "block": "barrier"},
+    {"from": [-5, -8, 10], "to": [5, 8, 10], "block": "barrier"},
+    {"from": [-5, -9, -2], "to": [5, -9, 9], "block": "barrier"}
+  ],
+  "blocks": [
+    {"dx": -3, "dy": 0, "dz": 3, "block": "oak_log"},
+    {"dx": -3, "dy": 1, "dz": 3, "block": "oak_log"},
+    {"dx": -3, "dy": 2, "dz": 3, "block": "oak_log"},
+    {"dx": -3, "dy": 3, "dz": 3, "block": "oak_log"},
+    {"dx": -3, "dy": 4, "dz": 3, "block": "oak_log"},
+    {"dx": 3, "dy": 0, "dz": 3, "block": "oak_log"},
+    {"dx": 3, "dy": 1, "dz": 3, "block": "oak_log"},
+    {"dx": 3, "dy": 2, "dz": 3, "block": "oak_log"},
+    {"dx": 3, "dy": 3, "dz": 3, "block": "oak_log"},
+    {"dx": 3, "dy": 4, "dz": 3, "block": "oak_log"},
+    {"dx": -1, "dy": 1, "dz": 8, "block": "iron_ore"},
+    {"dx": 1, "dy": 1, "dz": 8, "block": "iron_ore"}
+  ],
+  "give": []
+}

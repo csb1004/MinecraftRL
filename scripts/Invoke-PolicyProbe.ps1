@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('vpt','steve1')][string]$Policy = 'vpt',
-    [ValidateSet('setup','resume-setup','download','preflight','episode','suite','session','task-scenario','dialogue-scenario','world-scenario','semantic-world-scenario')][string]$Operation = 'preflight',
+    [ValidateSet('vpt','steve1')][string]$Policy = 'steve1',
+    [ValidateSet('setup','resume-setup','download','preflight','episode','suite','session')][string]$Operation = 'preflight',
     [ValidateSet('spontaneous','wood','dirt')][string]$Condition,
     [string]$Distribution = 'Ubuntu-24.04',
     [int]$Seed = 104729,

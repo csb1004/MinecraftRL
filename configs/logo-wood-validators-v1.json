@@ -1,0 +1,17 @@
+{
+  "schema": "logo_proposal_v1",
+  "context_sha256": "d25652f01d04dd7883c8e65ebc145db02ec619e3c55c35021af0194b0c3bd42a",
+  "status": "candidate",
+  "reason": "Codex-authored LOGO-inspired candidate: distinguish remembered target, usable reach, confirmed own harvest, and actual acquisition. Only inventory delta completes the task.",
+  "validators": [
+    {"id": "target_known", "expression": {"op": "eq", "fact": "target_kind", "mode": "current", "value": 1}},
+    {"id": "target_reachable", "expression": {"op": "all", "args": [
+      {"op": "eq", "fact": "target_kind", "mode": "current", "value": 1},
+      {"op": "eq", "fact": "reachable", "mode": "current", "value": 1},
+      {"op": "eq", "fact": "screen", "mode": "current", "value": 0},
+      {"op": "eq", "fact": "alive", "mode": "current", "value": 1}
+    ]}},
+    {"id": "log_broken", "expression": {"op": "ge", "fact": "log_breaks", "mode": "delta", "value": 1}},
+    {"id": "item_acquired", "expression": {"op": "ge", "fact": "resource_count", "mode": "delta", "value": 1}}
+  ]
+}

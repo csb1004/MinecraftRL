@@ -150,7 +150,10 @@ caller, not this detector.
         elif s.inventory_count > self.inventory_best:
             self.inventory_best = s.inventory_count
             objective.append('objective_inventory_increased')
-        return reasons + objective, objective
+        # Target discovery, approach and mining remain skill-level progress.
+        # Only retained inventory above its high-water mark renews the collection
+        # goal budget: placing and breaking more blocks must not defer it forever.
+        return reasons + objective, [v for v in objective if v == 'objective_inventory_increased']
 
     def update(self, s):
         if self.ended:

@@ -4,13 +4,20 @@ import time
 from .rl_core import WoodReward,SHAPED_REWARDS,LOGS,tick_delta
 from .runtime import run_episode,write_json,inventory_counts
 from .rl_policy import cpu_tree
+from .startup_control import verify_startup_receipt
 
 class RLEnvironment:
     def __init__(self,env,policy,strict_ticks=False,is_stopped=lambda:False,reward_mode='sparse'):
         if reward_mode!='sparse' and reward_mode not in SHAPED_REWARDS:raise ValueError('unknown reward mode')
         self.reward_mode=reward_mode
         self.env=env;self.policy=policy;self.reward=None;self.last=None;self.gui=None;self.terminal=False;self.strict_ticks=strict_ticks;self.ticks=[];self.is_stopped=is_stopped
+        self.startup_control=getattr(env,'startup_control',None)
+        self.startup_evidence={}
+        if self.startup_control and not strict_ticks:raise ValueError('controlled startup requires the fixed 60-step warmup')
     def seed(self,seed):return self.env.seed(seed)
+    def initial_reward(self,server):
+        return (SHAPED_REWARDS[self.reward_mode](server) if self.reward_mode!='sparse'
+                else WoodReward(server['server_inventory']))
     def reset(self):
         self.env.reset()
         readiness=[];previous=None
@@ -22,13 +29,17 @@ class RLEnvironment:
             if self.strict_ticks:
                 if previous is not None:tick_delta(previous,self.gui)
                 readiness.append(self.gui.get('render_ready',0));previous=self.gui
+        if self.startup_control:
+            self.startup_evidence['restoration']=verify_startup_receipt(self.startup_control,self.gui)
         if self.strict_ticks and getattr(self.policy,'output',None):
             from .runtime import save_png
-            write_json(self.policy.output/'warmup.json',dict(render_readiness=readiness,last_server=self.gui))
+            warmup=dict(render_readiness=readiness,last_server=self.gui)
+            if self.startup_control:warmup['startup_control']=dict(self.startup_evidence)
+            write_json(self.policy.output/'warmup.json',warmup)
             save_png(obs['pov'],self.policy.output/'warmup.png')
         # Global chunk queues include work outside this image and are not a
         # visible-frame completion barrier. The batch compares actual pixels.
-        self.reward=SHAPED_REWARDS[self.reward_mode](self.gui) if self.reward_mode!='sparse' else WoodReward(self.gui['server_inventory'])
+        self.reward=self.initial_reward(self.gui)
         if self.reward_mode!='sparse':self.policy.set_reward_context(self.reward.context())
         self.last=obs
         self.initial=dict(observation={k:v for k,v in obs.items() if k!='pov'},server=self.gui)
@@ -39,6 +50,8 @@ class RLEnvironment:
         obs,_,done,info=self.env.step(action);self.gui=info['workshop'];self.last=obs
         if not self.gui['server_available'] or self.gui['error']:raise ValueError('server reward unavailable')
         if self.strict_ticks:self.ticks.append(tick_delta(previous,self.gui))
+        if self.startup_control and 'first_step' not in self.startup_evidence:
+            self.startup_evidence['first_step']=verify_startup_receipt(self.startup_control,self.gui,first_step=True)
         components=None
         if self.reward_mode!='sparse':
             components=self.reward.advance(self.gui,terminal=done);reward=components['total']

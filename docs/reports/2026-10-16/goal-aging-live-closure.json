@@ -1,0 +1,12 @@
+{
+  "captured_at": "2026-10-16T01:28:31.2581717+09:00",
+  "host_name": "DESKTOP-V0HJPC2",
+  "windows_project_processes": [],
+  "wsl_project_processes": [],
+  "stop": "Goal-aging development scenario ended.",
+  "gpu": "544 MiB, 2422 MiB",
+  "remaining_owned_pids": [],
+  "paid_api_calls": 0,
+  "colab_connections": 0,
+  "github_writes": 0
+}

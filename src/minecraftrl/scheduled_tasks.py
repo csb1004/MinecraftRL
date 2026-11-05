@@ -89,15 +89,20 @@ class ScheduledTasks:
     def observe(self, inventory, sequence):
         if sequence<=self.last_observation: raise ValueError('observation sequence must increase')
         self.last_observation=sequence
-        if self.current_id is None: return None
-        key = self.current_id
-        event = self.states[key].observe(inventory,sequence)
-        task = self.states[key].task; timing = self.stagnation[key]
-        if task['revision']!=timing['revision'] or task['progress']>timing['best']:
-            self.stagnation[key]=dict(revision=task['revision'],best=task['progress'],
-                service_at_progress=self.ledger.records[key]['direct_service_s'])
-        self._sync(key)
-        return event
+        events=[]
+        # Inventory belongs to the player, not to the currently selected goal.
+        # Dependencies are registered before dependents; never bypass a prerequisite.
+        for key,state in self.states.items():
+            if any(self.states[d].task['status']!='completed' for d in self.ledger.records[key]['depends_on']):
+                continue
+            event=state.observe(inventory,sequence)
+            task=state.task; timing=self.stagnation[key]
+            if task['revision']!=timing['revision'] or task['progress']>timing['best']:
+                self.stagnation[key]=dict(revision=task['revision'],best=task['progress'],
+                    service_at_progress=self.ledger.records[key]['direct_service_s'])
+            self._sync(key)
+            if event: events.append(event)
+        return events
 
     def stalled_s(self):
         if self.task is None or self.task['status']!='running': return 0.

@@ -1,0 +1,100 @@
+import contextlib,io,tempfile,unittest,sys
+from unittest.mock import patch
+from pathlib import Path
+try:
+    import torch
+    sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
+    import train_navigation_refinement as trainer
+except ImportError:
+    torch=None
+
+
+@unittest.skipIf(torch is None,'Torch unavailable')
+class MixedSupervisionTests(unittest.TestCase):
+    def test_source_balance_rejects_unsupported_conditions_before_output(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output=Path(directory)/'never-created'
+            for method,extra in (
+                    ('ppo',[]),('bc_continue',[]),
+                    ('bc_continue',['--human-references','contract.json','--root-context-mode','observed']),
+                    ('bc_continue',['--human-references','contract.json','--root-context-mode','ignored','--human-marginal-bc','1'])):
+                argv=['trainer',method,str(output),'--actor','absent.pt','--train','absent',
+                    '--human-source-balance','sqrt-recording-alias',*extra]
+                with self.subTest(argv=argv),patch.object(sys,'argv',argv),contextlib.redirect_stderr(io.StringIO()):
+                    with self.assertRaises(SystemExit) as error:trainer.main()
+                    self.assertEqual(error.exception.code,2)
+                    self.assertFalse(output.exists())
+
+    def test_onset_cli_rejects_unsupported_conditions_before_output(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output=Path(directory)/'never-created'
+            for method,factor,extra in (
+                    ('bc_continue','nan',[]),('bc_continue','inf',[]),
+                    ('bc_continue','9',[]),('ppo','4',[]),
+                    ('bc_continue','4',[]),
+                    ('bc_continue','4',['--human-references','contract.json','--root-context-mode','observed']),
+                    ('bc_continue','4',['--human-references','contract.json','--root-context-mode','ignored','--human-marginal-bc','1'])):
+                argv=['trainer',method,str(output),'--actor','absent.pt','--train','absent',
+                      '--human-onset-weight',factor,*extra]
+                with self.subTest(argv=argv),patch.object(sys,'argv',argv),contextlib.redirect_stderr(io.StringIO()):
+                    with self.assertRaises(SystemExit) as error:trainer.main()
+                    self.assertEqual(error.exception.code,2)
+                    self.assertFalse(output.exists())
+
+    def test_local_input_unchanged_and_unknown_rm_structurally_absent(self):
+        a=torch.randn(2,1,2054);b=torch.randn(2,1,2054);human=torch.randn(2,1,2048)
+        self.assertTrue(torch.equal(trainer.stack_features([{'features':a},{'features':b}]),torch.cat([a,b],1)))
+        result=trainer.stack_features([{'features':a},{'features':human}])
+        self.assertEqual(tuple(result.shape),(2,2,2048))
+        self.assertTrue(torch.equal(result[:,0:1],a[...,:2048]));self.assertTrue(torch.equal(result[:,1:2],human))
+        with self.assertRaises(ValueError):trainer.stack_features([])
+        with self.assertRaises(ValueError):trainer.stack_features([{'features':torch.zeros(1,1,2054)}])
+
+    def test_group_share_bounded_without_duplicate_rows(self):
+        weights=trainer.human_loss_weights([1.,2.,3.,4.],[False,False,True,True],.1)
+        self.assertAlmostEqual(sum(weights),4.);self.assertAlmostEqual(sum(weights[2:])/sum(weights),.1)
+        self.assertAlmostEqual(weights[1]/weights[0],2.);self.assertAlmostEqual(weights[3]/weights[2],4/3)
+        for share in (0.,.26,True,float('nan'),float('inf')):
+            with self.assertRaises(ValueError):trainer.human_loss_weights([1.,1.],[True,False],share)
+        for weights,groups in (([0.,1.],[True,False]),([1.,1.],[True,True]),([1.,1.],[True]),([1.,1.],[1,False])):
+            with self.assertRaises(ValueError):trainer.human_loss_weights(weights,groups,.1)
+
+    def test_retention_gradient_excludes_human_rows(self):
+        values=torch.tensor([[.2,4.,.6]],requires_grad=True)
+        loss=trainer.local_retention_kl(values,[False,True,False])
+        self.assertAlmostEqual(loss.item(),.8/3,places=6)
+        loss.backward()
+        self.assertTrue(torch.allclose(values.grad,torch.tensor([[1/3,0.,1/3]])))
+
+    def test_all_human_batch_retains_no_source_gradient(self):
+        values=torch.tensor([[.2,.6]],requires_grad=True)
+        loss=trainer.local_retention_kl(values,[True,True]);loss.backward()
+        self.assertEqual(loss.item(),0.)
+        self.assertTrue(torch.equal(values.grad,torch.zeros_like(values)))
+        self.assertEqual(trainer.local_retention_kl(values,[False,False]).item(),values.mean().item())
+
+    def test_retention_rejects_ambiguous_masks(self):
+        for values,groups in ((torch.zeros(1,2),[]),(torch.zeros(1,2),[False]),
+                              (torch.zeros(2,2),[False,True]),(torch.zeros(1,2),[0,True])):
+            with self.assertRaises(ValueError):trainer.local_retention_kl(values,groups)
+
+    def test_retention_matches_actual_action_head_row_axis(self):
+        sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'external/steve1'))
+        from gym3.types import DictType
+        from steve1.VPT.lib.action_mapping import CameraHierarchicalMapping
+        from steve1.VPT.lib.action_head import make_action_head
+        from minecraftrl.policies import model_kwargs
+        mapper=CameraHierarchicalMapping(n_camera_bins=11)
+        options=model_kwargs(Path(__file__).resolve().parents[1]/'weights/steve1/2x.model')[1]
+        head=make_action_head(DictType(**mapper.get_action_space_update()),2054,**options)
+        with torch.no_grad():reference=head(torch.randn(1,3,2054))
+        pd={k:v.detach().clone().requires_grad_() for k,v in reference.items()}
+        per_row=head.kl_divergence(reference,pd)
+        self.assertEqual(per_row.numel(),3)
+        trainer.local_retention_kl(per_row,[False,True,False]).backward()
+        for key,value in pd.items():
+            self.assertTrue(torch.equal(value.grad[:,1],torch.zeros_like(value.grad[:,1])),key)
+            self.assertGreater(value.grad[:,0].abs().sum().item(),0.,key)
+
+
+if __name__=='__main__':unittest.main()

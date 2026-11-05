@@ -124,7 +124,7 @@ class PriorityLedger:
                                priority=row['priority'] + age + deadline)
         return result
 
-    def select(self, *, safe_boundary=True):
+    def select(self, *, safe_boundary=True, until_complete=False):
         scores = self.scores()
         frontiers = {key: self._frontiers(key) for key in self.records}
         ready = [key for key, ends in frontiers.items() if ends == {key}]
@@ -139,15 +139,19 @@ class PriorityLedger:
         if not choices:
             self.active = None; self.slice_s = 0.
             return dict(goal_id=None, reason='no_ready_goal')
+        if until_complete and self.active in choices:
+            return dict(choices[self.active], reason='active_goal_commitment')
         if self.active in choices and (not safe_boundary or self.slice_s < self.settings['quantum_s']):
             return dict(choices[self.active], reason='service_slice')
         if not safe_boundary: return dict(goal_id=None, reason='unsafe_handoff')
+        order = {key:i for i,key in enumerate(self.records)}
+        tie = lambda c: order[c['goal_id']] if until_complete else c['goal_id']
         overdue = [c for c in choices.values() if c['wait_s'] >= self.settings['max_wait_s']]
         if overdue:
-            chosen = min(overdue, key=lambda c: (-c['wait_s'], -c['effective_priority'], -c['own_priority'], c['goal_id']))
+            chosen = min(overdue, key=lambda c: (-c['wait_s'], -c['effective_priority'], -c['own_priority'], tie(c)))
             reason = 'maximum_wait'
         else:
-            chosen = min(choices.values(), key=lambda c: (-c['effective_priority'], -c['wait_s'], -c['own_priority'], c['goal_id']))
+            chosen = min(choices.values(), key=lambda c: (-c['effective_priority'], -c['wait_s'], -c['own_priority'], tie(c)))
             reason = 'priority'
         self.active = chosen['goal_id']; self.slice_s = 0.
         return dict(chosen, reason=reason)

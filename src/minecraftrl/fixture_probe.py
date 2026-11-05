@@ -3,6 +3,7 @@ import math
 from .runtime import run_episode,write_json,jsonable
 from .rl_collect import RLEnvironment
 from .rl_core import LOGS
+from .navigation_observation import position
 
 
 def aim(gui,x,y,z):
@@ -12,9 +13,12 @@ def aim(gui,x,y,z):
     return [max(-10,min(10,tilt)),max(-10,min(10,turn))],max(abs(turn),abs(tilt))<2
 
 
-def navigate(gui,x,z,jump=False):
-    dx=x-gui['server_x'];dz=z-gui['server_z']
-    if math.hypot(dx,dz)<.22:return {},True
+def navigate(gui,x,z,jump=False,*,pose_source='server',arrival_radius=.22):
+    if type(arrival_radius) not in (int,float) or not math.isfinite(arrival_radius) or not 0<arrival_radius<=.22:
+        raise ValueError('navigation teacher arrival radius must be finite and within (0,.22]')
+    current=(gui['server_x'],gui['server_z']) if pose_source=='server' else position(gui,pose_source)[::2]
+    dx=x-current[0];dz=z-current[1]
+    if math.hypot(dx,dz)<arrival_radius:return {},True
     yaw=math.degrees(math.atan2(-dx,dz));turn=(yaw-gui['yaw']+180)%360-180
     return dict(camera=[max(-10,min(10,-gui['pitch'])),max(-10,min(10,turn))],
                 forward=int(abs(turn)<12),jump=int(jump)),False
