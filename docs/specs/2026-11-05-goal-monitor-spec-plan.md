@@ -340,6 +340,13 @@ RM은 이런 형태를 상태 전이로 나타낼 수 있다. 그래서 하위 �
 
 유료 API는 사용자가 승인한 예산 안에서만 쓴다. 완료된 평가 결과와 P1/P2 조건은 소급해서 수정하지 않는다.
 
+상태 (2026-11-06, 브랜치 `monitor-spec-replay`):
+- **M1 완료.** 스키마와 검사기(`pipeline/monitor_spec.py`), 사람 명세 `configs/monitor-specs/iron-demo-v1.json`, 테스트 21개.
+- **M2 완료.** 오프라인 재생(`pipeline/monitor_replay.py`, `scripts/replay_monitor_spec.py`).
+  - 시간 초과 8단계 중 7개를 감지했다. 정체 신호 오탐은 0이고, 시간 기준 오탐은 여유 0.2/0.5/1.0에서 26/14/9개다.
+  - 정체 감지기는 `no_goal_progress` 이후 침묵하고(31/31), '찾음' 판정은 약하다.
+  - [결과](../monitor-spec-replay-2026-11-05.md)
+
 ## 11. 하지 않는 것과 열린 질문
 
 **하지 않는 것:**
