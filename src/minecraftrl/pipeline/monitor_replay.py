@@ -79,8 +79,13 @@ def sample_from_row(row):
 
 
 def policy_rows(run, step):
-    return [r for r in run.rows if r.get('controller') == 'policy' and r['step'] >= step.start_step
-            and (step.end_step is None or r['step'] < step.end_step)]
+    """Policy rows recorded inside the step. A hold freezes the step counter while the slow path runs, so the next
+    step starts at the same number: the recorded clock decides, and the row that ended a step stays with it."""
+    if step.end_step is None:
+        return [r for r in run.rows if r.get('controller') == 'policy' and r['step'] >= step.start_step
+                and r['t'] >= step.start_t]
+    return [r for r in run.rows if r.get('controller') == 'policy' and step.start_step <= r['step'] <= step.end_step
+            and step.start_t <= r['t'] <= step.end_t]
 
 
 @dataclass(frozen=True)

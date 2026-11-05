@@ -89,13 +89,29 @@ class LoadRunTest(unittest.TestCase):
         self.assertFalse(sample_from_row(row(31, available=0.)).valid)
 
     def test_policy_rows_exclude_rule_and_other_steps(self):
-        timeline = [started('iron', 'mine_iron_text', 0.5, 10), finished('iron', 'mine_iron_text', 1., 20),
-                    started('craft', 'craft', 1., 20), finished('craft', 'craft', 1.5, 30)]
+        timeline = [started('iron', 'mine_iron_text', 0.5, 10), finished('iron', 'mine_iron_text', 1.01, 20),
+                    started('craft', 'craft', 1.01, 20), finished('craft', 'craft', 1.51, 30)]
         rows = [row(s, controller='rule' if s in (12, 25) else 'policy') for s in range(5, 35)]
         run = load_run(write_run(self.root / 'A4', timeline, rows))
-        self.assertEqual([r['step'] for r in policy_rows(run, run.steps[0])], [s for s in range(10, 20) if s != 12])
+        # Row 20 is the observation that finished the first step (recorded at 1.0 s, before the next step started).
+        self.assertEqual([r['step'] for r in policy_rows(run, run.steps[0])], [s for s in range(10, 21) if s != 12])
+        self.assertEqual([r['step'] for r in policy_rows(run, run.steps[1])], [s for s in range(21, 31) if s != 25])
         unfinished = load_run(write_run(self.root / 'A5', [started('iron', 'mine_iron_text', 0.5, 10)], rows))
         self.assertEqual([r['step'] for r in policy_rows(unfinished, unfinished.steps[0])][-1], 34)
+
+    def test_row_before_hold_stays_with_held_step(self):
+        # Recorded 2026-11-05 r3/E02: a hold freezes the step counter while the LLM answers, so the next step starts
+        # at the same step number 15 s later. The last pre-hold row belongs to the held step only.
+        timeline = [started('iron', 'mine_iron_text', 0.5, 10), finished('iron', 'mine_iron_text', 16., 20, 'anomaly_hold'),
+                    started('logs', 'wood_visual', 16., 20, target='log', block='log'),
+                    finished('logs', 'wood_visual', 17., 40, target='log', block='log')]
+        rows = [row(s, hit='oak_log' if s == 20 else 'air') for s in range(10, 21)] + \
+            [row(s, t=16. + (s - 20) * .05) for s in range(21, 40)]
+        run = load_run(write_run(self.root / 'held', timeline, rows))
+        iron, logs = run.steps
+        self.assertEqual(policy_rows(run, iron)[-1]['step'], 20)
+        self.assertEqual(policy_rows(run, logs)[0]['step'], 21)
+        self.assertIsNone(found_time(policy_rows(run, logs), logs))
 
 
 SPEC_RAW = {
