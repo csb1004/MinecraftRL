@@ -1,0 +1,41 @@
+{
+  "version": "iron-demo-monitor-v1",
+  "author": "human",
+  "margin": 0.2,
+  "subgoals": {
+    "wood_visual": {
+      "ending": "until_found", "unit": "item", "found": "log",
+      "anomaly": ["no_progress", "repeated_cycle", "stationary_repetition"],
+      "waste": ["moving_but_stuck", "revisiting_area"]
+    },
+    "mine_iron_text": {
+      "ending": "until_found", "unit": "item", "found": "iron_ore",
+      "anomaly": ["no_progress", "repeated_cycle", "stationary_repetition", "needed_tool_lost"],
+      "waste": ["moving_but_stuck", "revisiting_area", "looking_down"]
+    },
+    "mine_stone_text": {
+      "ending": "bounded", "unit": "item",
+      "anomaly": ["harvest_without_drop", "needed_tool_lost"],
+      "waste": ["moving_but_stuck"]
+    },
+    "climb_out_text": {
+      "ending": "bounded", "unit": "block",
+      "anomaly": ["blocked_overhead", "climb_without_block"]
+    },
+    "craft:wooden_pickaxe": {"ending": "bounded", "unit": "step"},
+    "craft:stone_pickaxe": {"ending": "bounded", "unit": "step"},
+    "craft": {"ending": "bounded", "unit": "step"},
+    "equip": {"ending": "bounded", "unit": "step"},
+    "clear_above": {"ending": "bounded", "unit": "step"}
+  },
+  "constraints": [
+    {
+      "id": "system-health", "form": "always", "scope": "goal", "source": "system", "strength": "hard",
+      "predicate": {"fact": "health", "op": "ge", "value": 6.01}, "on_violation": "hold"
+    },
+    {
+      "id": "system-run-limit", "form": "always", "scope": "goal", "source": "system", "strength": "hard",
+      "predicate": {"fact": "elapsed_s", "op": "le", "value": 900}, "on_violation": "stop"
+    }
+  ]
+}
