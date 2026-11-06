@@ -1,0 +1,19 @@
+{
+  "schema": "monitor_spec_facts_v1",
+  "goal": "obtain 3 cobblestone items (server inventory); plan: logs, wooden pickaxe, equip it, cobblestone; a pit climb when the player dug down. Spec proposal check only (plan M4): cobblestone is not an allowed execution goal.",
+  "constraints_from": "configs/monitor-specs/iron-demo-v1.json",
+  "subgoals": [
+    {"key": "wood_visual", "kind": "policy", "target": "log", "block": "log", "location": "unknown",
+     "description": "collect log items by breaking tree log blocks"},
+    {"key": "craft:wooden_pickaxe", "kind": "rule", "target": "wooden_pickaxe", "block": null, "location": "known",
+     "description": "craft a wooden pickaxe with a rule skill through the crafting GUI"},
+    {"key": "equip", "kind": "rule", "target": "tool", "block": null, "location": "known",
+     "description": "put the needed tool in the main hand with a rule skill"},
+    {"key": "mine_stone_text", "kind": "policy", "target": "cobblestone", "block": "stone", "location": "known",
+     "description": "mine stone blocks for cobblestone items with a wooden pickaxe in hand; stone lies under the surface nearby"},
+    {"key": "climb_out_text", "kind": "policy", "target": "height", "block": null, "location": "known",
+     "description": "climb out of a pit by jumping and placing blocks under the feet"},
+    {"key": "clear_above", "kind": "rule", "target": "headroom", "block": null, "location": "known",
+     "description": "break the block above the head with a rule skill"}
+  ]
+}
