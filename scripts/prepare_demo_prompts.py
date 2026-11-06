@@ -12,7 +12,9 @@ PROMPTS = {'mine_iron_ore': 'mine iron ore', 'break_iron_ore_block': 'break the 
 ESCAPE_PROMPTS = {'build_a_tower': 'build a tower', 'pillar_jump': 'pillar jump up', 'climb_out': 'climb out of the hole'}
 # Ceiling candidates: clear blocks over the head (the failed pillar trial sealed its own shaft with dirt).
 CEILING_PROMPTS = {'dig_up': 'dig up', 'break_block_above': 'break the block above you', 'mine_ceiling': 'mine the ceiling'}
-SETS = {'iron': PROMPTS, 'escape': ESCAPE_PROMPTS, 'ceiling': CEILING_PROMPTS}
+# STEVE-1-alone check (2026-11-06): the whole goal as one prompt, no planner, rule skills, guard or tool lock.
+ALONE_PROMPTS = {'get_iron': 'get iron'}
+SETS = {'iron': PROMPTS, 'escape': ESCAPE_PROMPTS, 'ceiling': CEILING_PROMPTS, 'alone': ALONE_PROMPTS}
 SEED = 31031
 
 
