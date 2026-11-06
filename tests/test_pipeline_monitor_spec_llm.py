@@ -176,6 +176,26 @@ class ScriptTest(unittest.TestCase):
         self.assertEqual((receipt['ok'], receipt['calls'], receipt['model']), (True, 2, 'gpt-test'))
         self.assertEqual(len(receipt['facts_sha256']), 64)
         self.assertNotIn('"k"', (out / 'receipt.json').read_text(encoding='utf-8'))
+        self.assertIsNone(receipt['record_check'])
+        self.assertFalse((out / 'calibrated.json').exists())
+
+    def test_record_check_with_fit_runs_writes_calibrated_copy(self):
+        from test_pipeline_monitor_replay import finished, started, stationary, write_run
+        rows = stationary(200)   # pressing forward without moving: moving_but_stuck in most rows
+        timeline = [started('s', 'mine_iron_text', rows[0]['t'], rows[0]['step'], block='iron_ore'),
+                    finished('s', 'mine_iron_text', rows[-1]['t'] + .05, rows[-1]['step'] + 1, block='iron_ore')]
+        run = write_run(self.root / 'dev' / 'A1', timeline, rows)
+        out = self.root / 'out'
+        llm, _ = client(reply(GOOD))
+        self.assertEqual(load_script().main(self.args(out, '--allow-paid', '--fit', str(run)), client=llm), 0)
+        receipt = json.loads((out / 'receipt.json').read_text(encoding='utf-8'))
+        check = receipt['record_check']
+        self.assertEqual([(f['key'], f['signal']) for f in check['flags']], [('mine_iron_text', 'moving_but_stuck')])
+        self.assertEqual((check['limits'], check['fit']), ({'waste_max': .5, 'anomaly_max': .2}, [str(run)]))
+        calibrated = parse_spec(json.loads((out / 'calibrated.json').read_text(encoding='utf-8')))
+        self.assertEqual((calibrated.version, calibrated.for_step('mine_iron_text', 'iron_ore').waste), ('llm-test-1-cal', ()))
+        self.assertEqual(parse_spec(json.loads((out / 'spec.json').read_text(encoding='utf-8')))
+                         .for_step('mine_iron_text', 'iron_ore').waste, ('moving_but_stuck',))
 
     def test_invalid_after_repair_exits_3_with_receipt_only(self):
         out = self.root / 'out'
