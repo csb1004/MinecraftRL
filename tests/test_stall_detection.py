@@ -129,6 +129,30 @@ class StallDetectionTests(unittest.TestCase):
         r=d.update(sample(900,inventory_count=11))
         self.assertEqual(r['event'],'progress_resumed')
 
+    @staticmethod
+    def walk_then_stand(d):
+        """New cells for 900 ticks without inventory gain (goal budget expires at 800), then standing still."""
+        return [d.update(sample(i,x=min(i,899)*.1,stage='search')) for i in range(1500)]
+
+    def test_goal_budget_masks_later_spatial_stall_by_default(self):
+        rows=self.walk_then_stand(StallDetector())
+        self.assertEqual([(r['tick'],r['reason']) for r in rows if r['event']=='stalled'],[(800,'no_goal_progress')])
+
+    def test_separate_goal_budget_reports_later_spatial_stall(self):
+        # Last new cell at tick 880 (x=88.0); the search window is 400 ticks.
+        rows=self.walk_then_stand(StallDetector(separate_goal_budget=True))
+        self.assertEqual([(r['tick'],r['reason']) for r in rows if r['event']=='stalled'],
+                         [(800,'no_goal_progress'),(1280,'no_progress')])
+        self.assertTrue(rows[-1]['stalled'])
+
+    def test_separate_goal_budget_resumes_only_when_both_clear(self):
+        d=StallDetector(separate_goal_budget=True)
+        self.walk_then_stand(d)
+        r=d.update(sample(1500,x=95.,stage='search'))          # a new cell clears the spatial stall only
+        self.assertNotEqual(r['event'],'progress_resumed')
+        r=d.update(sample(1501,x=95.,stage='search',inventory_count=1))
+        self.assertEqual(r['event'],'progress_resumed')
+
     def test_only_a_new_inventory_high_water_renews_goal_budget(self):
         d=StallDetector();alerts=[]
         for i in range(1300):

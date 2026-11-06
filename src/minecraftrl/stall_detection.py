@@ -63,7 +63,11 @@ caller, not this detector.
     history_ticks = 800
     max_samples = 20000
 
-    def __init__(self):
+    def __init__(self, separate_goal_budget=False):
+        """separate_goal_budget (default off, the recorded live behaviour): an expired goal budget no longer hides
+        a later position stall or repetition; each condition reports its own rising edge."""
+        self.separate_goal_budget = bool(separate_goal_budget)
+        self.goal_active = False
         self.history = deque()
         self.visited = set()
         self.views = set()
@@ -198,27 +202,43 @@ caller, not this detector.
                       no_goal_progress_ticks=s.tick-self.last_goal_progress,
                       window_ticks=self.window, last_progress_reasons=self.last_progress_reasons,
                       stalled=stalled or goal_expired)
+        if self.separate_goal_budget:
+            return self._separate_edges(s, result, stalled, goal_expired)
         if result['stalled'] and not self.active:
-            # Only use evidence from the current observation window.
-            recent = [(a,n) for a,n in self.history if a.tick >= s.tick-self.window]
-            nodes = [n for _,n in recent]
-            # Remove dwell self-loops when measuring multi-node traversals.
-            path = [n for i,n in enumerate(nodes) if i == 0 or n != nodes[i-1]]
-            cycles = [c for c in observed_cycles(path) if c['count'] >= 2]
-            action, count = Counter(a.action for a,_ in recent).most_common(1)[0]
-            spans = [max(a.position[j] for a,_ in recent)-min(a.position[j] for a,_ in recent)
-                     for j in range(3)]
-            reason = 'no_goal_progress' if goal_expired and not stalled else 'no_progress'
-            if stalled and max(spans) <= .5 and count / len(recent) >= .8:
-                reason = 'stationary_repetition'
-            elif stalled and cycles:
-                reason = 'repeated_cycle'
-            result.update(event='stalled', reason=reason,
-                          cycle=cycles[0] if cycles else None,
-                          graph_nodes=len(set(nodes)), graph_edges=len(set(zip(nodes,nodes[1:]))),
-                          dominant_action=action, action_fraction=count/len(recent),
-                          position_span=spans, evidence_start_tick=recent[0][0].tick)
+            result.update(self._evidence(s, stalled, goal_expired))
         elif not result['stalled'] and self.active:
             result['event'] = 'progress_resumed'
         self.active = result['stalled']
         return result
+
+    def _separate_edges(self, s, result, stalled, goal_expired):
+        """A position stall reports its own reason even while the goal budget is expired."""
+        if stalled and not self.active:
+            result.update(self._evidence(s, True, goal_expired))
+        elif goal_expired and not self.goal_active:
+            result.update(self._evidence(s, False, True))
+        elif not result['stalled'] and (self.active or self.goal_active):
+            result['event'] = 'progress_resumed'
+        self.active, self.goal_active = stalled, goal_expired
+        return result
+
+    def _evidence(self, s, stalled, goal_expired):
+        # Only use evidence from the current observation window.
+        recent = [(a,n) for a,n in self.history if a.tick >= s.tick-self.window]
+        nodes = [n for _,n in recent]
+        # Remove dwell self-loops when measuring multi-node traversals.
+        path = [n for i,n in enumerate(nodes) if i == 0 or n != nodes[i-1]]
+        cycles = [c for c in observed_cycles(path) if c['count'] >= 2]
+        action, count = Counter(a.action for a,_ in recent).most_common(1)[0]
+        spans = [max(a.position[j] for a,_ in recent)-min(a.position[j] for a,_ in recent)
+                 for j in range(3)]
+        reason = 'no_goal_progress' if goal_expired and not stalled else 'no_progress'
+        if stalled and max(spans) <= .5 and count / len(recent) >= .8:
+            reason = 'stationary_repetition'
+        elif stalled and cycles:
+            reason = 'repeated_cycle'
+        return dict(event='stalled', reason=reason,
+                    cycle=cycles[0] if cycles else None,
+                    graph_nodes=len(set(nodes)), graph_edges=len(set(zip(nodes,nodes[1:]))),
+                    dominant_action=action, action_fraction=count/len(recent),
+                    position_span=spans, evidence_start_tick=recent[0][0].tick)
