@@ -18,10 +18,36 @@ from .steps import block_matches, item_count
 from .viewer import read_jsonl
 
 AFTER_FOUND = ':after_found'
+FOUND_MODES = ('first_hit', 'engaged')
+CLOCKS = ('wall', 'ticks')
 MOVE_KEYS = ('forward', 'back', 'left', 'right')
 STUCK_TICKS, STUCK_DISTANCE = 40, .5   # moving_but_stuck: under half a block in the last 40 server ticks
 LOOK_DOWN_PITCH = 60.                  # looking_down: pitch above 60 degrees
 REVISIT_MOVE, CELL = .1, 2.            # revisiting_area: a move into a 2-block cell visited and left before
+
+
+@dataclass(frozen=True)
+class ReplayOptions:
+    """Replay v2 choices (plan 2026-11-07 task B/C). The defaults are the M2 (v1) replay.
+
+    found: 'first_hit' starts the after-found clock at the first crosshair contact; 'engaged' times each span of
+      contact (crosshair or mining on the target) and ends a span after `lost_ticks` without contact.
+    clock: 'wall' uses recorded seconds; 'ticks' uses server ticks / 20 (holds freeze the world, so they drop out).
+    separate_goal_budget: the stall detector reports a position stall even after the goal budget expired.
+    """
+    found: str = 'first_hit'
+    lost_ticks: int = 100
+    clock: str = 'wall'
+    separate_goal_budget: bool = False
+
+    def __post_init__(self):
+        if self.found not in FOUND_MODES: raise ValueError(f'found must be one of {FOUND_MODES}')
+        if self.clock not in CLOCKS: raise ValueError(f'clock must be one of {CLOCKS}')
+        if isinstance(self.lost_ticks, bool) or not isinstance(self.lost_ticks, int) or self.lost_ticks < 1:
+            raise ValueError('lost_ticks must be a positive integer')
+
+
+V1 = ReplayOptions()
 
 
 @dataclass(frozen=True)
@@ -78,14 +104,50 @@ def sample_from_row(row):
                        row.get('action') or {}, row['t'])
 
 
-def policy_rows(run, step):
-    """Policy rows recorded inside the step. A hold freezes the step counter while the slow path runs, so the next
-    step starts at the same number: the recorded clock decides, and the row that ended a step stays with it."""
+def step_rows(run, step, controller=None):
+    """Rows recorded inside the step (one controller, or all). A hold freezes the step counter while the slow path
+    runs, so the next step starts at the same number: the recorded clock decides, and the row that ended a step
+    stays with it."""
+    def mine(r): return controller is None or r.get('controller') == controller
     if step.end_step is None:
-        return [r for r in run.rows if r.get('controller') == 'policy' and r['step'] >= step.start_step
-                and r['t'] >= step.start_t]
-    return [r for r in run.rows if r.get('controller') == 'policy' and step.start_step <= r['step'] <= step.end_step
+        return [r for r in run.rows if mine(r) and r['step'] >= step.start_step and r['t'] >= step.start_t]
+    return [r for r in run.rows if mine(r) and step.start_step <= r['step'] <= step.end_step
             and step.start_t <= r['t'] <= step.end_t]
+
+
+def policy_rows(run, step):
+    return step_rows(run, step, 'policy')
+
+
+def row_clock(row, clock):
+    """A row's time on the given clock: recorded seconds, or server ticks / 20."""
+    return row['t'] if clock == 'wall' else int(row.get('world_time', 0)) / 20.
+
+
+def step_span(run, step, options):
+    """(start, end, clock used). The tick clock spans the step's first and last valid rows; a step without valid
+    rows keeps the wall clock."""
+    if options.clock == 'ticks':
+        ticks = [int(r.get('world_time', 0)) for r in step_rows(run, step) if sample_from_row(r).valid]
+        if ticks: return ticks[0] / 20., ticks[-1] / 20., 'ticks'
+    return step.start_t, step.end_t, 'wall'
+
+
+def engagements(rows, wanted, lost_ticks):
+    """Spans of contact with the wanted block (crosshair or mining) as (first contact row, last contact row,
+    row where the loss was seen or None if still open). A gap of `lost_ticks` without contact ends a span."""
+    spans, cur = [], None
+    for r in rows:
+        s = sample_from_row(r)
+        if not s.valid: continue
+        contact = block_matches(s.hit_block, wanted) or block_matches(s.mining_block, wanted)
+        if cur is not None and s.tick - int(cur[1].get('world_time', 0)) >= lost_ticks:
+            spans.append((cur[0], cur[1], r)); cur = None
+        if contact:
+            if cur is None: cur = [r, r]
+            else: cur[1] = r
+    if cur is not None: spans.append((cur[0], cur[1], None))
+    return spans
 
 
 @dataclass(frozen=True)
@@ -109,7 +171,18 @@ def found_time(rows, step):
     return None
 
 
-def fit_times(runs, spec, *, min_records=3):
+def after_found_start(rows, step, options):
+    """The row that starts the after-found clock of a completed step: the first contact (v1) or the start of the
+    last contact span ('engaged'); None if the target was never touched."""
+    wanted = step.block or step.target
+    if options.found == 'first_hit':
+        return next((r for r in rows if (lambda s: s.valid and block_matches(s.hit_block, wanted))(sample_from_row(r))),
+                    None)
+    spans = engagements(rows, wanted, options.lost_ticks)
+    return spans[-1][0] if spans else None
+
+
+def fit_times(runs, spec, *, min_records=3, options=V1):
     """Bounded sub-goals: duration per unit. until_found: only the part after the target was seen, under
     '<key>:after_found' (the search itself has no time). Fewer than `min_records` completions make no entry."""
     samples = {}
@@ -119,17 +192,18 @@ def fit_times(runs, spec, *, min_records=3):
             sub = spec.for_step(step.skill, step.target)
             if sub is None or step.status != 'completed': continue
             units = unit_count(step, sub)
-            if sub.ending == 'bounded': samples[sub.key].append((step.end_t - step.start_t) / units); continue
-            found = found_time(policy_rows(run, step), step)
-            if found is not None: samples[sub.key + AFTER_FOUND].append((step.end_t - found) / units)
+            start, end, clock = step_span(run, step, options)
+            if sub.ending == 'bounded': samples[sub.key].append((end - start) / units); continue
+            found = after_found_start(policy_rows(run, step), step, options)
+            if found is not None: samples[sub.key + AFTER_FOUND].append((end - row_clock(found, clock)) / units)
     table = {k: TimeEntry(len(v), min(v), max(v)) for k, v in samples.items() if len(v) >= min_records}
     return table, {k: len(v) for k, v in samples.items() if len(v) < min_records}
 
 
-def stall_events(run, step, rows, until_t=None):
+def stall_rows(run, step, rows, until_t=None, separate_goal_budget=False):
     """The live search detector (FastMonitor fields, invalid samples skipped) over policy rows before `until_t`;
-    yields (recorded time, reason) for each stall."""
-    detector, prev = StallDetector(), None
+    yields (row, reason) for each stall."""
+    detector, prev = StallDetector(separate_goal_budget=separate_goal_budget), None
     for r in rows:
         if until_t is not None and r['t'] >= until_t: return
         s = sample_from_row(r)
@@ -139,7 +213,12 @@ def stall_events(run, step, rows, until_t=None):
         report = detector.update(StallSample(tick=s.tick, position=s.position, yaw=s.yaw, stage='search',
                                              action=s.action_keys, inventory_count=item_count(s.inventory, step.target),
                                              block_removed=removed, context_id=run.name))
-        if report['event'] == 'stalled': yield r['t'], report['reason']
+        if report['event'] == 'stalled': yield r, report['reason']
+
+
+def stall_events(run, step, rows, until_t=None):
+    """(recorded time, reason) for each stall of the live detector (v1)."""
+    for r, reason in stall_rows(run, step, rows, until_t): yield r['t'], reason
 
 
 def first_stall(run, step, rows, until_t, anomaly):
@@ -173,25 +252,40 @@ def waste_fractions(rows, names):
     return {name: counts[name] / len(samples) for name in names}
 
 
-def replay_step(run, step, sub, table, margin):
-    duration = step.end_t - step.start_t
+def replay_step(run, step, sub, table, margin, options=V1):
+    """When a check would have fired, in seconds from the step start on the chosen clock (None if never)."""
+    t0, t1, clock = step_span(run, step, options)
+    duration = t1 - t0
     out = dict(run=run.name, step=step.id, skill=step.skill, status=step.status, ending=sub.ending if sub else None,
-               duration_s=duration, found_s=None, check_s=None, check_reason=None, saved_s=None, waste={}, note=None)
+               duration_s=duration, found_s=None, check_s=None, check_reason=None, saved_s=None, waste={}, note=None,
+               clock=clock)
     if sub is None: return dict(out, note='no_spec')
     rows = policy_rows(run, step); units = unit_count(step, sub)
     out['waste'] = waste_fractions(rows, sub.waste)
-    candidates, start = [], 0.
-    if sub.ending == 'until_found':
-        found = found_time(rows, step)
-        out['found_s'] = None if found is None else found - step.start_t
-        stall = first_stall(run, step, rows, found, sub.anomaly)
-        if stall: candidates.append(stall)
-        entry, start = table.get(sub.key + AFTER_FOUND), out['found_s']
-    else: entry = table.get(sub.key)
+    entry = table.get(sub.key + AFTER_FOUND if sub.ending == 'until_found' else sub.key)
     if entry is None: out['note'] = 'no_records'
-    elif start is not None:
-        limit = start + entry.worst * (1 + margin) * units
-        if duration > limit: candidates.append((limit, 'over_check_time'))
+    allowed = None if entry is None else entry.worst * (1 + margin) * units
+    candidates = []
+    if sub.ending == 'bounded':
+        if allowed is not None and duration > allowed: candidates.append((allowed, 'over_check_time'))
+    else:
+        wanted = step.block or step.target
+        first = after_found_start(rows, step, V1)
+        out['found_s'] = None if first is None else row_clock(first, clock) - t0
+        if options.found == 'first_hit':
+            windows = [] if first is None else [(out['found_s'], duration)]
+            until_t = None if first is None else first['t']
+        else:
+            windows = [(row_clock(a, clock) - t0, duration if c is None else row_clock(c, clock) - t0)
+                       for a, _, c in engagements(rows, wanted, options.lost_ticks)]
+            until_t = None
+        stall = next(((row_clock(r, clock) - t0, reason)
+                      for r, reason in stall_rows(run, step, rows, until_t, options.separate_goal_budget)
+                      if reason in sub.anomaly and not any(a <= row_clock(r, clock) - t0 <= b for a, b in windows)), None)
+        if stall: candidates.append(stall)
+        if allowed is not None:
+            over = next((a + allowed for a, b in windows if b - a > allowed), None)
+            if over is not None: candidates.append((over, 'over_check_time'))
     if candidates:
         check, reason = min(candidates)
         out.update(check_s=check, check_reason=reason, saved_s=duration - check)
@@ -232,17 +326,17 @@ def _summary(rows):
     return out
 
 
-def _replay_all(runs, spec, table, margin):
-    return [dict(replay_step(run, step, spec.for_step(step.skill, step.target), table, margin), run=run_label(run))
+def _replay_all(runs, spec, table, margin, options):
+    return [dict(replay_step(run, step, spec.for_step(step.skill, step.target), table, margin, options), run=run_label(run))
             for run in runs for step in run.steps]
 
 
-def evaluate(runs, spec, table, margins):
+def evaluate(runs, spec, table, margins, options=V1):
     """Per margin: detections and saved time on problem steps, false checks on successes, per skill too.
     `steps` lists every replayed step at the spec's own margin."""
-    result = {'margins': {}, 'steps': _replay_all(runs, spec, table, spec.margin)}
+    result = {'margins': {}, 'steps': _replay_all(runs, spec, table, spec.margin, options)}
     for margin in margins:
-        rows = result['steps'] if margin == spec.margin else _replay_all(runs, spec, table, margin)
+        rows = result['steps'] if margin == spec.margin else _replay_all(runs, spec, table, margin, options)
         skills = sorted({r['skill'] for r in rows})
         result['margins'][f'{margin:g}'] = dict(_summary(rows),
                                                 by_skill={k: _summary([r for r in rows if r['skill'] == k]) for k in skills})
@@ -294,7 +388,7 @@ def _fidelity(runs):
     return dict(total, runs=per_run)
 
 
-def build_report(spec_path, fit_dirs, eval_dirs, *, margins=(0.2, 0.5, 1.0), min_records=3):
+def build_report(spec_path, fit_dirs, eval_dirs, *, margins=(0.2, 0.5, 1.0), min_records=3, options=V1):
     """Times are fitted on the fit runs only and applied to the eval runs. Shared folders or seeds are refused."""
     spec = load_spec(spec_path)
     overlap = {Path(d).resolve() for d in fit_dirs} & {Path(d).resolve() for d in eval_dirs}
@@ -304,16 +398,17 @@ def build_report(spec_path, fit_dirs, eval_dirs, *, margins=(0.2, 0.5, 1.0), min
     fit_runs, eval_runs = [load_run(p) for p in fit_paths], [load_run(p) for p in eval_paths]
     shared = {r.seed for r in fit_runs} & {r.seed for r in eval_runs}
     if shared: raise ReplayRejected('seeds in both fit and eval: ' + ', '.join(map(str, sorted(shared, key=str))))
-    table, insufficient = fit_times(fit_runs, spec, min_records=min_records)
+    table, insufficient = fit_times(fit_runs, spec, min_records=min_records, options=options)
     margins = tuple(sorted(set(margins) | {spec.margin}))
     here = Path(__file__).resolve().parent
     return dict(
         spec=dict(path=str(spec_path), version=spec.version, author=spec.author, margin=spec.margin),
+        options=asdict(options),
         inputs=dict(fit=_inputs(fit_runs), eval=_inputs(eval_runs), skipped=skipped_fit + skipped_eval),
         source={'monitor_spec.py': sha256(here / 'monitor_spec.py'), 'monitor_replay.py': sha256(here / 'monitor_replay.py'),
                 'spec': sha256(spec_path)},
         min_records=min_records, times={k: asdict(v) for k, v in sorted(table.items())}, insufficient=insufficient,
-        evaluation=evaluate(eval_runs, spec, table, margins),
+        evaluation=evaluate(eval_runs, spec, table, margins, options),
         fidelity=dict(fit=_fidelity(fit_runs), eval=_fidelity(eval_runs)))
 
 
@@ -330,7 +425,8 @@ def report_markdown(report):
     lines = [f"# 감시 명세 재생 결과 ({spec['version']})", '',
              f"- 개발 기록 {len(inputs['fit'])}개 (seed {_seeds(inputs['fit'])}): 기준 시간만 정한다.",
              f"- 평가 기록 {len(inputs['eval'])}개 (seed {_seeds(inputs['eval'])}): 감지와 오탐만 잰다.",
-             f"- 건너뛴 폴더 {len(inputs['skipped'])}개 (기록 파일 없음). 명세 여유 {spec['margin']:g}.", '',
+             f"- 건너뛴 폴더 {len(inputs['skipped'])}개 (기록 파일 없음). 명세 여유 {spec['margin']:g}.",
+             '- 재생 선택: ' + ', '.join(f'{k}={v}' for k, v in report.get('options', asdict(V1)).items()), '',
              '## 여유별 요약', '',
              '| 여유 | 문제 단계 | 감지 | 아낄 수 있던 시간 중앙값(s) | 합계(s) | 성공 단계 | 오탐 | 기타 |',
              '|---|---|---|---|---|---|---|---|']

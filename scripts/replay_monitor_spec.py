@@ -2,6 +2,8 @@
 
 Usage: python scripts/replay_monitor_spec.py --spec SPEC.json --fit RUN_DIR... --eval RUN_DIR... --out NEW_DIR
        [--margins 0.2,0.5,1.0] [--min-records 3]
+       [--found first_hit|engaged] [--lost-ticks 100] [--clock wall|ticks] [--separate-goal-budget]
+The defaults are the M2 (v1) replay; the other choices are replay v2 (plan 2026-11-07 tasks B and C).
 No game, GPU or API. Records are read only; the output folder must not exist. Shared folders or seeds exit with 2.
 """
 import argparse
@@ -10,7 +12,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
-from minecraftrl.pipeline.monitor_replay import ReplayRejected, build_report, report_markdown  # noqa: E402
+from minecraftrl.pipeline.monitor_replay import ReplayOptions, ReplayRejected, build_report, report_markdown  # noqa: E402
 from minecraftrl.pipeline.monitor_spec import SpecError  # noqa: E402
 
 
@@ -22,13 +24,19 @@ def main(argv=None):
     p.add_argument('--margins', default='0.2,0.5,1.0')
     p.add_argument('--min-records', type=int, default=3)
     p.add_argument('--out', type=Path, required=True)
+    p.add_argument('--found', choices=('first_hit', 'engaged'), default='first_hit')
+    p.add_argument('--lost-ticks', type=int, default=100)
+    p.add_argument('--clock', choices=('wall', 'ticks'), default='wall')
+    p.add_argument('--separate-goal-budget', action='store_true')
     a = p.parse_args(argv)
     if a.out.exists():
         print(f'rejected: output folder exists: {a.out}', file=sys.stderr); return 2
     try:
+        options = ReplayOptions(found=a.found, lost_ticks=a.lost_ticks, clock=a.clock,
+                                separate_goal_budget=a.separate_goal_budget)
         report = build_report(a.spec, a.fit, a.eval, margins=tuple(float(m) for m in a.margins.split(',')),
-                              min_records=a.min_records)
-    except (ReplayRejected, SpecError) as e:
+                              min_records=a.min_records, options=options)
+    except (ReplayRejected, SpecError, ValueError) as e:
         print(f'rejected: {e}', file=sys.stderr); return 2
     a.out.mkdir(parents=True)
     (a.out / 'report.json').write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')

@@ -4,8 +4,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from minecraftrl.pipeline.monitor_replay import (TimeEntry, evaluate, fit_times, found_time, load_run, policy_rows,
-                                                 replay_step, sample_from_row, stall_fidelity, unit_count)
+from minecraftrl.pipeline.monitor_replay import (ReplayOptions, TimeEntry, engagements, evaluate, fit_times, found_time,
+                                                 load_run, policy_rows, replay_step, sample_from_row, stall_fidelity,
+                                                 unit_count)
 from minecraftrl.pipeline.monitor_spec import parse_spec
 from minecraftrl.pipeline.rm import sample_from
 
@@ -355,6 +356,95 @@ class EvaluateAndScriptTest(unittest.TestCase):
         self.assertEqual(report['times']['craft']['worst'], 12.)
         self.assertEqual(report['evaluation']['margins']['0.2']['problem']['detected'], 1)
         self.assertIn('| 0.2 |', (out / 'report.md').read_text(encoding='utf-8'))
+
+
+ENGAGED = ReplayOptions(found='engaged', lost_ticks=100)
+
+
+def glimpse_rows(tail, *, glimpse_until=20, contact_from=600):
+    """Walking east; the crosshair touches the ore briefly at the start, then again from `contact_from` on."""
+    return [row(k, pos=(0.5 + 0.5 * k, 64., 0.5), keys=('forward',),
+                hit='iron_ore' if k < glimpse_until or k >= contact_from else 'air') for k in range(1, tail, 2)]
+
+
+class ReplayV2Test(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory(); self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+
+    def test_default_options_are_v1(self):
+        self.assertEqual(ReplayOptions(), ReplayOptions(found='first_hit', lost_ticks=100, clock='wall',
+                                                        separate_goal_budget=False))
+
+    def test_engagements_split_on_lost_contact(self):
+        run = search_run(self.root, 'eval', glimpse_rows(700))
+        spans = engagements(policy_rows(run, run.steps[0]), 'iron_ore', 100)
+        self.assertEqual([(a['step'], b['step'], None if c is None else c['step']) for a, b, c in spans],
+                         [(1, 19, 119), (601, 699, None)])
+
+    def test_engaged_after_found_clock_restarts_after_a_glimpse(self):
+        run = search_run(self.root, 'eval', glimpse_rows(700))
+        step = run.steps[0]; sub = SPEC.for_step(step.skill, step.target)
+        first_hit = replay_step(run, step, sub, AFTER_FOUND, .2)
+        self.assertAlmostEqual(first_hit['check_s'], 6.)          # 0 s found + 5 s worst x 1.2
+        engaged = replay_step(run, step, sub, AFTER_FOUND, .2, ENGAGED)
+        self.assertIsNone(engaged['check_s'])                     # contact spans of 5.9 s and 4.95 s
+        self.assertAlmostEqual(engaged['found_s'], 0.)
+
+    def test_engaged_check_inside_one_long_contact(self):
+        run = search_run(self.root, 'eval', moving(1200, hit_from=600))
+        step = run.steps[0]
+        result = replay_step(run, step, SPEC.for_step(step.skill, step.target), AFTER_FOUND, .2, ENGAGED)
+        self.assertAlmostEqual(result['check_s'], 36.)
+        self.assertEqual(result['check_reason'], 'over_check_time')
+
+    def test_engaged_fit_uses_last_contact_span(self):
+        runs = [search_run(self.root, f'dev{i}', glimpse_rows(tail), 'completed') for i, tail in enumerate((640, 660, 700))]
+        self.assertAlmostEqual(fit_times(runs, SPEC)[0]['mine_iron_text:after_found'].best, 31.95)
+        entry = fit_times(runs, SPEC, options=ENGAGED)[0]['mine_iron_text:after_found']
+        self.assertAlmostEqual(entry.best, 1.95)
+        self.assertAlmostEqual(entry.worst, 4.95)
+
+    def slow_craft(self, name, status='completed'):
+        """A craft step on a slow server: 4 ticks per wall second, rows for ticks 10..50."""
+        rows = [row(k, t=k / 4., controller='rule') for k in range(10, 51)]
+        timeline = [started('c', 'craft', 2.5, 10, target='stick'), finished('c', 'craft', 12.75, 51, status, target='stick')]
+        return load_run(write_run(self.root / name, timeline, rows))
+
+    def test_tick_clock_times_server_ticks(self):
+        table = {'craft': TimeEntry(3, 2., 3.)}
+        run = self.slow_craft('slow', 'time_limit'); step = run.steps[0]; sub = SPEC.for_step('craft', 'stick')
+        wall = replay_step(run, step, sub, table, .2)
+        self.assertAlmostEqual(wall['duration_s'], 10.25); self.assertAlmostEqual(wall['check_s'], 3.6)
+        ticks = replay_step(run, step, sub, table, .2, ReplayOptions(clock='ticks'))
+        self.assertAlmostEqual(ticks['duration_s'], 2.); self.assertIsNone(ticks['check_s'])
+        fitted = fit_times([self.slow_craft(f'd{i}') for i in range(3)], SPEC, options=ReplayOptions(clock='ticks'))[0]
+        self.assertEqual(fitted['craft'], TimeEntry(3, 2., 2.))
+
+    def test_tick_clock_falls_back_to_wall_without_rows(self):
+        run = steps_run(self.root, 'norows', [('craft', 30., 'time_limit', 1, 'stick')])
+        result = replay_step(run, run.steps[0], SPEC.for_step('craft', 'stick'), {'craft': TimeEntry(3, 10., 20.)}, .2,
+                             ReplayOptions(clock='ticks'))
+        self.assertAlmostEqual(result['duration_s'], 30.)
+        self.assertEqual(result['clock'], 'wall')
+
+    def test_report_and_cli_record_options(self):
+        spec_path = self.root / 'spec.json'; spec_path.write_text(json.dumps(SPEC_RAW), encoding='utf-8')
+        dev = [write_run(self.root / 'dev' / f'A{i}', craft_timeline([10. + i, 12.]), []) for i in range(3)]
+        evaluation = [write_run(self.root / 'eval' / 'E1', craft_timeline([30.], 'time_limit'), [], 104729)]
+        out = self.root / 'out'
+        args = ['--spec', str(spec_path), '--fit', *map(str, dev), '--eval', *map(str, evaluation), '--out', str(out),
+                '--found', 'engaged', '--lost-ticks', '60', '--clock', 'ticks', '--separate-goal-budget']
+        self.assertEqual(load_script().main(args), 0)
+        report = json.loads((out / 'report.json').read_text(encoding='utf-8'))
+        self.assertEqual(report['options'], {'found': 'engaged', 'lost_ticks': 60, 'clock': 'ticks',
+                                             'separate_goal_budget': True})
+        self.assertIn('engaged', (out / 'report.md').read_text(encoding='utf-8'))
+
+    def test_bad_options_rejected(self):
+        for kw in (dict(found='glance'), dict(clock='sun'), dict(lost_ticks=0)):
+            with self.subTest(**kw), self.assertRaises(ValueError):
+                ReplayOptions(**kw)
 
 
 if __name__ == '__main__':
