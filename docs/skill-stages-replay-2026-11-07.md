@@ -7,14 +7,20 @@
 - 게임 실행 0회, 정책 학습 0회, 새 평가 seed 사용 0회. 기존 기록은 읽기만 했다.
 - 유료 API: gpt-5.4 4회, 합계 8,259토큰(과업 D: 철광석 명세 3회, 조약돌 명세 1회).
 - 실시간 파이프라인의 기본 동작은 바뀌지 않았다. 새 동작은 모두 선택 인자로만 켜진다.
-- 검사: WSL 전체 unit lane 1,389개 통과(18개 skip). 시선 각도 커밋(`ad783be`) 전의 코드로 돌렸다.
-  그 뒤 바뀐 `stage_replay`의 테스트 19개는 다시 돌려 통과했다. Windows host lane은 이번 변경과 관계없어 돌리지 않았다.
-- 해시(SHA256 앞 12자리):
-  - `stage_replay.py` 365215205c93
-  - `monitor_replay.py` a11af06ce5cd
-  - `stall_detection.py` 2978e8211428
+- 검사:
+  - WSL 전체 unit lane 1,389개 통과(18개 skip). 시선 각도 커밋(`ad783be`) 전의 코드로 돌렸다.
+  - 마지막에 이번 작업이 닿은 모듈의 테스트 148개를 다시 돌려 통과했다.
+  - Windows host lane은 이번 변경과 관계없어 돌리지 않았다.
+- 최종 코드 해시(SHA256 앞 12자리, LF):
+  - `stage_replay.py` 146e2b100dfd
+  - `monitor_replay.py` d707a0836ae8
+  - `stall_detection.py` e61c7c160e72
   - `monitor_spec_llm.py` ffe20978b1d1
   - `monitor_signals.py` 4c0f2fefe9ee
+  - `frame_labels.py` fb53542e323e
+- 결과 폴더 보고서에 남은 소스 해시는 아래 두 가지 이유로 위와 다르다. 결과를 낸 코드의 동작은 같다.
+  - 줄바꿈: Python으로 고쳐 쓰면서 일부 파일이 CRLF로 저장됐고, 마지막에 LF로 되돌렸다.
+  - 커밋 차이: 각도 분해와 공백 처리 수정이 결과를 낸 뒤에 들어갔다.
 
 ## 요약
 
