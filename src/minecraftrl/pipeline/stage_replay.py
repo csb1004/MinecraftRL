@@ -95,10 +95,28 @@ class Geometry:
         return known is not None and family(known) == family(block)
 
     def nearest(self, wanted, eye):
+        found = self.nearest_block(wanted, eye)
+        return None if found is None else found[0]
+
+    def nearest_block(self, wanted, eye):
+        """(distance from the eye to the block centre, block position) of the nearest remaining block, or None."""
         positions = self.by_family.get(family(wanted)) or ()
         if not positions: return None
         ex, ey, ez = eye
-        return math.sqrt(min((x + .5 - ex) ** 2 + (y + .5 - ey) ** 2 + (z + .5 - ez) ** 2 for x, y, z in positions))
+        d2, pos = min(((x + .5 - ex) ** 2 + (y + .5 - ey) ** 2 + (z + .5 - ez) ** 2, (x, y, z)) for x, y, z in positions)
+        return math.sqrt(d2), pos
+
+
+ANGLE_BINS = ((15., '<15'), (45., '15-45'), (90., '45-90'), (math.inf, '>=90'))
+
+
+def view_angle(yaw, pitch, eye, pos):
+    """Degrees between the view direction (Minecraft yaw 0 = +z, 90 = -x; pitch down positive) and the block centre."""
+    y, p = math.radians(yaw), math.radians(pitch)
+    view = (-math.sin(y) * math.cos(p), -math.sin(p), math.cos(y) * math.cos(p))
+    to = (pos[0] + .5 - eye[0], pos[1] + .5 - eye[1], pos[2] + .5 - eye[2])
+    norm = math.sqrt(sum(c * c for c in to)) or 1.
+    return math.degrees(math.acos(max(-1., min(1., sum(a * b / norm for a, b in zip(view, to))))))
 
 
 def destroy_events(rows):
@@ -133,6 +151,7 @@ def step_stages(run, step, geometry, events=None):
     pit, checked, mismatch = 0., 0, 0
     recent, collect = deque(), None
     near_hits, broken = defaultdict(float), {'level_or_above': 0, 'below': 0}
+    near_angle = {label: 0. for _, label in ANGLE_BINS}
     for i, (r, s) in enumerate(rows):
         origin_y = (r.get('demo') or {}).get('demo_fixture_origin_y', g.origin_y)
         while pending and pending[0][0] <= r['t']:
@@ -144,7 +163,8 @@ def step_stages(run, step, geometry, events=None):
             checked += 1; mismatch += not geometry.knows(s.hit_pos, s.hit_block)
             if not g.knows(s.hit_pos, s.hit_block): g.add(s.hit_pos, s.hit_block)   # placed by the player
         eye = (s.position[0], s.position[1] + EYE, s.position[2])
-        distance = g.nearest(wanted, eye)
+        nearest = g.nearest_block(wanted, eye)
+        distance = None if nearest is None else nearest[0]
         while len(recent) > 1 and recent[1][0] <= s.tick - CLOSING_TICKS: recent.popleft()
         ref = recent[0] if recent and recent[0][0] <= s.tick - CLOSING_TICKS else None
         recent.append((s.tick, distance))
@@ -154,13 +174,16 @@ def step_stages(run, step, geometry, events=None):
         dt = min(max(rows[i + 1][1].tick - s.tick, 0), MAX_ROW_TICKS) / 20. if i + 1 < len(rows) else 0.
         stage = _stage(s, wanted, distance, closing, collecting)
         seconds[stage] += dt
-        if stage == 'near': near_hits[s.hit_block] += dt
+        if stage == 'near':
+            near_hits[s.hit_block] += dt
+            angle = view_angle(s.yaw, s.pitch, eye, nearest[1])
+            near_angle[next(label for limit, label in ANGLE_BINS if angle < limit)] += dt
         if origin_y is not None and s.position[1] < origin_y - PIT_DEPTH: pit += dt
     first = rows[0][1].inventory if rows else {}
     return dict(run=run_label(run), step=step.id, skill=step.skill, target=wanted, status=step.status,
                 tool_at_start=sorted(k for k in first if k.endswith('_pickaxe')), seconds=seconds,
                 total_s=sum(seconds.values()), pit_s=pit, rows=len(rows), geometry_checked=checked,
-                geometry_mismatch=mismatch, near_hits=dict(near_hits), target_broken=broken)
+                geometry_mismatch=mismatch, near_hits=dict(near_hits), near_angle_s=near_angle, target_broken=broken)
 
 
 def _resolve(recorded, root):
@@ -195,6 +218,7 @@ def _groups(steps):
                         total_s=sum(seconds.values()), pit_s=sum(m['pit_s'] for m in members),
                         median_total_s=statistics.median(m['total_s'] for m in members),
                         near_hits=dict(near.most_common()),
+                        near_angle_s={k: sum(m['near_angle_s'][k] for m in members) for _, k in ANGLE_BINS},
                         target_broken={k: sum(m['target_broken'][k] for m in members) for k in ('level_or_above', 'below')}))
     return out
 
@@ -240,9 +264,12 @@ def report_markdown(report):
         lines.append(f"| {g['skill']} | {g['tool']} | {g['outcome']} | {g['n']} | {g['total_s']:.0f} | "
                      f"{g['median_total_s']:.0f} | {shares} | {100 * g['pit_s'] / total:.0f}% |")
     lines += ['', '## near 동안 조준선 블록, 부순 대상의 높이', '',
-              '| 스킬 | 도구 | 결과 | near 조준선 상위 3 (s) | 부순 대상: 서 있는 높이 이상 / 아래 |', '|---|---|---|---|---|']
+              '| 스킬 | 도구 | 결과 | near 조준선 상위 3 (s) | near 시선-대상 각도 <15 / 15-45 / 45-90 / >=90 | '
+              '부순 대상: 서 있는 높이 이상 / 아래 |', '|---|---|---|---|---|---|']
     for g in report['groups']:
         top = ', '.join(f'{b} {v:.0f}' for b, v in list(g['near_hits'].items())[:3]) or '-'
-        lines.append(f"| {g['skill']} | {g['tool']} | {g['outcome']} | {top} | "
+        near = sum(g['near_angle_s'].values()) or 1.
+        angles = ' / '.join(f"{100 * g['near_angle_s'][k] / near:.0f}%" for _, k in ANGLE_BINS)
+        lines.append(f"| {g['skill']} | {g['tool']} | {g['outcome']} | {top} | {angles} | "
                      f"{g['target_broken']['level_or_above']} / {g['target_broken']['below']} |")
     return '\n'.join(lines) + '\n'

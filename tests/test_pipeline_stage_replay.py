@@ -136,6 +136,14 @@ class StepStagesTest(unittest.TestCase):
         self.assertEqual(out['near_hits'], {'stone': 2., 'air': 1.})
         self.assertEqual(out['target_broken'], {'level_or_above': 1, 'below': 1})
 
+    def test_view_angle_to_the_target_while_near(self):
+        fixture = {'blocks': [{'dx': 0, 'dy': 1, 'dz': 3, 'block': 'iron_ore'}]}
+        self.fixture.write_text(json.dumps(fixture), encoding='utf-8')
+        # The ore is 3 blocks south of the eye: yaw 0 faces it, 60 turns away by ~60 degrees, 180 faces north.
+        rows = [row(10, yaw=0.), row(30, yaw=180.), row(50, yaw=60.), row(70, yaw=0.)]
+        out = self.stages(rows)
+        self.assertEqual(out['near_angle_s'], {'<15': 1., '15-45': 0., '45-90': 1., '>=90': 1.})
+
     def test_gui_rows_and_pit_time(self):
         rows = [row(10, pos=(0.5, 62., 0.5), screen=1.), row(30, pos=(0.5, 62., 0.5)), row(50, pos=(0.5, 64., 0.5))]
         out = self.stages(rows)
@@ -183,6 +191,8 @@ class ReportTest(unittest.TestCase):
         groups = {(g['skill'], g['tool'], g['outcome']): g for g in report['groups']}
         self.assertEqual(groups[('mine_iron_text', 'no_tool', 'time_limit')]['n'], 1)
         self.assertEqual(groups[('mine_iron_text', 'stone_pickaxe', 'completed')]['seconds']['far'], 2.)
+        self.assertEqual(groups[('mine_iron_text', 'stone_pickaxe', 'completed')]['near_angle_s'],
+                         {'<15': 0., '15-45': 0., '45-90': 0., '>=90': 0.})
         self.assertEqual(report['skipped'], [])
         self.assertIn('| mine_iron_text |', report_markdown(report))
 
