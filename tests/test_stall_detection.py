@@ -153,6 +153,13 @@ class StallDetectionTests(unittest.TestCase):
         r=d.update(sample(1501,x=95.,stage='search',inventory_count=1))
         self.assertEqual(r['event'],'progress_resumed')
 
+    def test_separate_goal_budget_gap_resets_like_the_default(self):
+        d=StallDetector(separate_goal_budget=True)
+        for i in range(850):d.update(sample(i,x=i*.1,stage='search'))      # goal budget expired at 800
+        d.update(sample(900,x=85.,stage='search'))                          # tick gap: observation reset
+        r=d.update(sample(901,x=85.,stage='search'))
+        self.assertIsNone(r['event'])
+
     def test_only_a_new_inventory_high_water_renews_goal_budget(self):
         d=StallDetector();alerts=[]
         for i in range(1300):

@@ -177,7 +177,7 @@ caller, not this detector.
             self.last_tick = s.tick
             self.last_progress = self.last_goal_progress = s.tick
             self.window = 0
-            self.active = False
+            self.active = self.goal_active = False
             self.last_progress_reasons = ['observation_gap']
             return dict(result, event='observation_gap', observation_valid=False)
 
