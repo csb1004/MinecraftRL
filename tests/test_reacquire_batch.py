@@ -1,0 +1,89 @@
+import importlib.util
+import json
+import tempfile
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def load_script():
+    spec = importlib.util.spec_from_file_location('run_reacquire_batch', ROOT / 'scripts/run_reacquire_batch.py')
+    module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+    return module
+
+
+class BatchTest(unittest.TestCase):
+    def setUp(self):
+        self.m = load_script()
+        self.tmp = tempfile.TemporaryDirectory(); self.addCleanup(self.tmp.cleanup)
+        self.batch = ROOT / 'results' / ('reacquire-batch-test-' + Path(self.tmp.name).name)
+        self.addCleanup(lambda: __import__('shutil').rmtree(self.batch, ignore_errors=True))
+        self.launched = []
+
+    def launch(self, valid=True):
+        def run(command, run_dir):
+            self.launched.append(run_dir)
+            Path(run_dir).mkdir(parents=True, exist_ok=True)
+            (Path(run_dir) / 'summary.json').write_text(json.dumps(dict(
+                execution_valid=valid, status='completed', all_steps_completed=valid, steps=10,
+                release='neutral_command_sent', process_cleanup=dict(remaining_live_pids=[]))), encoding='utf-8')
+        return run
+
+    def collect(self, **kw):
+        options = dict(batch=self.batch, arm='official', checkpoint=None, use_stage=True, seeds=[271828], sampling=[1, 2],
+                       mode='train', root=ROOT, launch=self.launch(), gpu_free=lambda: 3000.)
+        options.update(kw)
+        return self.m.collect(**options)
+
+    def test_collect_refuses_seeds_outside_the_mode(self):
+        for mode, seed in (('train', 130363), ('train', 577215), ('dev', 271828), ('dev', 577215), ('final', 130363)):
+            with self.subTest(mode=mode, seed=seed), self.assertRaises(ValueError): self.m.check_seeds(mode, [seed])
+        self.m.check_seeds('dev', [130363]); self.m.check_seeds('final', [577215]); self.m.check_seeds('train', [314159])
+
+    def test_arm_config_only_changes_the_reacquire_block(self):
+        base = json.loads((ROOT / 'configs/reacquire-v1.json').read_text(encoding='utf-8'))
+        config = self.m.arm_config(base, 'results/x/checkpoint.pt', False)
+        block = config['skills']['mine_iron_reacquire'].pop('reacquire')
+        base['skills']['mine_iron_reacquire'].pop('reacquire')
+        self.assertEqual(config, base)
+        self.assertEqual(block, dict(checkpoint='results/x/checkpoint.pt', use_stage=False, record_latents=True))
+
+    def test_finished_trials_are_skipped_and_stop_halts(self):
+        self.assertEqual(self.collect(), 0); self.assertEqual(len(self.launched), 2)
+        self.assertEqual(self.collect(), 0); self.assertEqual(len(self.launched), 2)
+        (self.batch / 'STOP').touch()
+        self.assertEqual(self.collect(sampling=[3]), 1); self.assertEqual(len(self.launched), 2)
+        lines = (self.batch / 'results.jsonl').read_text().splitlines()
+        self.assertEqual(len(lines), 2); self.assertTrue(json.loads(lines[0])['success'])
+
+    def test_invalid_launch_is_moved_aside_and_halts(self):
+        self.assertEqual(self.collect(launch=self.launch(valid=False)), 4)
+        self.assertEqual(len(self.launched), 1)
+        self.assertTrue(any((self.batch / 'excluded').rglob('summary.json')))
+        self.assertFalse((self.batch / 'official/s271828-n1').exists())
+
+    def test_changed_inputs_halt_the_batch(self):
+        self.assertEqual(self.collect(sampling=[1]), 0)
+        frozen = self.batch / 'frozen-official.json'
+        record = json.loads(frozen.read_text()); record['hashes'][next(iter(record['hashes']))] = '0' * 64
+        frozen.write_text(json.dumps(record))
+        self.assertEqual(self.collect(sampling=[2]), 5); self.assertEqual(len(self.launched), 1)
+
+    def test_busy_gpu_halts_without_launching(self):
+        self.assertEqual(self.collect(gpu_free=lambda: 100., gpu_wait=(1, 0.)), 3); self.assertEqual(self.launched, [])
+
+    def test_probe_files_match_the_2026_11_04_iron_probe(self):
+        self.collect(sampling=[1])
+        plan = json.loads((self.batch / 'plans/iron.json').read_text())
+        self.assertEqual(plan, [dict(id='iron', skill='mine_iron_reacquire', kind='policy', target='iron_ore', count=1,
+                                     block='iron_ore')])
+        fixture = json.loads((self.batch / 'fixtures/iron-probe.json').read_text())
+        self.assertEqual(fixture['give'], [dict(item='stone_pickaxe', count=1)])
+        base = json.loads((ROOT / 'configs/iron-demo-fixture-v2.json').read_text())
+        self.assertEqual({k: v for k, v in fixture.items() if k not in ('give', 'description')},
+                         {k: v for k, v in base.items() if k not in ('give', 'description')})
+
+
+if __name__ == '__main__':
+    unittest.main()
