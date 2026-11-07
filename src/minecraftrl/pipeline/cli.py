@@ -48,6 +48,21 @@ def load_skills(root, specs, names):
     return skills
 
 
+def reacquire_spec(skills, fixture):
+    """(skill name, spec) of the one loaded skill with a `reacquire` block, or None. The live stage input needs the
+    fixture's target positions, so the block requires --fixture."""
+    named = [(name, spec) for name, spec in sorted(skills.items()) if spec.get('reacquire')]
+    if not named: return None
+    if len(named) > 1: raise ValueError('only one skill may carry a reacquire block')
+    if fixture is None: raise ValueError('a reacquire skill needs --fixture (stage input from fixture positions)')
+    name, spec = named[0]; block = spec['reacquire']
+    if type(block.get('use_stage')) is not bool or type(block.get('record_latents')) is not bool:
+        raise ValueError('reacquire use_stage and record_latents must be true or false')
+    if not spec.get('target_block') or not spec.get('target_items'):
+        raise ValueError('a reacquire skill needs target_block and target_items')
+    return name, spec
+
+
 def runtime_needs(steps, config, *, oversight):
     """(policy skills to load, whether the recipe catalog is needed). With oversight a replan may use any selected
     skill and craft steps, so load them before the game starts."""
@@ -172,6 +187,19 @@ def worker(args):
             policy = Steve1Policy(env.raw, args.root, prompt_profile='official-visual')
             preparation = prime_convolution(policy.agent.policy.net.img_process.cnn.stacks[0].firstconv.layer)
         recorder = Recorder(output, frame_every=args.frame_every)
+        reacquire = None; found = reacquire_spec(skills, args.fixture)
+        if found:
+            from ..reacquire_head import install, sha256_file
+            from .stage_live import ReacquireHook
+            name, spec = found; block = spec['reacquire']
+            checkpoint = (args.root / block['checkpoint']).resolve() if block.get('checkpoint') else None
+            head = install(policy, use_stage=block['use_stage'], checkpoint=checkpoint)
+            meta = dict(skill=name, use_stage=block['use_stage'], checkpoint=None if checkpoint is None else str(checkpoint),
+                        checkpoint_sha256=None if checkpoint is None else sha256_file(checkpoint),
+                        stage_input='privileged: fixture positions and server pose' if block['use_stage'] else 'zeros')
+            reacquire = ReacquireHook(head, json.loads(Path(args.fixture).read_text(encoding='utf-8')), spec['target_block'],
+                                      spec['target_items'][0], output / 'reacquire' if block['record_latents'] else None,
+                                      cond_scale=spec['cond_scale'], meta=meta)
         oversight = None; llm = None
         if args.allow_paid:
             from .openai_client import ResponsesClient
@@ -202,7 +230,8 @@ def worker(args):
         env.seed(seed)
         session = DemoSession(env, policy, catalog, recorder, gate, args.stop_file, limit_s=limit_s, skills=skills,
                               fixture_sha52=sha52, settle_steps=int(config.get('settle_steps', 20)),
-                              tool_lock=bool(config.get('policy_tool_lock', False)), oversight=oversight)
+                              tool_lock=bool(config.get('policy_tool_lock', False)), oversight=oversight,
+                              reacquire=reacquire)
         report = session.run(steps)
         report.update(mode=args.mode, seed=seed, sampling_seed=sampling, limit_s=limit_s, fixture=str(args.fixture) if args.fixture else None,
                       fixture_sha52=sha52, jar=str(jar), jar_receipt=json.loads(jar.with_suffix('.json').read_text()),

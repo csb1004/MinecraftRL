@@ -21,7 +21,10 @@ class Recorder:
         self.write(self.timeline, {'t': self.clock(), 'step': step, 'kind': kind, **fields})
 
     def telemetry(self, step, sample):
-        self.step = step; self.write(self.samples, {'t': self.clock(), 'step': step, **sample})
+        """Write one telemetry row; returns it as written (JSON values) for live readers of the same record."""
+        self.step = step; row = jsonable({'t': self.clock(), 'step': step, **sample})
+        self.write(self.samples, row)
+        return row
 
     def frame(self, step, rgb):
         self.step = step

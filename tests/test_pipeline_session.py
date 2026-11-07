@@ -7,6 +7,7 @@ import numpy as np
 
 from minecraftrl.pipeline.recorder import Recorder
 from minecraftrl.pipeline.session import DemoSession, fixture_sha52, set_condition
+from minecraftrl.pipeline.stage_replay import STAGES
 from minecraftrl.pipeline.steps import Step
 from minecraftrl.runtime import StopGate
 
@@ -63,6 +64,32 @@ class FakePolicy:
     def act(self, screen):
         if self.goal_embed is None: raise RuntimeError('condition required')
         self.calls += 1; return dict(self.action)
+
+
+REACQUIRE_FIXTURE = {'rotate_with_facing': True, 'blocks': [{'dx': 0, 'dy': 1, 'dz': 8, 'block': 'iron_ore'}]}
+REACQUIRE_SKILLS = dict(SKILLS, iron=dict(embedding=np.full((1, 512), .75, np.float32), cond_scale=6., sha256='i',
+                                          target_block='iron_ore', target_items=['iron_ore'],
+                                          reacquire=dict(checkpoint=None, use_stage=True, record_latents=True)))
+
+
+def located(value, yaw=0.):
+    """Recorded telemetry always carries the view yaw and health; the shared info() helper leaves them out."""
+    value['workshop'].update(yaw=yaw, server_health=20.); return value
+
+
+class HeadStub:
+    """ReacquireHead stand-in: the stage the session sets and the latent of the last action."""
+    width = 4
+    def __init__(self): self.stage = None; self.last_latent = None
+
+
+class HeadPolicy(FakePolicy):
+    def __init__(self):
+        super().__init__(); self.head = HeadStub(); self.stages = []
+    def act(self, screen):
+        action = super().act(screen)
+        self.stages.append(self.head.stage); self.head.last_latent = np.full((2, 1, 4), float(self.calls))
+        return action
 
 
 class FakeController:
@@ -239,6 +266,39 @@ class SessionTests(unittest.TestCase):
         stage = report['stage_results'][0]
         self.assertEqual(stage['status'], 'time_limit')
         self.assertEqual(stage['tool_masked'], len(env.actions) - 1)
+
+    def reacquire_session(self, env, policy, skills, *, limit_s=60., clock=None):
+        from minecraftrl.pipeline.stage_live import ReacquireHook
+        self.recorder = Recorder(self.out / 'run')
+        hook = ReacquireHook(policy.head, REACQUIRE_FIXTURE, 'iron_ore', 'iron_ore', self.out / 'run/reacquire',
+                             cond_scale=6., meta={'arm': 'test'}, chunk=4)
+        session = DemoSession(env, policy, None, self.recorder, self.gate, self.stop, limit_s=limit_s, skills=skills,
+                              clock=clock or Clock(), rule_controller=FakeController, settle_steps=0, reacquire=hook)
+        return session, hook
+
+    def test_session_records_one_latent_per_policy_action_and_closes_on_time_limit(self):
+        env = FakeEnv(lambda n, a: located(info()))
+        policy = HeadPolicy()
+        session, _ = self.reacquire_session(env, policy, REACQUIRE_SKILLS, limit_s=6., clock=Clock(.5))
+        report = session.run([Step('s1', 'iron', 'policy', 'iron_ore', 1, block='iron_ore')])
+        self.assertEqual(report['status'], 'time_limit')
+        telemetry = [json.loads(l) for l in (self.out / 'run/telemetry.jsonl').read_text().splitlines()]
+        policy_steps = [t['step'] for t in telemetry if t['controller'] == 'policy']
+        manifest = json.loads((self.out / 'run/reacquire/manifest.json').read_text())
+        self.assertTrue(manifest['complete']); self.assertEqual(manifest['rows'], len(policy_steps))
+        steps = np.concatenate([np.load(self.out / 'run/reacquire' / c['file'])['step'] for c in manifest['chunks']])
+        self.assertEqual(steps.tolist(), policy_steps)
+        self.assertEqual(policy.stages[0], STAGES.index('far'))       # the iron is 8 blocks ahead of the start
+        self.assertEqual(report['reacquire']['latent_rows'], len(policy_steps))
+
+    def test_session_without_reacquire_block_is_unchanged(self):
+        env = FakeEnv(lambda n, a: located(info({'cobblestone': 3 if n >= 5 else 0})))
+        policy = HeadPolicy()
+        session, hook = self.reacquire_session(env, policy, SKILLS)
+        report = session.run([Step('s1', 'dig', 'policy', 'cobblestone', 3, block='stone')])
+        self.assertEqual(report['status'], 'completed')
+        self.assertEqual(policy.stages, [None] * policy.calls)      # the head's stage was never set
+        self.assertEqual(report['reacquire']['latent_rows'], 0)
 
     def test_tool_keys_pass_without_lock(self):
         action = noop(); action['hotbar.3'] = 1; action['drop'] = 1
@@ -890,6 +950,27 @@ class LoaderTests(unittest.TestCase):
         llm, _ = client(reply('iron_ore', None))
         goal = request_goal(llm, '철 캐줘', config)
         self.assertEqual((goal['item'], goal['count'], goal['count_source']), ('iron_ore', 1, 'caller_success_criterion'))
+
+    def test_reacquire_block_needs_one_skill_and_a_fixture(self):
+        from minecraftrl.pipeline.cli import reacquire_spec
+        block = dict(checkpoint=None, use_stage=True, record_latents=True)
+        spec = dict(reacquire=block, target_block='iron_ore', target_items=['iron_ore'])
+        self.assertIsNone(reacquire_spec({'x': {}}, None))
+        self.assertEqual(reacquire_spec({'r': spec, 'x': {}}, Path('f.json'))[0], 'r')
+        with self.assertRaises(ValueError): reacquire_spec({'r': spec}, None)
+        with self.assertRaises(ValueError): reacquire_spec({'r': spec, 's': spec}, Path('f.json'))
+        with self.assertRaises(ValueError): reacquire_spec({'r': dict(spec, reacquire=dict(block, use_stage='yes'))}, Path('f.json'))
+        with self.assertRaises(ValueError): reacquire_spec({'r': dict(spec, target_items=[])}, Path('f.json'))
+
+    def test_reacquire_config_adds_only_the_new_skill(self):
+        root = Path(__file__).resolve().parents[1]
+        demo = json.loads((root / 'configs/iron-demo.json').read_text(encoding='utf-8'))
+        config = json.loads((root / 'configs/reacquire-v1.json').read_text(encoding='utf-8'))
+        new = config['skills'].pop('mine_iron_reacquire')
+        self.assertEqual({k: v for k, v in config.items() if k not in ('schema', 'description')},
+                         {k: v for k, v in demo.items() if k != 'schema'})
+        self.assertEqual({k: v for k, v in new.items() if k != 'reacquire'}, demo['skills']['mine_iron_text'])
+        self.assertEqual(new['reacquire'], dict(checkpoint=None, use_stage=True, record_latents=True))
 
     def test_oversight_preloads_every_skill_a_replan_can_use(self):
         # Real run A (2026-11-04): the replanned chain needed wood_visual and the recipe catalog, which were never loaded.

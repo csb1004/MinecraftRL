@@ -73,7 +73,8 @@ def lock_tool(action, hit_block=None):
 
 class DemoSession:
     def __init__(self, env, policy, catalog, recorder, gate, stop_file, *, limit_s, skills, clock=time.monotonic,
-                 rule_controller=None, fixture_sha52=None, settle_steps=20, prepare_limit=400, tool_lock=False, oversight=None):
+                 rule_controller=None, fixture_sha52=None, settle_steps=20, prepare_limit=400, tool_lock=False, oversight=None,
+                 reacquire=None):
         if not 0 < limit_s <= 900: raise ValueError('limit_s must be in (0, 900]')
         if rule_controller is None:
             from ..workshop import WorkshopController as rule_controller
@@ -87,6 +88,9 @@ class DemoSession:
         self.oversight = oversight; self.last_sample = None; self.next_steps = None; self.surface_y = None
         self.last_kind = None  # kind of the step that ran last (a policy step after a rule step gets a level view)
         if oversight: oversight.emit = recorder.event
+        # Reacquire hook (stage_live.ReacquireHook): live stage input for the residual head and the latent record.
+        # It only acts on policy steps whose skill has a `reacquire` block.
+        self.reacquire = reacquire
         self.steps = 0; self.obs = None; self.info = {}; self.started = None
 
     # Workshop controller adapter: it reads .gui, .env.raw.action_space and .steps.
@@ -122,7 +126,8 @@ class DemoSession:
         self.recorder.frame(self.steps, self.obs['pov'])
         sample = self.sample(controller, action)
         if masked: sample['masked'] = list(masked)
-        self.recorder.telemetry(self.steps, sample)
+        row = self.recorder.telemetry(self.steps, sample)
+        if self.reacquire is not None: self.reacquire.observe(row)
         if done: self.gate.stop('environment_done')
         return True
 
@@ -197,6 +202,10 @@ class DemoSession:
             except BaseException as exc: report['release'] = 'failed: ' + repr(exc)
             self.recorder.event('input_release', controller='cleanup', outcome=report['release'])
             if self.oversight: report['oversight'] = self.oversight.summary()  # API calls happen during the run
+            if self.reacquire is not None:
+                # Flush the last latent chunk on every ending (time limit, STOP, error) so the record stays checkable.
+                try: report['reacquire'] = self.reacquire.close()
+                except BaseException as exc: report['reacquire'] = dict(error=type(exc).__name__ + ': ' + str(exc))
             report.update(steps=self.steps, final_inventory=nonzero(self.inventory()) if self.gui else None,
                           stop_reason=self.gate.reason,
                           elapsed_control_s=None if self.started is None else ended - self.started)
@@ -252,6 +261,8 @@ class DemoSession:
         oversight = self.oversight; attack_masks = 0
         if oversight:
             oversight.start_step(step); self.last_sample = sample_from(self.info, self.noop(), self.clock())
+        hook = self.reacquire if self.reacquire is not None and skill.get('reacquire') else None
+        if hook is not None: hook.start_step(self.recorder.clock())
 
         def finish(status, **extra):
             if start_y is not None: extra['rise'] = peak_y - start_y
@@ -268,6 +279,7 @@ class DemoSession:
                 if gui_closed == 1: self.recorder.event('gui_closed', step_id=step.id, screen=self.gui.get('screen'))
                 if not self.dispatch(press, 'gui_close') or not self.dispatch(self.noop(), 'gui_close'): return finish(self.gate.reason)
                 continue
+            if hook is not None: hook.before_act()
             action = self.policy.act(self.obs['pov'])
             masked = ()
             if self.tool_lock: action, masked = lock_tool(action, self.demo().get('demo_hit_block'))
@@ -282,6 +294,7 @@ class DemoSession:
             if until == 'mining_start' and attacking(action) and block_matches(self.demo().get('demo_hit_block', ''), step.block):
                 return finish('completed', completion='aim_attack')
             if not self.dispatch(action, 'policy', masked): return finish(self.gate.reason)
+            if hook is not None: hook.after_dispatch(self.steps)
             masked_steps += bool(masked)
             if oversight:
                 self.last_sample = sample_from(self.info, action, self.clock())
