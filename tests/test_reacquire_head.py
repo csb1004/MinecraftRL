@@ -63,6 +63,21 @@ class ReacquireHeadTest(unittest.TestCase):
         head.stage = None; b = head(self.x, stage_onehot=onehot)
         for k in a: self.assertTrue(torch.allclose(a[k], b[k]))
 
+    def test_inactive_head_returns_the_base_output(self):
+        head = self.trained(use_stage=True); head.stage = 2; head.active = False
+        out, ref = head(self.x), self.base(self.x)
+        for k in ref: self.assertTrue(torch.equal(out[k], ref[k]))
+        self.assertTrue(torch.equal(head.last_latent, self.x))
+
+    def test_install_leaves_the_residual_off_until_a_reacquire_step(self):
+        from types import SimpleNamespace
+        from minecraftrl.reacquire_head import install
+        net = SimpleNamespace(output_latent_size=lambda: 8)
+        policy = SimpleNamespace(agent=SimpleNamespace(policy=SimpleNamespace(pi_head=self.base, net=net)),
+                                 root=Path(self.tmp.name))
+        head = install(policy, use_stage=True)
+        self.assertIs(policy.agent.policy.pi_head, head); self.assertFalse(head.active)
+
     def test_last_latent_is_the_input_latent(self):
         head = self.Head(self.base, 8, use_stage=True); head(self.x)
         self.assertTrue(torch.equal(head.last_latent, self.x))

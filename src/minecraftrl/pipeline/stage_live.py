@@ -115,6 +115,11 @@ class ReacquireHook:
 
     def observe(self, row): self.feed.observe(row)
 
+    def activate(self, on):
+        """Residual on for a policy step of the reacquire skill, off (official head, no stage) for any other."""
+        self.head.active = bool(on)
+        if not on: self.head.stage = None
+
     def start_step(self, start_t): self.feed.start_step(start_t)
 
     def before_act(self):

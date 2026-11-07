@@ -78,17 +78,18 @@ def located(value, yaw=0.):
 
 
 class HeadStub:
-    """ReacquireHead stand-in: the stage the session sets and the latent of the last action."""
+    """ReacquireHead stand-in as install() leaves it: residual off, the stage the session sets, the last latent."""
     width = 4
-    def __init__(self): self.stage = None; self.last_latent = None
+    def __init__(self): self.stage = None; self.last_latent = None; self.active = False
 
 
 class HeadPolicy(FakePolicy):
     def __init__(self):
-        super().__init__(); self.head = HeadStub(); self.stages = []
+        super().__init__(); self.head = HeadStub(); self.stages = []; self.actives = []
     def act(self, screen):
         action = super().act(screen)
         self.stages.append(self.head.stage); self.head.last_latent = np.full((2, 1, 4), float(self.calls))
+        self.actives.append((float(np.asarray(self.goal_embed).ravel()[0]), self.head.active))
         return action
 
 
@@ -298,7 +299,20 @@ class SessionTests(unittest.TestCase):
         report = session.run([Step('s1', 'dig', 'policy', 'cobblestone', 3, block='stone')])
         self.assertEqual(report['status'], 'completed')
         self.assertEqual(policy.stages, [None] * policy.calls)      # the head's stage was never set
+        self.assertEqual({on for _, on in policy.actives}, {False})  # the residual stayed off
         self.assertEqual(report['reacquire']['latent_rows'], 0)
+
+    def test_residual_is_on_only_during_the_reacquire_skill_steps(self):
+        # Review finding (2026-11-07): install() wraps the head for the whole game, so a policy step of another skill
+        # in the same plan must run the official head, and the reacquire step must run the residual.
+        env = FakeEnv(lambda n, a: located(info({'cobblestone': 3 if n >= 5 else 0})))
+        policy = HeadPolicy()
+        session, _ = self.reacquire_session(env, policy, REACQUIRE_SKILLS, limit_s=6., clock=Clock(.5))
+        session.run([Step('s1', 'dig', 'policy', 'cobblestone', 3, block='stone'),
+                     Step('s2', 'iron', 'policy', 'iron_ore', 1, block='iron_ore')])
+        by_skill = {}
+        for embed, on in policy.actives: by_skill.setdefault(embed, set()).add(on)
+        self.assertEqual(by_skill, {.5: {False}, .75: {True}})      # dig embedding .5, iron .75
 
     def test_tool_keys_pass_without_lock(self):
         action = noop(); action['hotbar.3'] = 1; action['drop'] = 1

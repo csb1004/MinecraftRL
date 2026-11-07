@@ -32,6 +32,9 @@ class ReacquireHead(torch.nn.Module):
         self.base = base; self.width = int(width); self.use_stage = bool(use_stage)
         self.stage = None          # STAGES index the caller sets before each action; None = no stage
         self.last_latent = None    # detached policy latent of the last forward, [B, T, width]
+        # False = the official head alone. install() turns it off; the live hook turns it on only for policy steps of
+        # the skill with a `reacquire` block, so other skills in the same game keep the official policy.
+        self.active = True
         # Local initialization must not consume the policy's sampling RNG stream.
         with torch.random.fork_rng(devices=[]):
             torch.manual_seed(INIT_SEED)
@@ -46,6 +49,7 @@ class ReacquireHead(torch.nn.Module):
     def forward(self, pi_h, mask=None, stage_onehot=None):
         """stage_onehot ([B, T, STAGE_DIM]) overrides `self.stage` row by row (training batches)."""
         self.last_latent = pi_h.detach()
+        if not self.active: return self.base(pi_h, mask=mask)
         if stage_onehot is None:
             row = torch.tensor(_onehot(self.stage, self.use_stage), device=pi_h.device)
             stage_onehot = row.view(*(1,) * (pi_h.dim() - 1), STAGE_DIM).expand(*pi_h.shape[:-1], STAGE_DIM)
@@ -84,12 +88,14 @@ def load_into(head, path, *, base_weights_sha256):
 
 
 def install(policy, *, use_stage, checkpoint=None):
-    """Wrap the official action head of a Steve1Policy; the base stays frozen. Returns the head."""
+    """Wrap the official action head of a Steve1Policy; the base stays frozen. Returns the head, inactive until a
+    reacquire step turns it on (ReacquireHook.activate)."""
     agent_policy = policy.agent.policy
     base = agent_policy.pi_head.requires_grad_(False)
     head = ReacquireHead(base, agent_policy.net.output_latent_size(), use_stage=use_stage)
     if checkpoint is not None:
         load_into(head, checkpoint, base_weights_sha256=sha256_file(Path(policy.root) / 'weights/steve1/steve1.weights'))
     device = next(base.parameters()).device
+    head.active = False
     agent_policy.pi_head = head.to(device).requires_grad_(False).eval()
     return head

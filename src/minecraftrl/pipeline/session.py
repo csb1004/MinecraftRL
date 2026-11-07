@@ -261,6 +261,7 @@ class DemoSession:
         oversight = self.oversight; attack_masks = 0
         if oversight:
             oversight.start_step(step); self.last_sample = sample_from(self.info, self.noop(), self.clock())
+        if self.reacquire is not None: self.reacquire.activate(bool(skill.get('reacquire')))
         hook = self.reacquire if self.reacquire is not None and skill.get('reacquire') else None
         if hook is not None: hook.start_step(self.recorder.clock())
 
