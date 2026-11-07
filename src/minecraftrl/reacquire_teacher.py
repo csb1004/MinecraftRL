@@ -44,15 +44,26 @@ def target_of(s, view, wanted):
     return view.nearest
 
 
-def teacher_env_action(s, view, wanted):
-    """MineRL-style action label for one state, or None when the row gets no label."""
+AIM_MODES = ('centre', 'hold')
+
+
+def teacher_env_action(s, view, wanted, aim='centre'):
+    """MineRL-style action label for one state, or None when the row gets no label.
+
+    aim='centre' (design §4) turns toward the target block centre in every labelled stage. aim='hold' (condition
+    added 2026-11-07 after rounds 1-2: the centring label became camera jitter that kept resetting block damage) keeps
+    the view still while the crosshair is on the target family and only turns while near but not aimed."""
+    if aim not in AIM_MODES: raise ValueError('unknown teacher aim mode: %s' % aim)
     if not s.valid or s.gui_open or view.stage not in LABELLED_STAGES: return None
     target = target_of(s, view, wanted)
     if target is None: return None
-    dpitch, dyaw = aim_delta(view.eye, s.yaw, s.pitch, target)
     action = {k: 0 for k in BUTTONS}
-    action['camera'] = np.array([max(-MAX_TURN, min(MAX_TURN, dpitch)), max(-MAX_TURN, min(MAX_TURN, dyaw))])
-    action['attack'] = int(block_matches(s.hit_block, wanted))
+    on_target = block_matches(s.hit_block, wanted)
+    if aim == 'hold' and on_target: action['camera'] = np.array([0., 0.])
+    else:
+        dpitch, dyaw = aim_delta(view.eye, s.yaw, s.pitch, target)
+        action['camera'] = np.array([max(-MAX_TURN, min(MAX_TURN, dpitch)), max(-MAX_TURN, min(MAX_TURN, dyaw))])
+    action['attack'] = int(on_target)
     return action
 
 

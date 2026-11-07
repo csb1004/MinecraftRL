@@ -55,7 +55,7 @@ def _checked_request(run_dir, root):
     return request, json.loads(Path(fixture).read_text(encoding='utf-8'))
 
 
-def run_examples(run_dir, mapper, transformer, *, root):
+def run_examples(run_dir, mapper, transformer, *, root, teacher='centre'):
     run_dir = Path(run_dir)
     request, fixture = _checked_request(run_dir, root)
     manifest, lat = load_latents(run_dir / 'reacquire')
@@ -85,25 +85,25 @@ def run_examples(run_dir, mapper, transformer, *, root):
             raise ValueError('live stage differs from replay at step %d: recorded %d, recomputed %d'
                              % (decisions[i][0], int(lat['stage'][i]), stage))
         out['stage'][i] = stage
-        action = None if view is None or s is None else teacher_env_action(s, view, wanted)
+        action = None if view is None or s is None else teacher_env_action(s, view, wanted, aim=teacher)
         if action is None: continue
         label = policy_label(action, mapper, transformer)
         dpitch, dyaw = aim_delta(view.eye, s.yaw, s.pitch, target_of(s, view, wanted))
         out['labelled'][i] = True; out['label_buttons'][i] = label['buttons']; out['label_camera'][i] = label['camera']
         out['camera_on'][i] = label['camera_on']; out['in_view'][i] = in_view(dpitch, dyaw)
         out['label_pitch'][i], out['label_yaw'][i] = label['decoded_camera']
-    out['manifest'] = manifest; out['seed'] = request['seed']
+    out['manifest'] = manifest; out['seed'] = request['seed']; out['teacher'] = teacher
     return out
 
 
-def build_dataset(run_dirs, out_path, *, holdout, mapper, transformer, root):
+def build_dataset(run_dirs, out_path, *, holdout, mapper, transformer, root, teacher='centre'):
     """Concatenate the runs' examples; `holdout` (a run folder name) is kept for validation only."""
     import torch
     run_dirs = [Path(d) for d in run_dirs]
     names = [d.parent.name + '/' + d.name for d in run_dirs]
     matches = [i for i, d in enumerate(run_dirs) if d.name == holdout]
     if len(matches) != 1: raise ValueError('holdout must name exactly one run folder: %s' % holdout)
-    parts = [run_examples(d, mapper, transformer, root=root) for d in run_dirs]
+    parts = [run_examples(d, mapper, transformer, root=root, teacher=teacher) for d in run_dirs]
     scales = {p['cond_scale'] for p in parts}
     if len(scales) != 1: raise ValueError('runs use different guidance scales: %s' % sorted(scales))
     keys = ('cond', 'uncond', 'stage', 'labelled', 'label_buttons', 'label_camera', 'camera_on', 'in_view',
@@ -111,11 +111,12 @@ def build_dataset(run_dirs, out_path, *, holdout, mapper, transformer, root):
     data = {k: torch.from_numpy(np.concatenate([p[k] for p in parts])) for k in keys}
     data.update(run=torch.from_numpy(np.concatenate([np.full(len(p['step']), i, np.int64) for i, p in enumerate(parts)])),
                 runs=names, holdout=matches[0], cond_scale=scales.pop(), width=int(parts[0]['cond'].shape[1]),
-                stages=list(STAGES))
+                stages=list(STAGES), teacher=teacher)
     out_path = Path(out_path); out_path.parent.mkdir(parents=True, exist_ok=True)
     torch.save(data, out_path)
     labelled = data['labelled'].numpy(); stage = data['stage'].numpy(); inview = data['in_view'].numpy()
-    summary = dict(dataset=str(out_path), dataset_sha256=sha256(out_path), holdout=holdout, runs=[], rows=int(len(labelled)),
+    summary = dict(dataset=str(out_path), dataset_sha256=sha256(out_path), teacher=teacher, holdout=holdout, runs=[],
+                   rows=int(len(labelled)),
                    labelled=int(labelled.sum()),
                    labelled_by_stage={s: int((labelled & (stage == i)).sum()) for i, s in enumerate(STAGES)},
                    labelled_in_view=int((labelled & inview).sum()), labelled_out_of_view=int((labelled & ~inview).sum()),

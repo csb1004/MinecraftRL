@@ -15,6 +15,8 @@ def main(argv=None):
     p.add_argument('--holdout', required=True, help='folder name of the run kept for validation')
     p.add_argument('--out', type=Path, required=True)
     p.add_argument('--root', type=Path, required=True)
+    p.add_argument('--teacher', choices=('centre', 'hold'), default='centre',
+                   help="aim label while the crosshair is on the target: 'centre' (design §4) or 'hold' (keep still)")
     args = p.parse_args(argv)
     root = args.root.resolve(); out = args.out.resolve()
     if not out.is_relative_to(root / 'results'): raise SystemExit('output must be under results/')
@@ -26,7 +28,7 @@ def main(argv=None):
     from minecraftrl.reacquire_data import build_dataset
     summary = build_dataset(sorted(d.resolve() for d in args.runs), out, holdout=args.holdout,
                             mapper=CameraHierarchicalMapping(n_camera_bins=11),
-                            transformer=ActionTransformer(**ACTION_TRANSFORMER_KWARGS), root=root)
+                            transformer=ActionTransformer(**ACTION_TRANSFORMER_KWARGS), root=root, teacher=args.teacher)
     print(json.dumps({k: v for k, v in summary.items() if k not in ('runs', 'source')}, indent=1))
     return 0
 

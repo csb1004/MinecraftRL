@@ -63,6 +63,23 @@ class TeacherActionTest(unittest.TestCase):
                                StageView('mining', 3., (1, 1, 3), EYE), 'iron_ore')
         self.assertEqual(a['attack'], 1); self.assertEqual([round(v, 6) for v in a['camera']], [0., 0.])
 
+    def test_hold_teacher_keeps_still_and_attacks_while_aimed(self):
+        s = sample(hit='iron_ore', hit_pos=(1, 1, 3))          # on the block but off its centre
+        view = StageView('aimed', 3., (1, 1, 3), EYE)
+        centre = teacher_env_action(s, view, 'iron_ore')
+        self.assertNotEqual(round(float(centre['camera'][1]), 6), 0.)
+        hold = teacher_env_action(s, view, 'iron_ore', aim='hold')
+        self.assertEqual(list(hold['camera']), [0., 0.]); self.assertEqual(hold['attack'], 1)
+        mining = teacher_env_action(sample(hit='iron_ore', hit_pos=(1, 1, 3), mining='iron_ore', mining_pos=(1, 1, 3)),
+                                    StageView('mining', 3., (1, 1, 3), EYE), 'iron_ore', aim='hold')
+        self.assertEqual(list(mining['camera']), [0., 0.]); self.assertEqual(mining['attack'], 1)
+
+    def test_hold_teacher_still_turns_when_near(self):
+        view = StageView('near', 3., (0, 1, -3), EYE)
+        self.assertEqual(list(teacher_env_action(sample(hit='grass_block'), view, 'iron_ore', aim='hold')['camera']),
+                         [0., 10.])
+        with self.assertRaises(ValueError): teacher_env_action(sample(), view, 'iron_ore', aim='other')
+
     def test_far_gui_and_invalid_rows_have_no_label(self):
         self.assertIsNone(teacher_env_action(sample(), StageView('far', 9., (0, 1, 9), EYE), 'iron_ore'))
         self.assertIsNone(teacher_env_action(sample(gui=True), StageView('near', 3., (0, 1, 3), EYE), 'iron_ore'))

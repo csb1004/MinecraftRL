@@ -94,6 +94,14 @@ class ExamplesTest(unittest.TestCase):
         self.assertAlmostEqual(float(ex['label_yaw'][1]), 10., delta=1.)
         self.assertEqual(ex['step'].tolist(), [2, 3]); self.assertEqual(ex['cond_scale'], 6.)
 
+    def test_hold_teacher_labels_an_aimed_state_without_camera(self):
+        aimed = dict(pos=(0.5, 64., 5.5), yaw=0., hit='iron_ore', hit_pos=(0, 65, 8))
+        folder = make_run(self.root / 'a', policy=((2, aimed), (3, aimed)), recorded=('far', 'aimed'))
+        centre = run_examples(folder, self.mapper, self.transformer, root=self.root)
+        hold = run_examples(folder, self.mapper, self.transformer, root=self.root, teacher='hold')
+        self.assertTrue(hold['labelled'][1]); self.assertFalse(hold['camera_on'][1])
+        self.assertEqual(hold['teacher'], 'hold'); self.assertEqual(centre['teacher'], 'centre')
+
     def test_latent_count_must_match_policy_rows(self):
         with self.assertRaisesRegex(ValueError, 'policy rows'):
             self.examples(make_run(self.root / 'a', latents=[2]))
