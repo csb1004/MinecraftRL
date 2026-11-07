@@ -1,0 +1,176 @@
+"""Train the reacquire residual: guided BC on teacher labels with a KL leash to the official policy (design §6).
+
+Only ReacquireHead.adapter learns; the official STEVE-1 head and everything before it stay frozen. The loss is the
+mean NLL of the labels under the guided distribution the game samples, (1 + s) * conditional - s * unconditional,
+renormalized, plus kl_coef times the mean KL to the official guided distribution on unlabelled rows. An epoch whose
+mean KL on the training rows exceeds kl_limit is rolled back and ends training. The holdout run is only measured.
+"""
+import copy
+import hashlib
+import json
+import math
+import time
+from pathlib import Path
+
+import torch
+
+from .reacquire_head import STAGE_DIM, ReacquireHead, load_into, save_checkpoint, sha256_file
+
+SOURCES = ('src/minecraftrl/reacquire_training.py', 'src/minecraftrl/reacquire_head.py')
+EVAL_BATCH = 1024
+
+
+def stage_onehots(stage, device):
+    st = stage.long().to(device)
+    onehot = torch.zeros(len(st), STAGE_DIM, device=device)
+    valid = st >= 0
+    onehot[valid.nonzero().squeeze(1), st[valid]] = 1.
+    return onehot
+
+
+def guided_logp(head, cond, uncond, stage, cond_scale, *, official=False):
+    """{key: [N, n] log-probs} of the guided distribution for N rows; `official` skips the residual."""
+    x = torch.stack([cond.float(), uncond.float()], 0)           # [2 (cond, uncond), N, width]
+    if official: pd = head.base(x)
+    else: pd = head(x, stage_onehot=stage_onehots(stage, x.device).unsqueeze(0).expand(2, -1, -1))
+    out = {}
+    for key, value in pd.items():
+        value = value.float().reshape(2, x.shape[1], -1)          # drop the singleton action dimension
+        out[key] = torch.log_softmax((1 + cond_scale) * value[0] - cond_scale * value[1], -1)
+    return out
+
+
+def bc_nll(logp, label_buttons, label_camera, camera_on):
+    """Mean label NLL; the camera term counts only where the label moves the camera (official camera meta)."""
+    rows = torch.arange(len(label_buttons), device=logp['buttons'].device)
+    nll = -logp['buttons'][rows, label_buttons.long().to(rows.device)]
+    camera = -logp['camera'][rows, label_camera.long().clamp(min=0).to(rows.device)]
+    return (nll + camera * camera_on.to(rows.device).float()).mean()
+
+
+def kl_to_official(logp_student, logp_official):
+    """Per-row KL(student || official), summed over the action keys."""
+    return sum((s.exp() * (s - logp_official[k])).sum(-1) for k, s in logp_student.items())
+
+
+def official_action_head(root):
+    """The official STEVE-1 action head (CPU) and the policy latent width."""
+    import pickle
+    import sys
+    sys.path.insert(0, str(Path(root) / 'external/steve1'))
+    from gym3.types import DictType
+    from steve1.VPT.agent import CameraHierarchicalMapping
+    from steve1.embed_conditioned_policy import MinecraftAgentPolicy
+    with open(Path(root) / 'weights/steve1/2x.model', 'rb') as stream: parameters = pickle.load(stream)
+    kwargs = parameters['model']['args']['net']['args']
+    opts = dict(parameters['model']['args']['pi_head_opts']); opts['temperature'] = float(opts['temperature'])
+    space = DictType(**CameraHierarchicalMapping(n_camera_bins=11).get_action_space_update())
+    policy = MinecraftAgentPolicy(policy_kwargs=kwargs, pi_head_kwargs=opts, action_space=space)
+    policy.load_state_dict(torch.load(str(Path(root) / 'weights/steve1/steve1.weights'), map_location='cpu'), strict=True)
+    return policy.pi_head.eval(), policy.net.output_latent_size()
+
+
+def official_factory(root):
+    base_sha = sha256_file(Path(root) / 'weights/steve1/steve1.weights')
+
+    def factory(use_stage, width):
+        base, base_width = official_action_head(root)
+        if base_width != width: raise ValueError('dataset latent width %d differs from the policy (%d)' % (width, base_width))
+        return ReacquireHead(base.requires_grad_(False), width, use_stage=use_stage), base_sha
+    return factory
+
+
+def train(dataset_path, *, use_stage, out_dir, lr=1e-4, batch=32, epochs=16, kl_coef=.01, kl_limit=3., clip=1., seed=17,
+          head_factory=None, root=None, device=None):
+    started = time.time(); out_dir = Path(out_dir)
+    if out_dir.exists() and any(out_dir.iterdir()): raise FileExistsError('refusing to overwrite %s' % out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    device = device or ('cuda' if torch.cuda.is_available() else 'cpu')
+    if device == 'cuda': torch.cuda.reset_peak_memory_stats()
+    dataset_path = Path(dataset_path); data = torch.load(dataset_path)
+    factory = head_factory or official_factory(root)
+    head, base_sha = factory(use_stage, int(data['width'])); head = head.to(device)
+    head.base.requires_grad_(False); head.adapter.requires_grad_(True)
+    cond, uncond = data['cond'].to(device), data['uncond'].to(device)
+    stage, labelled = data['stage'].to(device), data['labelled'].to(device)
+    label_buttons, label_camera, camera_on = data['label_buttons'].to(device), data['label_camera'].to(device), data['camera_on'].to(device)
+    held = (data['run'] == data['holdout']).to(device)
+    train_rows, hold_rows = (~held).nonzero().squeeze(1), held.nonzero().squeeze(1)
+    if not len(train_rows): raise ValueError('no training rows: every row belongs to the holdout run')
+    scale = float(data['cond_scale'])
+
+    def measure(rows):
+        """(mean label NLL over labelled rows, mean KL to the official policy over all rows) without gradients."""
+        nll_sum, nll_n, kl_sum = 0., 0, 0.
+        with torch.no_grad():
+            for b in range(0, len(rows), EVAL_BATCH):
+                idx = rows[b:b + EVAL_BATCH]
+                logp = guided_logp(head, cond[idx], uncond[idx], stage[idx], scale)
+                kl_sum += kl_to_official(logp, guided_logp(head, cond[idx], uncond[idx], stage[idx], scale, official=True)).sum().item()
+                lab = labelled[idx]
+                if lab.any():
+                    part = {k: v[lab] for k, v in logp.items()}
+                    nll_sum += bc_nll(part, label_buttons[idx][lab], label_camera[idx][lab], camera_on[idx][lab]).item() * int(lab.sum())
+                    nll_n += int(lab.sum())
+        return (nll_sum / nll_n if nll_n else float('nan')), (kl_sum / len(rows) if len(rows) else float('nan'))
+
+    initial_nll, initial_hold_kl = measure(hold_rows); _, initial_kl = measure(train_rows)
+    if initial_kl != 0.: raise RuntimeError('the untrained head differs from the official policy (KL %r)' % initial_kl)
+    optimizer = torch.optim.AdamW(head.adapter.parameters(), lr=lr)
+    generator = torch.Generator().manual_seed(seed)
+    log, rolled_back, updates_kept = [], [], 0
+    for epoch in range(1, epochs + 1):
+        snapshot = copy.deepcopy(head.adapter.state_dict()); optimizer_snapshot = copy.deepcopy(optimizer.state_dict())
+        order = train_rows[torch.randperm(len(train_rows), generator=generator).to(device)]
+        losses, updates = [], 0
+        for b in range(0, len(order), batch):
+            idx = order[b:b + batch]; lab = labelled[idx]
+            logp = guided_logp(head, cond[idx], uncond[idx], stage[idx], scale)
+            loss = torch.zeros((), device=device)
+            if lab.any():
+                loss = loss + bc_nll({k: v[lab] for k, v in logp.items()}, label_buttons[idx][lab], label_camera[idx][lab],
+                                     camera_on[idx][lab])
+            if (~lab).any():
+                with torch.no_grad(): official = guided_logp(head, cond[idx], uncond[idx], stage[idx], scale, official=True)
+                loss = loss + kl_coef * kl_to_official({k: v[~lab] for k, v in logp.items()},
+                                                       {k: v[~lab] for k, v in official.items()}).mean()
+            optimizer.zero_grad(); loss.backward()
+            torch.nn.utils.clip_grad_norm_(head.adapter.parameters(), clip); optimizer.step()
+            losses.append(loss.item()); updates += 1
+        train_nll, train_kl = measure(train_rows); hold_nll, hold_kl = measure(hold_rows)
+        entry = dict(epoch=epoch, train_loss=sum(losses) / max(len(losses), 1), train_nll=train_nll, kl=train_kl,
+                     holdout_nll=hold_nll, holdout_kl=hold_kl, updates=updates)
+        if not math.isfinite(train_kl) or train_kl > kl_limit:
+            head.adapter.load_state_dict(snapshot); optimizer.load_state_dict(optimizer_snapshot)
+            rolled_back.append(epoch); log.append(dict(entry, rolled_back=True)); break
+        updates_kept += updates; log.append(entry)
+    final_nll, final_hold_kl = measure(hold_rows); _, final_kl = measure(train_rows)
+    candidate = updates_kept > 0 and math.isfinite(final_nll) and final_nll < initial_nll
+    path = out_dir / ('checkpoint.pt' if candidate else 'checkpoint-rejected.pt')
+    dataset_sha = hashlib.sha256(dataset_path.read_bytes()).hexdigest()
+    hyper = dict(lr=lr, batch=batch, epochs=epochs, kl_coef=kl_coef, kl_limit=kl_limit, clip=clip, seed=seed)
+    checkpoint_sha = save_checkpoint(head, path, base_weights_sha256=base_sha,
+                                     metadata=dict(dataset=str(dataset_path), dataset_sha256=dataset_sha, hyper=hyper,
+                                                   updates_kept=updates_kept, candidate=candidate))
+    fresh, _ = factory(use_stage, int(data['width']))
+    fresh = load_into(fresh, path, base_weights_sha256=base_sha).to(device)
+    check = train_rows[:256]
+    with torch.no_grad():
+        a = guided_logp(head, cond[check], uncond[check], stage[check], scale)
+        b = guided_logp(fresh, cond[check], uncond[check], stage[check], scale)
+    reload_diff = max(float((a[k] - b[k]).abs().max()) for k in a) if len(check) else 0.
+    report = dict(dataset=str(dataset_path), dataset_sha256=dataset_sha, use_stage=use_stage, hyper=hyper,
+                  rows=dict(train=len(train_rows), holdout=len(hold_rows), labelled_train=int(labelled[train_rows].sum()),
+                            labelled_holdout=int(labelled[hold_rows].sum())),
+                  holdout=data['runs'][data['holdout']], initial=dict(holdout_nll=initial_nll, holdout_kl=initial_hold_kl, kl=initial_kl),
+                  epochs=log, rolled_back_epochs=rolled_back, updates_kept=updates_kept,
+                  final=dict(holdout_nll=final_nll, holdout_kl=final_hold_kl, kl=final_kl), candidate=candidate,
+                  checkpoint=str(path), checkpoint_sha256=checkpoint_sha, base_weights_sha256=base_sha,
+                  reload_max_abs_diff=reload_diff, seconds=time.time() - started, device=device,
+                  torch_peak_allocated_mib=torch.cuda.max_memory_allocated() / 2**20 if device == 'cuda' else None,
+                  source={p: hashlib.sha256((Path(root) / p).read_bytes()).hexdigest() for p in SOURCES}
+                  if root is not None else None,
+                  trained='ReacquireHead.adapter only; official STEVE-1 frozen')
+    if reload_diff != 0.: report['candidate'] = False; report['reload_failed'] = True
+    (out_dir / 'train-report.json').write_text(json.dumps(report, indent=2) + '\n', encoding='utf-8')
+    return report
