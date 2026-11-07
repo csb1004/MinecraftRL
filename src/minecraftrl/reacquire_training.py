@@ -53,6 +53,14 @@ def kl_to_official(logp_student, logp_official):
     return sum((s.exp() * (s - logp_official[k])).sum(-1) for k, s in logp_student.items())
 
 
+def over_leash(entry, kl_limit):
+    """Roll back an epoch when an update broke the policy (KL not a number) or the unlabelled rows, which should keep the
+    official behaviour, moved more than kl_limit. The labelled rows are meant to move and are not leashed."""
+    if not math.isfinite(entry['kl']): return True
+    free = entry['kl_unlabelled']
+    return math.isfinite(free) and free > kl_limit
+
+
 def official_action_head(root):
     """The official STEVE-1 action head (CPU) and the policy latent width."""
     import pickle
@@ -100,21 +108,23 @@ def train(dataset_path, *, use_stage, out_dir, lr=1e-4, batch=32, epochs=16, kl_
     scale = float(data['cond_scale'])
 
     def measure(rows):
-        """(mean label NLL over labelled rows, mean KL to the official policy over all rows) without gradients."""
-        nll_sum, nll_n, kl_sum = 0., 0, 0.
+        """(mean label NLL over labelled rows, mean KL to the official policy over all rows, the same KL over the
+        unlabelled rows) without gradients. The KL limit applies to the unlabelled rows: labelled rows are meant to move."""
+        nll_sum, nll_n, kl_sum, free_sum, free_n = 0., 0, 0., 0., 0
         with torch.no_grad():
             for b in range(0, len(rows), EVAL_BATCH):
-                idx = rows[b:b + EVAL_BATCH]
+                idx = rows[b:b + EVAL_BATCH]; lab = labelled[idx]
                 logp = guided_logp(head, cond[idx], uncond[idx], stage[idx], scale)
-                kl_sum += kl_to_official(logp, guided_logp(head, cond[idx], uncond[idx], stage[idx], scale, official=True)).sum().item()
-                lab = labelled[idx]
+                kl = kl_to_official(logp, guided_logp(head, cond[idx], uncond[idx], stage[idx], scale, official=True))
+                kl_sum += kl.sum().item(); free_sum += kl[~lab].sum().item(); free_n += int((~lab).sum())
                 if lab.any():
                     part = {k: v[lab] for k, v in logp.items()}
                     nll_sum += bc_nll(part, label_buttons[idx][lab], label_camera[idx][lab], camera_on[idx][lab]).item() * int(lab.sum())
                     nll_n += int(lab.sum())
-        return (nll_sum / nll_n if nll_n else float('nan')), (kl_sum / len(rows) if len(rows) else float('nan'))
+        nan = float('nan')
+        return (nll_sum / nll_n if nll_n else nan), (kl_sum / len(rows) if len(rows) else nan), (free_sum / free_n if free_n else nan)
 
-    initial_nll, initial_hold_kl = measure(hold_rows); _, initial_kl = measure(train_rows)
+    initial_nll, initial_hold_kl, _ = measure(hold_rows); _, initial_kl, _ = measure(train_rows)
     if initial_kl != 0.: raise RuntimeError('the untrained head differs from the official policy (KL %r)' % initial_kl)
     optimizer = torch.optim.AdamW(head.adapter.parameters(), lr=lr)
     generator = torch.Generator().manual_seed(seed)
@@ -137,14 +147,14 @@ def train(dataset_path, *, use_stage, out_dir, lr=1e-4, batch=32, epochs=16, kl_
             optimizer.zero_grad(); loss.backward()
             torch.nn.utils.clip_grad_norm_(head.adapter.parameters(), clip); optimizer.step()
             losses.append(loss.item()); updates += 1
-        train_nll, train_kl = measure(train_rows); hold_nll, hold_kl = measure(hold_rows)
+        train_nll, train_kl, train_free_kl = measure(train_rows); hold_nll, hold_kl, _ = measure(hold_rows)
         entry = dict(epoch=epoch, train_loss=sum(losses) / max(len(losses), 1), train_nll=train_nll, kl=train_kl,
-                     holdout_nll=hold_nll, holdout_kl=hold_kl, updates=updates)
-        if not math.isfinite(train_kl) or train_kl > kl_limit:
+                     kl_unlabelled=train_free_kl, holdout_nll=hold_nll, holdout_kl=hold_kl, updates=updates)
+        if over_leash(entry, kl_limit):
             head.adapter.load_state_dict(snapshot); optimizer.load_state_dict(optimizer_snapshot)
             rolled_back.append(epoch); log.append(dict(entry, rolled_back=True)); break
         updates_kept += updates; log.append(entry)
-    final_nll, final_hold_kl = measure(hold_rows); _, final_kl = measure(train_rows)
+    final_nll, final_hold_kl, _ = measure(hold_rows); _, final_kl, final_free_kl = measure(train_rows)
     candidate = updates_kept > 0 and math.isfinite(final_nll) and final_nll < initial_nll
     path = out_dir / ('checkpoint.pt' if candidate else 'checkpoint-rejected.pt')
     dataset_sha = hashlib.sha256(dataset_path.read_bytes()).hexdigest()
@@ -164,7 +174,8 @@ def train(dataset_path, *, use_stage, out_dir, lr=1e-4, batch=32, epochs=16, kl_
                             labelled_holdout=int(labelled[hold_rows].sum())),
                   holdout=data['runs'][data['holdout']], initial=dict(holdout_nll=initial_nll, holdout_kl=initial_hold_kl, kl=initial_kl),
                   epochs=log, rolled_back_epochs=rolled_back, updates_kept=updates_kept,
-                  final=dict(holdout_nll=final_nll, holdout_kl=final_hold_kl, kl=final_kl), candidate=candidate,
+                  final=dict(holdout_nll=final_nll, holdout_kl=final_hold_kl, kl=final_kl, kl_unlabelled=final_free_kl),
+                  kl_limit_rows='unlabelled training rows', candidate=candidate,
                   checkpoint=str(path), checkpoint_sha256=checkpoint_sha, base_weights_sha256=base_sha,
                   reload_max_abs_diff=reload_diff, seconds=time.time() - started, device=device,
                   torch_peak_allocated_mib=torch.cuda.max_memory_allocated() / 2**20 if device == 'cuda' else None,

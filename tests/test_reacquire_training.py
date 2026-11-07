@@ -106,6 +106,15 @@ class TrainTest(unittest.TestCase):
         self.assertEqual(report['rolled_back_epochs'], [1]); self.assertEqual(report['updates_kept'], 0)
         self.assertFalse(report['candidate']); self.assertTrue((self.root / 'out/checkpoint-rejected.pt').exists())
 
+    def test_kl_limit_applies_to_unlabelled_rows_only(self):
+        # Learning the labels must move the labelled rows far from the official policy; only unlabelled rows are leashed.
+        from minecraftrl.reacquire_training import over_leash
+        nan = float('nan')
+        self.assertFalse(over_leash(dict(kl=10., kl_unlabelled=1.), 3.))
+        self.assertTrue(over_leash(dict(kl=1., kl_unlabelled=4.), 3.))
+        self.assertFalse(over_leash(dict(kl=10., kl_unlabelled=nan), 3.))     # no unlabelled training rows
+        self.assertTrue(over_leash(dict(kl=nan, kl_unlabelled=1.), 3.))       # a broken update
+
     def test_holdout_rows_are_never_trained_on(self):
         report = self.run_train(nan_holdout=True, epochs=2)
         self.assertTrue(all(math.isfinite(e['train_loss']) for e in report['epochs']))
