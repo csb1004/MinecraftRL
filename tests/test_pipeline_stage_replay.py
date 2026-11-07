@@ -2,11 +2,12 @@ import hashlib
 import json
 import tempfile
 import unittest
+from collections import deque
 from pathlib import Path
 
-from minecraftrl.pipeline.monitor_replay import load_run
-from minecraftrl.pipeline.stage_replay import (Geometry, build_report, facing_index, fixture_blocks, fixture_origin,
-                                               report_markdown, step_stages)
+from minecraftrl.pipeline.monitor_replay import load_run, policy_rows, sample_from_row
+from minecraftrl.pipeline.stage_replay import (Geometry, StageTracker, build_report, destroy_events, facing_index,
+                                               fixture_blocks, fixture_origin, report_markdown, step_stages)
 
 FIXTURE = {'schema': 'iron_demo_fixture_v1', 'rotate_with_facing': True,
            'fill': [{'from': [-1, -2, 0], 'to': [1, -1, 1], 'block': 'stone'}],
@@ -39,6 +40,20 @@ def timeline(skill='mine_iron_text', target='iron_ore', block='iron_ore', start=
              'count': 1, 'block': block, 'status': 'active', 'start_step': start},
             {'t': end / 20., 'step': end, 'kind': 'step_finished', 'id': 'mine', 'skill': skill, 'target': target,
              'count': 1, 'block': block, 'status': status}]
+
+
+def walk_rows():
+    """far, far, closing, near, aimed, mining, collect, then nothing left (far); iron at (0, 65, 8)."""
+    iron = (0, 65, 8)
+    return [row(10, pos=(0.5, 64., -10.5)),          # far: 18.5 blocks away, not closing
+            row(30, pos=(0.5, 64., -10.5)),          # far
+            row(50, pos=(0.5, 64., -2.5)),           # closing: 8 blocks nearer than 20 ticks ago
+            row(70, pos=(0.5, 64., 5.5)),            # near: within reach, crosshair elsewhere
+            row(90, pos=(0.5, 64., 5.5), hit='iron_ore', hit_pos=iron),
+            row(110, pos=(0.5, 64., 5.5), hit='iron_ore', hit_pos=iron, mining='iron_ore', mining_pos=iron),
+            row(130, pos=(0.5, 64., 5.5), destroys=1, destroyed='iron_ore', destroyed_pos=iron),
+            row(150, pos=(0.5, 64., 5.5), destroys=1, destroyed='iron_ore', destroyed_pos=iron,
+                inventory={'iron_ore': 1})]
 
 
 def write_run(directory, rows, tl, fixture_path, seed=130363):
@@ -108,18 +123,36 @@ class StepStagesTest(unittest.TestCase):
         geometry = Geometry(fixture_blocks(json.loads(self.fixture.read_text()), (0, 64, 0), 0.))
         return step_stages(run, run.steps[0], geometry)
 
+    def tracked(self, rows):
+        run = load_run(write_run(self.root / 'R1', [row(1, controller='prepare')] + rows, timeline(), self.fixture))
+        step = run.steps[0]
+        tracker = StageTracker(Geometry(fixture_blocks(json.loads(self.fixture.read_text()), (0, 64, 0), 0.)),
+                               'iron_ore', 'iron_ore', step.start_t)
+        pending, out = deque(destroy_events(run.rows)), []
+        for r in policy_rows(run, step):
+            s = sample_from_row(r)
+            due = []
+            while pending and pending[0][0] <= r['t']: due.append(pending.popleft())
+            tracker.apply_destroys(due, s)
+            out.append(tracker.update(s).stage)
+        return out
+
+    def test_tracker_stages_match_step_stages_row_by_row(self):
+        self.assertEqual(self.tracked(walk_rows()),
+                         ['far', 'far', 'closing', 'near', 'aimed', 'mining', 'collect', 'far'])
+
+    def test_peek_does_not_change_closing_history(self):
+        rows = [sample_from_row(r) for r in walk_rows()]
+        tracker = StageTracker(Geometry(fixture_blocks(json.loads(self.fixture.read_text()), (0, 64, 0), 0.)),
+                               'iron_ore', 'iron_ore', 0.)
+        tracker.update(rows[0]); tracker.update(rows[1])
+        before = list(tracker.recent)                        # (tick, distance) history for the closing test
+        self.assertEqual(tracker.peek(rows[2]).stage, 'closing')
+        self.assertEqual(list(tracker.recent), before)
+        self.assertEqual(tracker.update(rows[2]).stage, 'closing')
+
     def test_rows_split_into_stages_by_ticks(self):
-        iron = (0, 65, 8)
-        rows = [row(10, pos=(0.5, 64., -10.5)),          # far: 18.5 blocks away, not closing
-                row(30, pos=(0.5, 64., -10.5)),          # far
-                row(50, pos=(0.5, 64., -2.5)),           # closing: 8 blocks nearer than 20 ticks ago
-                row(70, pos=(0.5, 64., 5.5)),            # near: within reach, crosshair elsewhere
-                row(90, pos=(0.5, 64., 5.5), hit='iron_ore', hit_pos=iron),
-                row(110, pos=(0.5, 64., 5.5), hit='iron_ore', hit_pos=iron, mining='iron_ore', mining_pos=iron),
-                row(130, pos=(0.5, 64., 5.5), destroys=1, destroyed='iron_ore', destroyed_pos=iron),
-                row(150, pos=(0.5, 64., 5.5), destroys=1, destroyed='iron_ore', destroyed_pos=iron,
-                    inventory={'iron_ore': 1})]
-        out = self.stages(rows)
+        out = self.stages(walk_rows())
         self.assertEqual(out['seconds'], {'far': 2., 'closing': 1., 'near': 1., 'aimed': 1., 'mining': 1., 'collect': 1.,
                                           'gui': 0.})
         self.assertEqual(out['total_s'], 7.)

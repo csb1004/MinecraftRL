@@ -17,6 +17,7 @@ import json
 import math
 import statistics
 from collections import Counter, defaultdict, deque
+from dataclasses import dataclass
 from pathlib import Path
 
 from .monitor_replay import load_run, policy_rows, run_label, sample_from_row
@@ -141,42 +142,94 @@ def _stage(s, wanted, distance, closing, collecting):
     return 'far'
 
 
+@dataclass(frozen=True)
+class StageView:
+    """One sample's stage, with the eye and the nearest remaining target (distance, position) it was judged from."""
+    stage: str
+    distance: float | None
+    nearest: tuple | None
+    eye: tuple
+
+
+class StageTracker:
+    """The stage state machine of one policy step, shared by the offline replay and live play.
+
+    Feed destroy events with `apply_destroys`, then `update` once per valid policy sample in time order. `peek` judges
+    a sample without adding it to the closing history or the geometry."""
+
+    def __init__(self, geometry, wanted, target_item, start_t):
+        self.geometry = geometry; self.wanted = wanted; self.target_item = target_item; self.start_t = start_t
+        self.recent = deque()      # (tick, distance to the nearest target) of earlier samples
+        self.collect = None        # (tick, target item count) at the last target break inside the step
+
+    def apply_destroys(self, events, s):
+        """Remove broken blocks; return the breaks of the target family inside the step (they start a collect)."""
+        applied = []
+        for t, pos, block in events:
+            self.geometry.remove(pos)
+            if t >= self.start_t and block_matches(block, self.wanted):
+                self.collect = (s.tick, item_count(s.inventory, self.target_item)); applied.append((t, pos, block))
+        return applied
+
+    def _reference(self, tick):
+        """The latest earlier distance at least CLOSING_TICKS old."""
+        ref = None
+        for entry in self.recent:
+            if entry[0] <= tick - CLOSING_TICKS: ref = entry
+        return ref
+
+    def _judge(self, s, geometry, ref):
+        eye = (s.position[0], s.position[1] + EYE, s.position[2])
+        nearest = geometry.nearest_block(self.wanted, eye)
+        distance = None if nearest is None else nearest[0]
+        closing = (ref is not None and ref[1] is not None and distance is not None and ref[1] - distance > CLOSING_BLOCKS)
+        collecting = (self.collect is not None and s.tick - self.collect[0] <= COLLECT_TICKS
+                      and item_count(s.inventory, self.target_item) <= self.collect[1])
+        view = StageView(_stage(s, self.wanted, distance, closing, collecting), distance,
+                         None if nearest is None else nearest[1], eye)
+        return view
+
+    def _placed(self, s):
+        return (block_matches(s.hit_block, self.wanted) and s.hit_pos is not None
+                and not self.geometry.knows(s.hit_pos, s.hit_block))
+
+    def update(self, s):
+        if self._placed(s): self.geometry.add(s.hit_pos, s.hit_block)   # a target block placed by the player
+        while len(self.recent) > 1 and self.recent[1][0] <= s.tick - CLOSING_TICKS: self.recent.popleft()
+        view = self._judge(s, self.geometry, self._reference(s.tick))
+        self.recent.append((s.tick, view.distance))
+        return view
+
+    def peek(self, s):
+        geometry = self.geometry
+        if self._placed(s): geometry = geometry.copy(); geometry.add(s.hit_pos, s.hit_block)
+        return self._judge(s, geometry, self._reference(s.tick))
+
+
 def step_stages(run, step, geometry, events=None):
     """Seconds per stage for the policy rows of one step (geometry: the fixture at the start of the run)."""
     wanted = step.block or step.target
     events = destroy_events(run.rows) if events is None else events
     rows = [(r, s) for r, s in ((r, sample_from_row(r)) for r in policy_rows(run, step)) if s.valid]
-    g, pending = geometry.copy(), deque(events)
+    tracker, pending = StageTracker(geometry.copy(), wanted, step.target, step.start_t), deque(events)
     seconds = dict.fromkeys(STAGES, 0.)
     pit, checked, mismatch = 0., 0, 0
-    recent, collect = deque(), None
     near_hits, broken = defaultdict(float), {'level_or_above': 0, 'below': 0}
     near_angle = {label: 0. for _, label in ANGLE_BINS}
     for i, (r, s) in enumerate(rows):
-        origin_y = (r.get('demo') or {}).get('demo_fixture_origin_y', g.origin_y)
-        while pending and pending[0][0] <= r['t']:
-            t, pos, block = pending.popleft(); g.remove(pos)
-            if t >= step.start_t and block_matches(block, wanted):
-                collect = (s.tick, item_count(s.inventory, step.target))
-                if origin_y is not None: broken['below' if pos[1] < origin_y else 'level_or_above'] += 1
+        origin_y = (r.get('demo') or {}).get('demo_fixture_origin_y', geometry.origin_y)
+        due = []
+        while pending and pending[0][0] <= r['t']: due.append(pending.popleft())
+        for _, pos, _ in tracker.apply_destroys(due, s):
+            if origin_y is not None: broken['below' if pos[1] < origin_y else 'level_or_above'] += 1
         if block_matches(s.hit_block, wanted) and s.hit_pos is not None:
             checked += 1; mismatch += not geometry.knows(s.hit_pos, s.hit_block)
-            if not g.knows(s.hit_pos, s.hit_block): g.add(s.hit_pos, s.hit_block)   # placed by the player
-        eye = (s.position[0], s.position[1] + EYE, s.position[2])
-        nearest = g.nearest_block(wanted, eye)
-        distance = None if nearest is None else nearest[0]
-        while len(recent) > 1 and recent[1][0] <= s.tick - CLOSING_TICKS: recent.popleft()
-        ref = recent[0] if recent and recent[0][0] <= s.tick - CLOSING_TICKS else None
-        recent.append((s.tick, distance))
-        closing = (ref is not None and ref[1] is not None and distance is not None and ref[1] - distance > CLOSING_BLOCKS)
-        collecting = (collect is not None and s.tick - collect[0] <= COLLECT_TICKS
-                      and item_count(s.inventory, step.target) <= collect[1])
+        view = tracker.update(s)
         dt = min(max(rows[i + 1][1].tick - s.tick, 0), MAX_ROW_TICKS) / 20. if i + 1 < len(rows) else 0.
-        stage = _stage(s, wanted, distance, closing, collecting)
-        seconds[stage] += dt
-        if stage == 'near':
+        seconds[view.stage] += dt
+        if view.stage == 'near':
             near_hits[s.hit_block] += dt
-            angle = view_angle(s.yaw, s.pitch, eye, nearest[1])
+            angle = view_angle(s.yaw, s.pitch, view.eye, view.nearest)
             near_angle[next(label for limit, label in ANGLE_BINS if angle < limit)] += dt
         if origin_y is not None and s.position[1] < origin_y - PIT_DEPTH: pit += dt
     first = rows[0][1].inventory if rows else {}
