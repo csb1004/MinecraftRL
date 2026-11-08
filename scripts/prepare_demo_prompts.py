@@ -14,7 +14,10 @@ ESCAPE_PROMPTS = {'build_a_tower': 'build a tower', 'pillar_jump': 'pillar jump 
 CEILING_PROMPTS = {'dig_up': 'dig up', 'break_block_above': 'break the block above you', 'mine_ceiling': 'mine the ceiling'}
 # STEVE-1-alone check (2026-11-06): the whole goal as one prompt, no planner, rule skills, guard or tool lock.
 ALONE_PROMPTS = {'get_iron': 'get iron'}
-SETS = {'iron': PROMPTS, 'escape': ESCAPE_PROMPTS, 'ceiling': CEILING_PROMPTS, 'alone': ALONE_PROMPTS}
+# Multi-block mining (design 2026-11-08 §3): the "mine iron ore" template with the six training blocks; iron stays held out.
+BLOCK_PROMPTS = {'mine_coal_ore': 'mine coal ore', 'mine_lapis_ore': 'mine lapis lazuli ore', 'mine_sand': 'mine sand',
+                 'mine_clay': 'mine clay', 'mine_white_wool': 'mine white wool', 'mine_oak_planks': 'mine oak planks'}
+SETS = {'iron': PROMPTS, 'escape': ESCAPE_PROMPTS, 'ceiling': CEILING_PROMPTS, 'alone': ALONE_PROMPTS, 'blocks': BLOCK_PROMPTS}
 SEED = 31031
 
 

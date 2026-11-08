@@ -1,0 +1,52 @@
+{
+  "schema": "multi_block_v1",
+  "description": "Training blocks for the multi-block reacquire experiment (design docs/specs/2026-11-08-multi-block-mining-design.md). Each replaces the two iron ores of fixture v2; the probe gives a stone pickaxe. Prompts: the \"mine iron ore\" template, official STEVE-1 prior, seed 31031 (results/multi-block-prompts/manifest.json).",
+  "held_out": [
+    "iron_ore"
+  ],
+  "cond_scale": 6.0,
+  "blocks": {
+    "coal_ore": {
+      "item": "coal",
+      "skill": "mine_coal_ore_reacquire",
+      "prompt": "mine coal ore",
+      "embedding": "results/multi-block-prompts/mine_coal_ore.npy",
+      "sha256": "421ee8c49dd12472065b0561138707b10b5fa5b286fd4e08c0cb532389f2103e"
+    },
+    "lapis_ore": {
+      "item": "lapis_lazuli",
+      "skill": "mine_lapis_ore_reacquire",
+      "prompt": "mine lapis lazuli ore",
+      "embedding": "results/multi-block-prompts/mine_lapis_ore.npy",
+      "sha256": "341863e45738f1b7c343bef47b9bf00a2c677625862434dc4fe913e441c18fb4"
+    },
+    "sand": {
+      "item": "sand",
+      "skill": "mine_sand_reacquire",
+      "prompt": "mine sand",
+      "embedding": "results/multi-block-prompts/mine_sand.npy",
+      "sha256": "fd2c5040e3db19f1bd870c345fd030963fc01c914fc8c772da33bcf6fc69bfab"
+    },
+    "clay": {
+      "item": "clay_ball",
+      "skill": "mine_clay_reacquire",
+      "prompt": "mine clay",
+      "embedding": "results/multi-block-prompts/mine_clay.npy",
+      "sha256": "7add95aa69d442e064d2efa0be52ed6d1eef9f581a74e2ba7302e1e95ffc1c06"
+    },
+    "white_wool": {
+      "item": "white_wool",
+      "skill": "mine_white_wool_reacquire",
+      "prompt": "mine white wool",
+      "embedding": "results/multi-block-prompts/mine_white_wool.npy",
+      "sha256": "b67f003d3566a74092c247a72b25639bcaefc1769588aadba387df8d6c3d12e7"
+    },
+    "oak_planks": {
+      "item": "oak_planks",
+      "skill": "mine_oak_planks_reacquire",
+      "prompt": "mine oak planks",
+      "embedding": "results/multi-block-prompts/mine_oak_planks.npy",
+      "sha256": "568df4a449b67714bea6eb59a9ef68b8ee7485a902b0e5cea47e466ae6dc9aa9"
+    }
+  }
+}
