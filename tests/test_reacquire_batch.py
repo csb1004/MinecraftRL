@@ -84,6 +84,60 @@ class BatchTest(unittest.TestCase):
         self.assertEqual({k: v for k, v in fixture.items() if k not in ('give', 'description')},
                          {k: v for k, v in base.items() if k not in ('give', 'description')})
 
+    # Multi-block experiment (design 2026-11-08 §3): the iron ores of fixture v2 swapped for a training block.
+    def test_iron_files_are_unchanged_by_the_block_option(self):
+        default = self.m.prepare(self.batch / 'a', 'official', ROOT, None, True)
+        explicit = self.m.prepare(self.batch / 'b', 'official', ROOT, None, True, block='iron_ore')
+        for x, y in zip(default, explicit):
+            self.assertEqual(x.name, y.name); self.assertEqual(x.read_bytes(), y.read_bytes())
+        base = json.loads((ROOT / 'configs/reacquire-v1.json').read_text(encoding='utf-8'))
+        self.assertEqual(json.loads(default[0].read_text()), self.m.arm_config(base, None, True))
+
+    def test_block_fixture_replaces_only_the_iron_ores(self):
+        base = json.loads((ROOT / 'configs/iron-demo-fixture-v2.json').read_text())
+        _, fixture, _ = self.m.prepare(self.batch, 'official', ROOT, None, True, block='coal_ore')
+        self.assertEqual(fixture.name, 'coal_ore-probe.json')
+        got = json.loads(fixture.read_text())
+        self.assertEqual(got['give'], [dict(item='stone_pickaxe', count=1)])
+        self.assertEqual(got['fill'], base['fill'])
+        want = [dict(b, block='coal_ore') if b['block'] == 'iron_ore' else b for b in base['blocks']]
+        self.assertEqual(got['blocks'], want)
+        self.assertEqual(sum(b['block'] == 'coal_ore' for b in got['blocks']), 2)
+
+    def test_block_config_has_one_reacquire_skill(self):
+        registry = json.loads((ROOT / 'configs/multi-block-v1.json').read_text(encoding='utf-8'))
+        config_path, _, _ = self.m.prepare(self.batch, 'r1', ROOT, '/x/checkpoint.pt', True, block='coal_ore')
+        self.assertEqual(config_path.name, 'r1-coal_ore.json')
+        config = json.loads(config_path.read_text())
+        carrying = [name for name, spec in config['skills'].items() if spec.get('reacquire')]
+        self.assertEqual(carrying, ['mine_coal_ore_reacquire'])
+        spec = config['skills']['mine_coal_ore_reacquire']
+        entry = registry['blocks']['coal_ore']
+        self.assertEqual(spec, dict(embedding=entry['embedding'], sha256=entry['sha256'], cond_scale=6.0,
+                                    source='text_prompt:mine coal ore', target_block='coal_ore', target_items=['coal'],
+                                    reacquire=dict(checkpoint='/x/checkpoint.pt', use_stage=True, record_latents=True)))
+
+    def test_block_plan_run_names_and_frozen_file(self):
+        self.assertEqual(self.collect(sampling=[1], block='coal_ore'), 0)
+        plan = json.loads((self.batch / 'plans/coal_ore.json').read_text())
+        self.assertEqual(plan, [dict(id='coal_ore', skill='mine_coal_ore_reacquire', kind='policy', target='coal', count=1,
+                                     block='coal_ore')])
+        self.assertEqual(self.launched, [self.batch / 'official/coal_ore-s271828-n1'])
+        self.assertTrue((self.batch / 'frozen-official-coal_ore.json').exists())
+        self.assertFalse((self.batch / 'frozen-official.json').exists())
+        line = json.loads((self.batch / 'results.jsonl').read_text().splitlines()[0])
+        self.assertEqual((line['block'], line['run']), ('coal_ore', 'coal_ore-s271828-n1'))
+
+    def test_two_blocks_share_an_arm_without_tripping_the_input_check(self):
+        self.assertEqual(self.collect(sampling=[1], block='coal_ore'), 0)
+        self.assertEqual(self.collect(sampling=[1], block='sand'), 0)
+        self.assertEqual(len(self.launched), 2)
+
+    def test_unknown_or_held_out_block_names_are_refused(self):
+        for block in ('diamond_ore', 'stone'):
+            with self.subTest(block=block), self.assertRaises(ValueError):
+                self.m.prepare(self.batch, 'official', ROOT, None, True, block=block)
+
 
 if __name__ == '__main__':
     unittest.main()

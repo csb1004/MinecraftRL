@@ -8,6 +8,11 @@ change; an invalid launch is moved to <batch>/excluded/ and halts the batch. See
 train = training seeds only, dev = 130363, final = 577215.
 
 compare: success, iron-step game seconds and skill-stage shares per arm, plus the pre-set verdict against `official`.
+
+--block (multi-block design 2026-11-08 §3): a training block from configs/multi-block-v1.json replaces the two iron ores
+of the arena; the step mines that block with its own "mine <block>" skill carrying the reacquire head. Without --block
+the files, run folders (s<seed>-n<n>) and input record (frozen-<arm>.json) are exactly the iron probe's; a block run is
+<arm>/<block>-s<seed>-n<n> with frozen-<arm>-<block>.json.
 """
 import argparse
 import hashlib
@@ -24,6 +29,8 @@ from minecraftrl.reacquire_data import TRAIN_SEEDS  # noqa: E402
 
 MODES = {'train': tuple(TRAIN_SEEDS), 'dev': (130363,), 'final': (577215,)}
 SKILL = 'mine_iron_reacquire'
+IRON = 'iron_ore'
+REGISTRY = 'configs/multi-block-v1.json'
 POLICY_DEVICE_MIB = 2150
 LIMIT_S, FRAME_EVERY = 180, 2
 WATCHED = ('configs/reacquire-v1.json', 'configs/iron-demo-fixture-v2.json', 'src/minecraftrl/reacquire_head.py',
@@ -43,16 +50,57 @@ def arm_config(base, checkpoint, use_stage):
     return config
 
 
+def load_registry(root):
+    return json.loads((Path(root) / REGISTRY).read_text(encoding='utf-8'))
+
+
+def block_entry(registry, block):
+    if block not in registry['blocks']:
+        raise ValueError('unknown training block %s (registry: %s)' % (block, ', '.join(sorted(registry['blocks']))))
+    return registry['blocks'][block]
+
+
+def block_config(base, registry, block, checkpoint, use_stage):
+    """The iron config with one more text skill for `block`; only that skill carries the reacquire head."""
+    entry = block_entry(registry, block)
+    config = json.loads(json.dumps(base))
+    for spec in config['skills'].values(): spec.pop('reacquire', None)
+    config['skills'][entry['skill']] = dict(
+        embedding=entry['embedding'], sha256=entry['sha256'], cond_scale=float(registry['cond_scale']),
+        source='text_prompt:' + entry['prompt'], target_block=block, target_items=[entry['item']],
+        reacquire=dict(checkpoint=checkpoint, use_stage=bool(use_stage), record_latents=True))
+    return config
+
+
+def block_fixture(base, block):
+    """Fixture v2 with its iron ores replaced by `block`; fills, trees and every other block stay."""
+    return dict(base, blocks=[dict(b, block=block) if b['block'] == IRON else b for b in base['blocks']])
+
+
+def run_name(block, seed, n):
+    return ('s%d-n%d' if block == IRON else block + '-s%d-n%d') % (seed, n)
+
+
 def write(path, value):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes((json.dumps(value, ensure_ascii=False, indent=2) + '\n').encode('utf-8'))
     return path
 
 
-def prepare(batch, arm, root, checkpoint, use_stage):
+def prepare(batch, arm, root, checkpoint, use_stage, block=IRON):
     base = json.loads((root / 'configs/reacquire-v1.json').read_text(encoding='utf-8'))
-    config = write(batch / 'configs' / (arm + '.json'), arm_config(base, checkpoint, use_stage))
     fixture_base = json.loads((root / 'configs/iron-demo-fixture-v2.json').read_text(encoding='utf-8'))
+    if block != IRON:
+        registry = load_registry(root); entry = block_entry(registry, block)
+        config = write(batch / 'configs' / ('%s-%s.json' % (arm, block)), block_config(base, registry, block, checkpoint, use_stage))
+        fixture = write(batch / 'fixtures' / (block + '-probe.json'), dict(
+            block_fixture(fixture_base, block), give=[dict(item='stone_pickaxe', count=1)],
+            description=fixture_base['description'] + ' DEVELOPMENT PROBE VARIANT: start items given by fixture.'
+            + ' MULTI-BLOCK VARIANT (design 2026-11-08): the iron ores are replaced by %s.' % block))
+        plan = write(batch / 'plans' / (block + '.json'), [dict(id=block, skill=entry['skill'], kind='policy',
+                                                                target=entry['item'], count=1, block=block)])
+        return config, fixture, plan
+    config = write(batch / 'configs' / (arm + '.json'), arm_config(base, checkpoint, use_stage))
     fixture = write(batch / 'fixtures/iron-probe.json', dict(fixture_base, give=[dict(item='stone_pickaxe', count=1)],
         description=fixture_base['description'] + ' DEVELOPMENT PROBE VARIANT: start items given by fixture.'))
     plan = write(batch / 'plans/iron.json', [dict(id='iron', skill=SKILL, kind='policy', target='iron_ore', count=1,
@@ -91,21 +139,24 @@ def run_game(command, run_dir):
 
 
 def collect(*, batch, arm, checkpoint, use_stage, seeds, sampling, mode='train', root=ROOT, launch=run_game,
-            gpu_free=nvidia_free_mib, gpu_wait=(40, 15.)):
+            gpu_free=nvidia_free_mib, gpu_wait=(40, 15.), block=IRON):
     """0 done, 1 STOP, 3 GPU busy, 4 invalid launch excluded, 5 inputs changed."""
     check_seeds(mode, seeds)
     root = Path(root).resolve(); batch = Path(batch).resolve()
     if not batch.is_relative_to(root / 'results'): raise ValueError('batch must be under results/')
     if checkpoint is not None and not Path(checkpoint).exists(): raise ValueError('no checkpoint: %s' % checkpoint)
-    config, fixture, plan = prepare(batch, arm, root, None if checkpoint is None else str(Path(checkpoint).resolve()), use_stage)
-    embedding = root / json.loads(config.read_text(encoding='utf-8'))['skills'][SKILL]['embedding']
-    files = [config, fixture, plan, embedding] + ([checkpoint] if checkpoint else [])
-    frozen = batch / ('frozen-%s.json' % arm)
+    config, fixture, plan = prepare(batch, arm, root, None if checkpoint is None else str(Path(checkpoint).resolve()), use_stage,
+                                    block=block)
+    skill = SKILL if block == IRON else block_entry(load_registry(root), block)['skill']
+    embedding = root / json.loads(config.read_text(encoding='utf-8'))['skills'][skill]['embedding']
+    files = [config, fixture, plan, embedding] + ([checkpoint] if checkpoint else []) + ([] if block == IRON else [root / REGISTRY])
+    frozen = batch / ('frozen-%s.json' % arm if block == IRON else 'frozen-%s-%s.json' % (arm, block))
     meta = dict(arm=arm, checkpoint=None if checkpoint is None else str(Path(checkpoint).resolve()), use_stage=bool(use_stage),
                 mode=mode, limit_s=LIMIT_S, frame_every=FRAME_EVERY, scope='reacquire probe; no API; success = server inventory')
+    if block != IRON: meta['block'] = block
     for seed in seeds:
         for n in sampling:
-            run_dir = batch / arm / ('s%d-n%d' % (seed, n))
+            run_dir = batch / arm / run_name(block, seed, n)
             if (run_dir / 'summary.json').exists(): continue
             if (batch / 'STOP').exists(): print('STOP present; batch halted', flush=True); return 1
             if not frozen_ok(frozen, input_hashes(root, files), meta): return 5
@@ -122,7 +173,7 @@ def collect(*, batch, arm, checkpoint, use_stage, seeds, sampling, mode='train',
             launch(command, run_dir)
             summary = json.loads((run_dir / 'summary.json').read_text(encoding='utf-8')) if (run_dir / 'summary.json').exists() \
                 else dict(status='missing_summary', execution_valid=False)
-            line = dict(arm=arm, run=run_dir.name, seed=seed, sampling=n, status=summary.get('status'),
+            line = dict(arm=arm, block=block, run=run_dir.name, seed=seed, sampling=n, status=summary.get('status'),
                         execution_valid=summary.get('execution_valid'),
                         success=bool(summary.get('execution_valid') and summary.get('all_steps_completed')),
                         steps=summary.get('steps'), elapsed_control_s=summary.get('elapsed_control_s'),
@@ -149,6 +200,7 @@ def main(argv=None):
     c.add_argument('--seeds', type=int, nargs='+', required=True)
     c.add_argument('--sampling', type=int, nargs='+', required=True)
     c.add_argument('--mode', choices=tuple(MODES), default='train')
+    c.add_argument('--block', default=IRON, help='a training block of %s; default: the iron probe' % REGISTRY)
     k = sub.add_parser('compare')
     k.add_argument('--batch', type=Path, required=True)
     k.add_argument('--arms', nargs='+', required=True)
@@ -157,7 +209,7 @@ def main(argv=None):
     if args.command == 'collect':
         checkpoint = None if args.checkpoint == 'official' else Path(args.checkpoint)
         return collect(batch=args.batch, arm=args.arm, checkpoint=checkpoint, use_stage=args.use_stage == 'on',
-                       seeds=args.seeds, sampling=args.sampling, mode=args.mode)
+                       seeds=args.seeds, sampling=args.sampling, mode=args.mode, block=args.block)
     from minecraftrl.reacquire_compare import compare, report_markdown
     batch = args.batch.resolve()
     arms = {arm: sorted(d for d in (batch / arm).iterdir() if (d / 'summary.json').exists()) for arm in args.arms}
