@@ -92,26 +92,39 @@ def run_examples(run_dir, mapper, transformer, *, root, teacher='centre'):
         out['labelled'][i] = True; out['label_buttons'][i] = label['buttons']; out['label_camera'][i] = label['camera']
         out['camera_on'][i] = label['camera_on']; out['in_view'][i] = in_view(dpitch, dyaw)
         out['label_pitch'][i], out['label_yaw'][i] = label['decoded_camera']
-    out['manifest'] = manifest; out['seed'] = request['seed']; out['teacher'] = teacher
+    out['manifest'] = manifest; out['seed'] = request['seed']; out['teacher'] = teacher; out['block'] = wanted
     return out
 
 
-def build_dataset(run_dirs, out_path, *, holdout, mapper, transformer, root, teacher='centre'):
-    """Concatenate the runs' examples; `holdout` (a run folder name) is kept for validation only."""
+def build_dataset(run_dirs, out_path, *, holdout, mapper, transformer, root, teacher='centre', forbidden_blocks=()):
+    """Concatenate the runs' examples; `holdout` (a run folder name, or a list of them) is kept for validation only.
+    A run whose step mines one of `forbidden_blocks` is refused (multi-block design 2026-11-08: iron stays held out)."""
     import torch
     run_dirs = [Path(d) for d in run_dirs]
     names = [d.parent.name + '/' + d.name for d in run_dirs]
-    matches = [i for i, d in enumerate(run_dirs) if d.name == holdout]
-    if len(matches) != 1: raise ValueError('holdout must name exactly one run folder: %s' % holdout)
-    parts = [run_examples(d, mapper, transformer, root=root, teacher=teacher) for d in run_dirs]
+    wanted = [holdout] if isinstance(holdout, str) else list(holdout)
+    held = []
+    for name in wanted:
+        matches = [i for i, d in enumerate(run_dirs) if d.name == name]
+        if len(matches) != 1: raise ValueError('holdout must name exactly one run folder: %s' % name)
+        held.append(matches[0])
+    if not held or len(set(held)) != len(held): raise ValueError('holdout runs must be distinct and not empty')
+    parts = []
+    for d in run_dirs:
+        part = run_examples(d, mapper, transformer, root=root, teacher=teacher)
+        if part['block'] in forbidden_blocks: raise ValueError('run %s mines the held-out block %s' % (d, part['block']))
+        parts.append(part)
+    blocks = sorted({p['block'] for p in parts})
     scales = {p['cond_scale'] for p in parts}
     if len(scales) != 1: raise ValueError('runs use different guidance scales: %s' % sorted(scales))
     keys = ('cond', 'uncond', 'stage', 'labelled', 'label_buttons', 'label_camera', 'camera_on', 'in_view',
             'label_pitch', 'label_yaw', 'step')
     data = {k: torch.from_numpy(np.concatenate([p[k] for p in parts])) for k in keys}
     data.update(run=torch.from_numpy(np.concatenate([np.full(len(p['step']), i, np.int64) for i, p in enumerate(parts)])),
-                runs=names, holdout=matches[0], cond_scale=scales.pop(), width=int(parts[0]['cond'].shape[1]),
-                stages=list(STAGES), teacher=teacher)
+                block=torch.from_numpy(np.concatenate([np.full(len(p['step']), blocks.index(p['block']), np.int64)
+                                                       for p in parts])),
+                runs=names, blocks=blocks, holdout=held[0] if isinstance(holdout, str) else held,
+                cond_scale=scales.pop(), width=int(parts[0]['cond'].shape[1]), stages=list(STAGES), teacher=teacher)
     out_path = Path(out_path); out_path.parent.mkdir(parents=True, exist_ok=True)
     torch.save(data, out_path)
     labelled = data['labelled'].numpy(); stage = data['stage'].numpy(); inview = data['in_view'].numpy()
@@ -119,11 +132,12 @@ def build_dataset(run_dirs, out_path, *, holdout, mapper, transformer, root, tea
                    rows=int(len(labelled)),
                    labelled=int(labelled.sum()),
                    labelled_by_stage={s: int((labelled & (stage == i)).sum()) for i, s in enumerate(STAGES)},
+                   labelled_by_block={b: int(sum(p['labelled'].sum() for p in parts if p['block'] == b)) for b in blocks},
                    labelled_in_view=int((labelled & inview).sum()), labelled_out_of_view=int((labelled & ~inview).sum()),
                    privileged='teacher labels and stages use fixture positions and the server pose',
                    source={p: sha256(Path(root) / p) for p in SOURCES if (Path(root) / p).exists()})
     for name, d, p in zip(names, run_dirs, parts):
-        summary['runs'].append(dict(run=name, seed=p['seed'], rows=int(len(p['step'])), labelled=int(p['labelled'].sum()),
+        summary['runs'].append(dict(run=name, block=p['block'], seed=p['seed'], rows=int(len(p['step'])), labelled=int(p['labelled'].sum()),
                                     chunks=[c['sha256'] for c in p['manifest']['chunks']], checkpoint=p['manifest']['meta'].get('checkpoint')))
     out_path.with_suffix('.summary.json').write_text(json.dumps(summary, indent=2) + '\n', encoding='utf-8')
     return summary

@@ -26,17 +26,20 @@ def mapping():
 
 
 def make_run(folder, *, seed=271828, policy=((2, {}), (3, {})), recorded=('far', 'far'), latents=None,
-             complete=True, valid=True, tamper=False):
-    """A recorded probe run: one prepare row, then policy rows (step, row kwargs), with its latent record."""
+             complete=True, valid=True, tamper=False, block='iron_ore', item='iron_ore'):
+    """A recorded probe run: one prepare row, then policy rows (step, row kwargs), with its latent record. `block`
+    replaces the fixture's iron ore and names the step's block (multi-block runs, design 2026-11-08)."""
     folder = Path(folder); (folder / 'reacquire').mkdir(parents=True, exist_ok=True)
-    fixture = folder.parent / 'fixture.json'
-    if not fixture.exists(): fixture.write_text(json.dumps(FIXTURE), encoding='utf-8')
+    fixture = folder.parent / ('fixture.json' if block == 'iron_ore' else 'fixture-%s.json' % block)
+    if not fixture.exists():
+        fixture.write_text(json.dumps(dict(FIXTURE, blocks=[dict(b, block=block) for b in FIXTURE['blocks']])), encoding='utf-8')
+    skill = 'mine_iron_reacquire' if block == 'iron_ore' else 'mine_%s_reacquire' % block
     rows = [row(1, controller='prepare')] + [row(step, **kw) for step, kw in policy]
     end = policy[-1][0] + 1
     (folder / 'request.json').write_text(json.dumps(dict(mode='probe', seed=seed, sampling_seed=1, fixture=str(fixture),
         fixture_sha256=hashlib.sha256(fixture.read_bytes()).hexdigest())), encoding='utf-8')
     (folder / 'summary.json').write_text(json.dumps(dict(execution_valid=valid)), encoding='utf-8')
-    tl = timeline(skill='mine_iron_reacquire', start=2, end=end)
+    tl = timeline(skill=skill, target=item, block=block, start=2, end=end)
     for name, items in (('timeline.jsonl', tl), ('telemetry.jsonl', rows)):
         (folder / name).write_text(''.join(json.dumps(x) + '\n' for x in items), encoding='utf-8')
     steps = [s for s, _ in policy] if latents is None else list(latents)
@@ -49,7 +52,7 @@ def make_run(folder, *, seed=271828, policy=((2, {}), (3, {})), recorded=('far',
     if tamper: digest = '0' * 64
     manifest = dict(schema='reacquire_latents_v1', width=4, cond_scale=6., stages=list(STAGES), rows=n,
                     chunks=[dict(file=path.name, rows=n, sha256=digest)], complete=complete,
-                    meta=dict(skill='mine_iron_reacquire', use_stage=True))
+                    meta=dict(skill=skill, use_stage=True))
     (folder / 'reacquire/manifest.json').write_text(json.dumps(manifest), encoding='utf-8')
     return folder
 
@@ -125,6 +128,33 @@ class ExamplesTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             build_dataset([a, b], self.root / 'data/x.pt', holdout='missing', mapper=self.mapper,
                           transformer=self.transformer, root=self.root)
+
+    # Multi-block experiment (design 2026-11-08 §5, §7).
+    def test_rows_record_their_block_and_several_runs_can_be_held_out(self):
+        import torch
+        near = dict(policy=((2, NEAR), (3, NEAR)), recorded=('far', 'near'))
+        a = make_run(self.root / 'r0/coal_ore-s271828-n1', block='coal_ore', item='coal', **near)
+        b = make_run(self.root / 'r0/coal_ore-s161803-n1', block='coal_ore', item='coal', **near)
+        c = make_run(self.root / 'r0/sand-s161803-n1', block='sand', item='sand', **near)
+        out = self.root / 'data/r0.pt'
+        summary = build_dataset([a, b, c], out, holdout=['coal_ore-s161803-n1', 'sand-s161803-n1'], mapper=self.mapper,
+                                transformer=self.transformer, root=self.root, forbidden_blocks=('iron_ore',))
+        data = torch.load(out)
+        self.assertEqual(data['blocks'], ['coal_ore', 'sand'])
+        self.assertEqual(data['block'].tolist(), [0, 0, 0, 0, 1, 1])
+        self.assertEqual(data['holdout'], [1, 2])
+        self.assertEqual(summary['holdout'], ['coal_ore-s161803-n1', 'sand-s161803-n1'])
+        self.assertEqual(summary['labelled_by_block'], dict(coal_ore=2, sand=1))
+        self.assertEqual([r['block'] for r in summary['runs']], ['coal_ore', 'coal_ore', 'sand'])
+
+    def test_a_held_out_block_is_refused(self):
+        near = dict(policy=((2, NEAR), (3, NEAR)), recorded=('far', 'near'))
+        a = make_run(self.root / 'r0/coal_ore-s271828-n1', block='coal_ore', item='coal', **near)
+        iron = make_run(self.root / 'r0/s271828-n1', **near)
+        with self.assertRaisesRegex(ValueError, 'held-out block iron_ore'):
+            build_dataset([a, iron], self.root / 'data/x.pt', holdout='coal_ore-s271828-n1', mapper=self.mapper,
+                          transformer=self.transformer, root=self.root, forbidden_blocks=('iron_ore',))
+        self.assertFalse((self.root / 'data/x.pt').exists())
 
 
 if __name__ == '__main__':
