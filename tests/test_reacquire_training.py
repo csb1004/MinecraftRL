@@ -130,6 +130,54 @@ class TrainTest(unittest.TestCase):
         self.run_train(epochs=1)
         with self.assertRaises(FileExistsError): self.run_train(epochs=1)
 
+    # Multi-block experiment (design 2026-11-08 §7).
+    def test_group_weights_balance_block_and_stage_groups(self):
+        from minecraftrl.reacquire_training import group_weights
+        labelled = torch.tensor([True, True, True, True, False])
+        stage = torch.tensor([2, 4, 4, 4, 4], dtype=torch.int8)
+        block = torch.tensor([0, 0, 0, 0, 0])
+        w = group_weights(labelled, stage, block, torch.arange(5))
+        self.assertTrue(torch.allclose(w, torch.tensor([2., 2 / 3, 2 / 3, 2 / 3, 0.])))
+        w = group_weights(labelled, stage, torch.tensor([0, 1, 1, 1, 0]), torch.arange(4))   # rows 0-3 only
+        self.assertTrue(torch.allclose(w[:4], torch.tensor([2., 2 / 3, 2 / 3, 2 / 3])))
+        self.assertEqual(w[4].item(), 0.)
+        w = group_weights(labelled, stage, None, torch.arange(5))                            # no block: stage groups
+        self.assertTrue(torch.allclose(w, torch.tensor([2., 2 / 3, 2 / 3, 2 / 3, 0.])))
+
+    def test_balanced_training_runs_on_a_dataset_without_blocks(self):
+        report = self.run_train(balance=True)
+        self.assertTrue(report['balance']); self.assertTrue(report['candidate'])
+        self.assertTrue(all(math.isfinite(e['train_loss']) for e in report['epochs']))
+
+    def test_patience_restores_the_best_holdout_epoch(self):
+        path = toy_dataset(self.root / 'toy.pt'); data = torch.load(path)
+        held = data['run'] == 1
+        data['label_buttons'][held] = torch.where(data['labelled'][held], torch.tensor(3), torch.tensor(-1))
+        data['label_camera'][held] = torch.where(data['labelled'][held], torch.tensor(0), torch.tensor(-1))
+        torch.save(data, path)     # the holdout wants other labels: its NLL rises while the training labels are learned
+        report = self.train(path, use_stage=True, out_dir=self.root / 'out', epochs=30, lr=1e-2, kl_limit=1e9,
+                            head_factory=fake_factory, device='cpu', patience=2)
+        self.assertTrue(report['stopped_early']); self.assertGreaterEqual(report['best_epoch'], 1)
+        self.assertEqual(len(report['epochs']), report['best_epoch'] + 2)
+        lowest = min(e['holdout_nll'] for e in report['epochs'])
+        self.assertEqual(report['epochs'][report['best_epoch'] - 1]['holdout_nll'], lowest)
+        self.assertAlmostEqual(report['final']['holdout_nll'], lowest, places=5)
+        self.assertEqual(report['updates_kept'], sum(e['updates'] for e in report['epochs'][:report['best_epoch']]))
+
+    def test_patience_restores_the_lowest_holdout_epoch_of_an_improving_run(self):
+        report = self.run_train(patience=2)
+        self.assertFalse(report['stopped_early']); self.assertGreaterEqual(report['best_epoch'], 1)
+        lowest = min(e['holdout_nll'] for e in report['epochs'] if not e.get('rolled_back'))
+        self.assertAlmostEqual(report['final']['holdout_nll'], lowest, places=5)
+        self.assertEqual(report['epochs'][report['best_epoch'] - 1]['holdout_nll'], lowest)
+        self.assertTrue(report['candidate'])
+
+    def test_a_list_of_holdout_runs_is_read(self):
+        path = toy_dataset(self.root / 'toy.pt'); data = torch.load(path); data['holdout'] = [1]; torch.save(data, path)
+        report = self.train(path, use_stage=True, out_dir=self.root / 'out', epochs=2, lr=1e-2, head_factory=fake_factory,
+                            device='cpu')
+        self.assertEqual(report['holdout'], ['r0/b']); self.assertEqual(report['rows']['holdout'], 64)
+
 
 if __name__ == '__main__':
     unittest.main()

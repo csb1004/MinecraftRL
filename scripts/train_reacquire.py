@@ -21,14 +21,19 @@ def main(argv=None):
     p.add_argument('--kl-coef', type=float, default=.01)
     p.add_argument('--kl-limit', type=float, default=3.)
     p.add_argument('--seed', type=int, default=17)
+    p.add_argument('--balance', choices=('on', 'off'), default='off',
+                   help='weight the BC loss over (block, stage) groups (multi-block design 2026-11-08 §7)')
+    p.add_argument('--patience', type=int, default=None,
+                   help='stop after this many epochs without a new holdout NLL low and keep the best epoch')
     args = p.parse_args(argv)
     root = args.root.resolve(); out = args.out.resolve()
     if not out.is_relative_to(root / 'results'): raise SystemExit('output must be under results/')
     from minecraftrl.reacquire_training import train
     report = train(args.dataset.resolve(), use_stage=args.use_stage == 'on', out_dir=out, lr=args.lr, batch=args.batch,
-                   epochs=args.epochs, kl_coef=args.kl_coef, kl_limit=args.kl_limit, seed=args.seed, root=root)
+                   epochs=args.epochs, kl_coef=args.kl_coef, kl_limit=args.kl_limit, seed=args.seed, root=root,
+                   balance=args.balance == 'on', patience=args.patience)
     keep = ('candidate', 'checkpoint', 'rows', 'initial', 'final', 'rolled_back_epochs', 'updates_kept', 'seconds',
-            'reload_max_abs_diff', 'torch_peak_allocated_mib')
+            'reload_max_abs_diff', 'torch_peak_allocated_mib', 'best_epoch', 'stopped_early')
     print(json.dumps({k: report[k] for k in keep}, indent=1))
     return 0 if report['candidate'] else 3
 
