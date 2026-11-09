@@ -7,17 +7,22 @@ import numpy as np
 
 from minecraftrl.pipeline.rm import Sample
 from minecraftrl.pipeline.stage_replay import EYE as EYE_HEIGHT, StageView
-from minecraftrl.reacquire_teacher import BUTTONS, aim_delta, in_view, policy_label, teacher_env_action
+from minecraftrl.reacquire_teacher import BUTTONS, aim_delta, in_view, policy_label, target_of, teacher_env_action
 
 EYE = (0.5, 1.5, 0.5)
 STEVE1 = importlib.util.find_spec('torch') is not None and (Path(__file__).resolve().parents[1] / 'external/steve1').exists()
 
 
-def sample(*, hit='air', hit_pos=None, mining='air', mining_pos=None, gui=False, valid=True, yaw=0., pitch=0.):
+def sample(*, hit='air', hit_pos=None, mining='air', mining_pos=None, gui=False, valid=True, yaw=0., pitch=0.,
+           destroyed='air', destroyed_pos=None):
     return Sample(t=1., tick=20, valid=valid, gui_open=gui, position=(EYE[0], EYE[1] - EYE_HEIGHT, EYE[2]), yaw=yaw,
                   pitch=pitch, action_keys=(), inventory={}, selected_item='stone_pickaxe', destroys=0,
-                  last_destroyed='air', last_destroyed_pos=None, last_harvestable=False, mining_block=mining,
+                  last_destroyed=destroyed, last_destroyed_pos=destroyed_pos, last_harvestable=False, mining_block=mining,
                   mining_pos=mining_pos, hit_block=hit, hit_pos=hit_pos)
+
+
+def pressed(action):
+    return [k for k in BUTTONS if action[k]]
 
 
 def official_mapping():
@@ -90,6 +95,62 @@ class TeacherActionTest(unittest.TestCase):
         self.assertEqual(set(a), set(BUTTONS) | {'camera'})
         self.assertEqual([k for k in BUTTONS if a[k]], ['attack'])
 
+    def test_collect_rows_have_no_label_for_the_centre_and_hold_teachers(self):
+        s = sample(destroyed='iron_ore', destroyed_pos=(0, 1, 3))
+        view = StageView('collect', 4., (4, 1, 3), EYE)
+        self.assertIsNone(teacher_env_action(s, view, 'iron_ore'))
+        self.assertIsNone(teacher_env_action(s, view, 'iron_ore', aim='hold'))
+
+
+class ApproachTeacherTest(unittest.TestCase):
+    """Design 2026-11-09 §3: walk closer than 2 blocks before mining, then walk onto the drop."""
+
+    def test_near_far_target_in_front_walks_and_turns_without_attack(self):
+        a = teacher_env_action(sample(hit='stone'), StageView('near', 3., (-1, 1, 3), EYE), 'iron_ore', aim='approach')
+        self.assertEqual(pressed(a), ['forward']); self.assertEqual(list(a['camera']), [0., 10.])   # 18 degrees left
+
+    def test_near_target_within_two_blocks_turns_without_walking(self):
+        a = teacher_env_action(sample(hit='stone'), StageView('near', 2., (1, 1, 1), EYE), 'iron_ore', aim='approach')
+        self.assertEqual(pressed(a), []); self.assertNotEqual(float(a['camera'][1]), 0.)
+
+    def test_near_far_target_behind_turns_without_walking(self):
+        a = teacher_env_action(sample(hit='grass_block'), StageView('near', 3., (0, 1, -3), EYE), 'iron_ore', aim='approach')
+        self.assertEqual(pressed(a), []); self.assertEqual(list(a['camera']), [0., 10.])
+
+    def test_aimed_from_afar_holds_still_attacks_and_walks(self):
+        a = teacher_env_action(sample(hit='iron_ore', hit_pos=(1, 1, 3)), StageView('aimed', 3., (1, 1, 3), EYE), 'iron_ore',
+                               aim='approach')
+        self.assertEqual(pressed(a), ['attack', 'forward']); self.assertEqual(list(a['camera']), [0., 0.])
+
+    def test_mining_within_two_blocks_holds_still_and_attacks_without_walking(self):
+        s = sample(hit='iron_ore', hit_pos=(0, 1, 2), mining='iron_ore', mining_pos=(0, 1, 2))
+        a = teacher_env_action(s, StageView('mining', 2., (0, 1, 2), EYE), 'iron_ore', aim='approach')
+        self.assertEqual(pressed(a), ['attack']); self.assertEqual(list(a['camera']), [0., 0.])
+
+    def test_collect_walks_to_the_broken_target_and_turns_toward_it(self):
+        s = sample(destroyed='iron_ore', destroyed_pos=(1, 1, 3))
+        view = StageView('collect', 4., (4, 1, 3), EYE)      # the nearest remaining target is elsewhere
+        a = teacher_env_action(s, view, 'iron_ore', aim='approach')
+        self.assertEqual(pressed(a), ['forward'])
+        self.assertEqual([round(float(v), 6) for v in a['camera']], [0., -10.])            # 18 degrees right
+        self.assertEqual(target_of(s, view, 'iron_ore'), (1, 1, 3))
+
+    def test_collect_on_the_drop_or_with_the_drop_behind_does_not_walk(self):
+        here = teacher_env_action(sample(destroyed='iron_ore', destroyed_pos=(0, 0, 0)), StageView('collect', 4., (4, 1, 3), EYE),
+                                  'iron_ore', aim='approach')
+        self.assertEqual(pressed(here), [])
+        behind = teacher_env_action(sample(destroyed='iron_ore', destroyed_pos=(0, 1, -3)),
+                                    StageView('collect', 4., (4, 1, 3), EYE), 'iron_ore', aim='approach')
+        self.assertEqual(pressed(behind), []); self.assertEqual(list(behind['camera']), [0., 10.])
+
+    def test_collect_after_breaking_another_block_has_no_label(self):
+        s = sample(destroyed='stone', destroyed_pos=(0, 1, 3))
+        self.assertIsNone(teacher_env_action(s, StageView('collect', 4., (4, 1, 3), EYE), 'iron_ore', aim='approach'))
+        self.assertIsNone(target_of(s, StageView('collect', 4., (4, 1, 3), EYE), 'iron_ore'))
+
+    def test_far_rows_still_have_no_label(self):
+        self.assertIsNone(teacher_env_action(sample(), StageView('far', 9., (0, 1, 9), EYE), 'iron_ore', aim='approach'))
+
 
 @unittest.skipUnless(STEVE1, 'isolated WSL Torch/STEVE-1 environment required')
 class OfficialLabelTest(unittest.TestCase):
@@ -104,6 +165,16 @@ class OfficialLabelTest(unittest.TestCase):
         label = policy_label(action, mapper, transformer)
         self.assertTrue(label['camera_on']); self.assertAlmostEqual(float(label['decoded_camera'][1]), 10., delta=1.)
         self.assertIsInstance(label['buttons'], int); self.assertIsInstance(label['camera'], int)
+
+    def test_policy_label_roundtrips_walk_and_attack_with_a_still_camera(self):
+        mapper, transformer = official_mapping()
+        action = {k: 0 for k in BUTTONS}; action.update(camera=np.array([0., 0.]), attack=1, forward=1)
+        label = policy_label(action, mapper, transformer)
+        self.assertFalse(label['camera_on'])
+        decoded = transformer.policy2env(mapper.to_factored(dict(buttons=np.array([[label['buttons']]]),
+                                                                 camera=np.array([[label['camera']]]))))
+        self.assertEqual((int(np.asarray(decoded['forward']).reshape(-1)[0]), int(np.asarray(decoded['attack']).reshape(-1)[0])),
+                         (1, 1))
 
     def test_still_camera_label_has_camera_off(self):
         mapper, transformer = official_mapping()

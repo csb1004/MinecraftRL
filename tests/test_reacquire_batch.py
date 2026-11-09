@@ -41,6 +41,13 @@ class BatchTest(unittest.TestCase):
             with self.subTest(mode=mode, seed=seed), self.assertRaises(ValueError): self.m.check_seeds(mode, [seed])
         self.m.check_seeds('dev', [130363]); self.m.check_seeds('final', [577215]); self.m.check_seeds('train', [314159])
 
+    def test_final2_mode_allows_only_the_preset_unused_seed(self):
+        # design 2026-11-09 §5: the final seed of the multi-block designs, fixed before any result.
+        self.m.check_seeds('final2', [662607])
+        for seed in (577215, 130363, 271828):
+            with self.subTest(seed=seed), self.assertRaises(ValueError): self.m.check_seeds('final2', [seed])
+        with self.assertRaises(ValueError): self.m.check_seeds('final', [662607])
+
     def test_arm_config_only_changes_the_reacquire_block(self):
         base = json.loads((ROOT / 'configs/reacquire-v1.json').read_text(encoding='utf-8'))
         config = self.m.arm_config(base, 'results/x/checkpoint.pt', False)
