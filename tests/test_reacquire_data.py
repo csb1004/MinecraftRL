@@ -105,6 +105,20 @@ class ExamplesTest(unittest.TestCase):
         self.assertTrue(hold['labelled'][1]); self.assertFalse(hold['camera_on'][1])
         self.assertEqual(hold['teacher'], 'hold'); self.assertEqual(centre['teacher'], 'centre')
 
+    def test_sight_teacher_walks_round_a_block_that_hides_the_target(self):
+        # Line-of-sight design 2026-11-10: the builder hands the fixture blocks of the moment to the teacher.
+        blocks = FIXTURE['blocks'] + [{'dx': 1, 'dy': 1, 'dz': 8, 'block': 'stone'}, {'dx': -1, 'dy': 1, 'dz': 8, 'block': 'stone'},
+                                      {'dx': 0, 'dy': 0, 'dz': 10, 'block': 'stone'}]      # a wall row; no room behind it
+        (self.root / 'fixture.json').write_text(json.dumps(dict(FIXTURE, blocks=blocks)), encoding='utf-8')
+        beside = dict(pos=(-1.5, 64., 8.5), yaw=-100., hit='stone', hit_pos=(-1, 65, 8))   # the stone at x = -1 hides the iron
+        folder = make_run(self.root / 'a', policy=((2, beside), (3, beside)), recorded=('far', 'near'))
+        press = run_examples(folder, self.mapper, self.transformer, root=self.root, teacher='press')
+        sight = run_examples(folder, self.mapper, self.transformer, root=self.root, teacher='sight')
+
+        def keys(ex): return self.mapper.BUTTONS_IDX_TO_COMBINATION[int(ex['label_buttons'][1])]
+        self.assertNotIn('forward', keys(press)); self.assertAlmostEqual(float(press['label_yaw'][1]), 10., delta=1.)
+        self.assertIn('forward', keys(sight)); self.assertAlmostEqual(float(sight['label_yaw'][1]), -10., delta=1.)
+
     def test_latent_count_must_match_policy_rows(self):
         with self.assertRaisesRegex(ValueError, 'policy rows'):
             self.examples(make_run(self.root / 'a', latents=[2]))

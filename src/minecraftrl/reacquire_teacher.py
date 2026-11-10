@@ -12,6 +12,12 @@ aim='press' (design 2026-11-10 §3) is 'approach' with one label for the whole m
 still, also on the rows where the server still reports mining the target after the crosshair slipped off it. The
 approach teacher let go and turned on those rows (15-17% of the mining stage), and the student, which cannot tell
 them apart by its stage input, lowered its attack probability and broke its own mining.
+
+aim='sight' (line-of-sight design 2026-11-10 §3) is 'press' with a near label that knows when the target is hidden.
+The press teacher turned toward the block centre and stood still within CLOSE blocks even when another block was in
+the way, and students stalled there. With the fixture geometry of the moment (broken blocks removed) the sight
+teacher turns toward the centre only when a straight line from the eye reaches it; otherwise toward an open face
+that is in sight; otherwise it walks to the spot STAND blocks in front of an open side face.
 """
 import math
 
@@ -25,22 +31,76 @@ MAX_TURN = 10.
 CLOSE = 2.          # blocks, feet to the target block centre, horizontal: mine from here or closer
 DROP_CLOSE = .5     # blocks, feet to the broken block centre, horizontal: stop walking onto the drop
 FRONT = 45.         # degrees of yaw: walk while turning only toward a target this close to straight ahead
+INSET = .05         # blocks: the aim point of an open face lies this far inside the target
+STAND = 1.5         # blocks from an open side face of the target to the standing spot in front of it
+SPOT_CLOSE = .3     # blocks, feet to the standing spot, horizontal: stop walking
+NORMALS = ((1, 0, 0), (-1, 0, 0), (0, 1, 0), (0, -1, 0), (0, 0, 1), (0, 0, -1))
 # steve1.VPT.lib.actions.Buttons.ALL (a test checks they match).
 BUTTONS = ('attack', 'back', 'forward', 'jump', 'left', 'right', 'sneak', 'sprint', 'use', 'drop', 'inventory',
            *('hotbar.%d' % i for i in range(1, 10)))
 
 
-def aim_delta(eye, yaw, pitch, pos):
-    """(dpitch, dyaw) in degrees from the current view to the centre of block `pos`.
+def point_delta(eye, yaw, pitch, point):
+    """(dpitch, dyaw) in degrees from the current view to `point`.
 
     Same convention as stage_replay.view_angle: yaw 0 = +z, 90 = -x, pitch down positive. camera[0] adds to the
     pitch and camera[1] to the yaw. The yaw difference is wrapped to (-180, 180]."""
-    to = (pos[0] + .5 - eye[0], pos[1] + .5 - eye[1], pos[2] + .5 - eye[2])
+    to = (point[0] - eye[0], point[1] - eye[1], point[2] - eye[2])
     want_yaw = math.degrees(math.atan2(-to[0], to[2]))
     want_pitch = -math.degrees(math.atan2(to[1], math.hypot(to[0], to[2])))
     dyaw = (want_yaw - yaw) % 360.
     if dyaw > 180.: dyaw -= 360.
     return want_pitch - pitch, dyaw
+
+
+def aim_delta(eye, yaw, pitch, pos):
+    """point_delta to the centre of block `pos`."""
+    return point_delta(eye, yaw, pitch, (pos[0] + .5, pos[1] + .5, pos[2] + .5))
+
+
+def _solid(geometry, pos):
+    block = geometry.blocks.get(tuple(pos))
+    return block is not None and block != 'air'
+
+
+def first_solid(geometry, start, end):
+    """The first solid fixture block on the straight segment from `start` to `end`, or None. Positions the fixture did
+    not fill, and its air fill, do not block (the arena is a box the fixture builds, so that is all there is)."""
+    cell = [math.floor(v) for v in start]
+    last = tuple(math.floor(v) for v in end)
+    delta = [e - s for s, e in zip(start, end)]
+    step = [(d > 0) - (d < 0) for d in delta]
+    t_next = [((c + (d > 0) - s) / d) if d else math.inf for s, d, c in zip(start, delta, cell)]
+    t_step = [abs(1. / d) if d else math.inf for d in delta]
+    while True:
+        if _solid(geometry, cell): return tuple(cell)
+        if tuple(cell) == last: return None
+        axis = min(range(3), key=t_next.__getitem__)
+        if t_next[axis] > 1.: return None
+        cell[axis] += step[axis]; t_next[axis] += t_step[axis]
+
+
+def sight_plan(s, view, target, geometry):
+    """What the sight teacher does on a near row (line-of-sight design 2026-11-10 §3): ('centre', None) when a straight
+    line from the eye reaches the target centre; ('face', point) when it only reaches an open face (the nearest such
+    point, INSET inside the block); ('walk', (x, z)) when no face is in sight and there is room to stand STAND blocks in
+    front of an open side face (the nearest such spot); else ('hidden', None)."""
+    target = tuple(target)
+    centre = tuple(c + .5 for c in target)
+    if first_solid(geometry, view.eye, centre) == target: return 'centre', None
+    faces = [n for n in NORMALS if not _solid(geometry, [c + k for c, k in zip(target, n)])]
+    points = [tuple(c + (.5 - INSET) * k for c, k in zip(centre, n)) for n in faces]
+    seen = [p for p in points if first_solid(geometry, view.eye, p) == target]
+    if seen: return 'face', min(seen, key=lambda p: math.dist(p, view.eye))
+    feet = math.floor(s.position[1] + .01)
+    spots = []
+    for n in faces:
+        if n[1]: continue                                   # only side faces have a place to stand in front of them
+        x, z = centre[0] + (.5 + STAND) * n[0], centre[2] + (.5 + STAND) * n[2]
+        cell = (math.floor(x), feet, math.floor(z))
+        if not _solid(geometry, cell) and not _solid(geometry, (cell[0], feet + 1, cell[2])): spots.append((x, z))
+    if not spots: return 'hidden', None
+    return 'walk', min(spots, key=lambda p: math.hypot(p[0] - s.position[0], p[1] - s.position[2]))
 
 
 def in_view(dpitch, dyaw):
@@ -66,15 +126,16 @@ def target_of(s, view, wanted):
     return view.nearest
 
 
-AIM_MODES = ('centre', 'hold', 'approach', 'press')
-WALKING_MODES = ('approach', 'press')
+AIM_MODES = ('centre', 'hold', 'approach', 'press', 'sight')
+WALKING_MODES = ('approach', 'press', 'sight')
+PRESS_MODES = ('press', 'sight')
 
 
 def _turn(dpitch, dyaw):
     return np.array([max(-MAX_TURN, min(MAX_TURN, dpitch)), max(-MAX_TURN, min(MAX_TURN, dyaw))])
 
 
-def teacher_env_action(s, view, wanted, aim='centre'):
+def teacher_env_action(s, view, wanted, aim='centre', geometry=None):
     """MineRL-style action label for one state, or None when the row gets no label.
 
     aim='centre' (design §4) turns toward the target block centre in every labelled stage. aim='hold' (condition
@@ -82,7 +143,9 @@ def teacher_env_action(s, view, wanted, aim='centre'):
     the view still while the crosshair is on the target family and only turns while near but not aimed.
     aim='approach' (design 2026-11-09 §3) is 'hold' plus forward while the target is farther than CLOSE, and labels
     collect rows: turn toward the broken target block and walk onto it, no attack.
-    aim='press' (design 2026-11-10 §3) is 'approach' that holds attack and the view on every mining-stage row."""
+    aim='press' (design 2026-11-10 §3) is 'approach' that holds attack and the view on every mining-stage row.
+    aim='sight' (line-of-sight design 2026-11-10 §3) is 'press' whose near label follows sight_plan when `geometry`
+    (the fixture blocks of the moment) is given; the other modes ignore `geometry`."""
     if aim not in AIM_MODES: raise ValueError('unknown teacher aim mode: %s' % aim)
     stages = APPROACH_STAGES if aim in WALKING_MODES else LABELLED_STAGES
     if not s.valid or s.gui_open or view.stage not in stages: return None
@@ -94,9 +157,22 @@ def teacher_env_action(s, view, wanted, aim='centre'):
         action['camera'] = _turn(dpitch, dyaw)
         action['forward'] = int(horizontal(s, target) > DROP_CLOSE and abs(dyaw) <= FRONT)
         return action
-    on_target = block_matches(s.hit_block, wanted) or (aim == 'press' and view.stage == 'mining')
+    on_target = block_matches(s.hit_block, wanted) or (aim in PRESS_MODES and view.stage == 'mining')
+    plan, point = ('centre', None)
+    if aim == 'sight' and geometry is not None and view.stage == 'near' and not on_target:
+        plan, point = sight_plan(s, view, target, geometry)
+    if plan == 'walk':                      # hidden target: turn the yaw toward the standing spot and walk there
+        dpitch, _ = aim_delta(view.eye, s.yaw, s.pitch, target)
+        _, dyaw = point_delta(view.eye, s.yaw, s.pitch, (point[0], view.eye[1], point[1]))
+        action['camera'] = _turn(dpitch, dyaw)
+        away = math.hypot(point[0] - s.position[0], point[1] - s.position[2]) > SPOT_CLOSE
+        action['forward'] = int(away and abs(dyaw) <= FRONT)
+        return action
     if aim != 'centre' and on_target:
         action['camera'] = np.array([0., 0.]); front = True
+    elif plan == 'face':                    # the centre is hidden but an open face is in sight: aim at that face
+        dpitch, dyaw = point_delta(view.eye, s.yaw, s.pitch, point)
+        action['camera'] = _turn(dpitch, dyaw); front = abs(dyaw) <= FRONT
     else:
         dpitch, dyaw = aim_delta(view.eye, s.yaw, s.pitch, target)
         action['camera'] = _turn(dpitch, dyaw); front = abs(dyaw) <= FRONT

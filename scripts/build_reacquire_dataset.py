@@ -17,10 +17,11 @@ def main(argv=None):
                    help='refuse runs that mine this block (multi-block design 2026-11-08: iron_ore stays held out)')
     p.add_argument('--out', type=Path, required=True)
     p.add_argument('--root', type=Path, required=True)
-    p.add_argument('--teacher', choices=('centre', 'hold', 'approach', 'press'), default='centre',
+    p.add_argument('--teacher', choices=('centre', 'hold', 'approach', 'press', 'sight'), default='centre',
                    help="aim label while the crosshair is on the target: 'centre' (design §4), 'hold' (keep still), "
                         "'approach' (hold, walk closer than 2 blocks first and walk onto the drop; design 2026-11-09) or "
-                        "'press' (approach, with attack held on every mining-stage row; design 2026-11-10)")
+                        "'press' (approach, with attack held on every mining-stage row; design 2026-11-10) or 'sight' "
+                        "(press, with a near label that walks into sight of a hidden target; line-of-sight design 2026-11-10)")
     args = p.parse_args(argv)
     root = args.root.resolve(); out = args.out.resolve()
     if not out.is_relative_to(root / 'results'): raise SystemExit('output must be under results/')

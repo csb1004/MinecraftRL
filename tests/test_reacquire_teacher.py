@@ -6,16 +6,17 @@ from pathlib import Path
 import numpy as np
 
 from minecraftrl.pipeline.rm import Sample
-from minecraftrl.pipeline.stage_replay import EYE as EYE_HEIGHT, StageView
-from minecraftrl.reacquire_teacher import BUTTONS, aim_delta, in_view, policy_label, target_of, teacher_env_action
+from minecraftrl.pipeline.stage_replay import EYE as EYE_HEIGHT, Geometry, StageView
+from minecraftrl.reacquire_teacher import (BUTTONS, aim_delta, first_solid, in_view, policy_label, target_of,
+                                           teacher_env_action)
 
 EYE = (0.5, 1.5, 0.5)
 STEVE1 = importlib.util.find_spec('torch') is not None and (Path(__file__).resolve().parents[1] / 'external/steve1').exists()
 
 
 def sample(*, hit='air', hit_pos=None, mining='air', mining_pos=None, gui=False, valid=True, yaw=0., pitch=0.,
-           destroyed='air', destroyed_pos=None):
-    return Sample(t=1., tick=20, valid=valid, gui_open=gui, position=(EYE[0], EYE[1] - EYE_HEIGHT, EYE[2]), yaw=yaw,
+           destroyed='air', destroyed_pos=None, eye=EYE):
+    return Sample(t=1., tick=20, valid=valid, gui_open=gui, position=(eye[0], eye[1] - EYE_HEIGHT, eye[2]), yaw=yaw,
                   pitch=pitch, action_keys=(), inventory={}, selected_item='stone_pickaxe', destroys=0,
                   last_destroyed=destroyed, last_destroyed_pos=destroyed_pos, last_harvestable=False, mining_block=mining,
                   mining_pos=mining_pos, hit_block=hit, hit_pos=hit_pos)
@@ -188,6 +189,98 @@ class PressTeacherTest(unittest.TestCase):
         for aim in ('centre', 'hold'):
             with self.subTest(aim=aim):
                 self.assertEqual(teacher_env_action(self.off_target((0, 1, 2)), view, 'iron_ore', aim=aim)['attack'], 0)
+
+
+TARGET = (0, 1, 3)
+FRONT_EYE = (0.5, 1.62, 0.5)          # straight in front of the target, 3 blocks away
+WALL_END = (-1.5, 1.62, 3.5)          # beside the end of the wall, in line with it: the neighbour stone hides the target
+SLANTED = (-0.88, 1.62, 2.7)          # in front of the wall but to the side: the centre is hidden, the front face is not
+
+
+def wall(extra=None, barrier=True):
+    """A stone wall at z = 3 with the target in its middle and one free row behind it (then a barrier), on a floor."""
+    blocks = {(x, y, 3): 'stone' for x in (-1, 0, 1) for y in (0, 1, 2)}
+    blocks[TARGET] = 'iron_ore'
+    if barrier: blocks.update({(x, y, 5): 'barrier' for x in range(-3, 4) for y in (0, 1, 2)})
+    blocks.update({(x, -1, z): 'grass_block' for x in range(-4, 5) for z in range(-1, 7)})
+    blocks[(0, 1, 2)] = 'air'                                  # the air fill of a fixture is recorded as blocks too
+    blocks.update(extra or {})
+    return Geometry(blocks)
+
+
+def near_state(eye, yaw):
+    return sample(hit='stone', hit_pos=(-1, 1, 3), yaw=yaw, eye=eye), StageView('near', 2., TARGET, eye)
+
+
+def same_label(test, a, b):
+    test.assertEqual(pressed(a), pressed(b)); test.assertEqual(list(a['camera']), list(b['camera']))
+
+
+class LineOfSightTest(unittest.TestCase):
+    def test_first_solid_block_on_a_segment(self):
+        g = wall()
+        self.assertEqual(first_solid(g, FRONT_EYE, (0.5, 1.5, 3.5)), TARGET)             # air entries do not block
+        self.assertEqual(first_solid(g, WALL_END, (0.5, 1.5, 3.5)), (-1, 1, 3))           # the neighbour stone
+        self.assertIsNone(first_solid(g, FRONT_EYE, (0.5, 1.62, 2.5)))                    # ends before the wall
+        self.assertEqual(first_solid(g, (0.5, 1.62, 0.5), (0.5, -2., 0.5)), (0, -1, 0))   # straight down: the floor
+
+
+class SightTeacherTest(unittest.TestCase):
+    """Design 2026-11-10 (line of sight) section 3: a near label that still works when the target is hidden."""
+
+    def act(self, eye, yaw, aim='sight', geometry=None):
+        s, view = near_state(eye, yaw)
+        return teacher_env_action(s, view, 'iron_ore', aim=aim, geometry=wall() if geometry is None else geometry)
+
+    def test_visible_centre_keeps_the_press_label(self):
+        a = self.act(FRONT_EYE, 20.)
+        same_label(self, a, self.act(FRONT_EYE, 20., aim='press'))
+        self.assertEqual(pressed(a), ['forward']); self.assertEqual(list(a['camera'])[1], -10.)   # 3 blocks away, ahead
+
+    def test_hidden_target_walks_to_the_spot_in_front_of_its_open_face(self):
+        a = self.act(WALL_END, -100.)            # looking along the wall at the hidden target
+        self.assertEqual(pressed(a), ['forward'])
+        self.assertEqual(float(a['camera'][1]), -10.)         # the spot (0.5, 1.5) is 35 degrees to the right: clamped
+        self.assertAlmostEqual(float(a['camera'][0]), aim_delta(WALL_END, -100., 0., TARGET)[0], places=6)   # target height
+        old = self.act(WALL_END, -100., aim='press')
+        self.assertEqual(pressed(old), []); self.assertEqual(float(old['camera'][1]), 10.)   # turned at the hidden centre
+
+    def test_hidden_target_turns_before_it_walks(self):
+        a = self.act(WALL_END, 90.)              # the standing spot is 135 degrees away
+        self.assertEqual(pressed(a), []); self.assertEqual(float(a['camera'][1]), 10.)
+
+    def test_a_spot_needs_room_and_the_nearest_open_side_is_used(self):
+        blocked_front = {(0, 0, 1): 'stone'}
+        a = self.act(WALL_END, -60., geometry=wall(blocked_front, barrier=False))    # only the back spot (0.5, 5.5) is free
+        self.assertEqual(pressed(a), ['forward']); self.assertEqual(float(a['camera'][1]), 10.)   # 15 degrees to the left
+        b = self.act(WALL_END, -60., geometry=wall(blocked_front))                    # the barrier fills the back spot
+        same_label(self, b, self.act(WALL_END, -60., aim='press'))                    # no spot: the old centre label
+
+    def test_visible_face_is_aimed_at_when_the_centre_is_hidden(self):
+        a = self.act(SLANTED, -70.)
+        self.assertEqual(pressed(a), [])                                    # 1.6 blocks away: no walking
+        self.assertAlmostEqual(float(a['camera'][1]), -5.8, delta=.3)       # just inside the front face, to the right
+        old = self.act(SLANTED, -70., aim='press')
+        self.assertEqual(float(old['camera'][1]), 10.)                      # the hidden centre is to the left
+
+    def test_other_teachers_ignore_the_geometry_and_sight_needs_it(self):
+        s, view = near_state(WALL_END, -100.)
+        for aim in ('centre', 'hold', 'approach', 'press'):
+            with self.subTest(aim=aim):
+                same_label(self, teacher_env_action(s, view, 'iron_ore', aim=aim, geometry=wall()),
+                           teacher_env_action(s, view, 'iron_ore', aim=aim))
+        same_label(self, teacher_env_action(s, view, 'iron_ore', aim='sight'),          # no geometry: the press label
+                   teacher_env_action(s, view, 'iron_ore', aim='press'))
+
+    def test_aimed_mining_and_collect_keep_the_press_labels(self):
+        cases = [(sample(hit='iron_ore', hit_pos=TARGET, eye=FRONT_EYE), StageView('aimed', 3., TARGET, FRONT_EYE)),
+                 (sample(hit='stone', hit_pos=(-1, 1, 3), mining='iron_ore', mining_pos=TARGET, eye=WALL_END),
+                  StageView('mining', 2., TARGET, WALL_END)),
+                 (sample(destroyed='iron_ore', destroyed_pos=TARGET, eye=WALL_END), StageView('collect', 4., (4, 1, 3), WALL_END))]
+        for s, view in cases:
+            with self.subTest(stage=view.stage):
+                same_label(self, teacher_env_action(s, view, 'iron_ore', aim='sight', geometry=wall()),
+                           teacher_env_action(s, view, 'iron_ore', aim='press'))
 
 
 @unittest.skipUnless(STEVE1, 'isolated WSL Torch/STEVE-1 environment required')

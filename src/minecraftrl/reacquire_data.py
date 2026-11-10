@@ -68,7 +68,12 @@ def run_examples(run_dir, mapper, transformer, *, root, teacher='centre'):
         if not started and r['t'] >= step.start_t: feed.start_step(step.start_t); started = True
         inside = r['step'] >= step.start_step and (step.end_step is None or r['step'] <= step.end_step)
         if started and inside and r.get('controller') == 'policy':
-            decisions.append((r['step'], feed.decision_view(), feed.last_sample))
+            view, s = feed.decision_view(), feed.last_sample
+            # The label is made here, not after the loop: the sight teacher reads the fixture blocks of this moment
+            # (the tracker removes broken blocks as the run goes on).
+            geometry = feed.tracker.geometry if feed.tracker is not None else None
+            action = None if view is None or s is None else teacher_env_action(s, view, wanted, aim=teacher, geometry=geometry)
+            decisions.append((r['step'], view, s, action))
         feed.observe(r)
     if [d[0] for d in decisions] != lat['step'].tolist():
         raise ValueError('latent record does not match the policy rows (%d latents, %d policy rows)'
@@ -79,13 +84,12 @@ def run_examples(run_dir, mapper, transformer, *, root, teacher='centre'):
                label_camera=np.full(n, -1, np.int64), camera_on=np.zeros(n, bool), in_view=np.zeros(n, bool),
                label_pitch=np.zeros(n, np.float32), label_yaw=np.zeros(n, np.float32),
                step=lat['step'].astype(np.int32), cond_scale=float(manifest['cond_scale']))
-    for i, (_, view, s) in enumerate(decisions):
+    for i, (_, view, s, action) in enumerate(decisions):
         stage = -1 if view is None else STAGES.index(view.stage)
         if stage != int(lat['stage'][i]):
             raise ValueError('live stage differs from replay at step %d: recorded %d, recomputed %d'
                              % (decisions[i][0], int(lat['stage'][i]), stage))
         out['stage'][i] = stage
-        action = None if view is None or s is None else teacher_env_action(s, view, wanted, aim=teacher)
         if action is None: continue
         label = policy_label(action, mapper, transformer)
         dpitch, dyaw = aim_delta(view.eye, s.yaw, s.pitch, target_of(s, view, wanted))
