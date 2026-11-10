@@ -9,6 +9,7 @@ iron:   the iron comparison - success and iron-step game seconds (reacquire_comp
 Usage:  multi_block_report.py survey --batch B --arm official --out DIR
         multi_block_report.py iron --batch B --official official --multi multi [--iron-only hold-on] --out DIR
         multi_block_report.py iron --batch B --official official --multi press --baseline approach --out DIR
+        --block names the target of every run when it is not iron_ore (harder evaluation, design 2026-11-11).
 """
 import argparse
 import json
@@ -70,7 +71,10 @@ def survey(batch, arm):
     return report, '\n'.join(lines) + '\n'
 
 
-def iron(batch, arms):
+NAMES = {'iron_ore': '철광석'}
+
+
+def iron(batch, arms, block='iron_ore'):
     from minecraftrl.reacquire_compare import compare, report_markdown
     batch = Path(batch)
     dirs = {name: finished(batch / arm) for name, arm in arms.items() if arm}
@@ -79,8 +83,8 @@ def iron(batch, arms):
     for name, runs in dirs.items():
         stats = []
         for run in runs:
-            block, _, s = run_block(run)
-            if block != 'iron_ore': raise ValueError('%s does not mine iron_ore' % run)
+            mined, _, s = run_block(run)
+            if mined != block: raise ValueError('%s does not mine %s' % (run, block))
             stats.append(s)
         a = base['arms'][arms[name]]
         summary[name] = dict(arm=arms[name], success=a['success'], runs=a['runs'], median_s=a['median_s'], attempts=pool(stats))
@@ -88,7 +92,7 @@ def iron(batch, arms):
     verdict = (hold_verdict(summary['official'], summary['baseline'], summary['multi']) if held
                else dev_verdict(summary['official'], summary['multi'], summary.get('iron_only')))
     report = dict(batch=str(batch), arms=summary, verdict=verdict, compare=base)
-    lines = [report_markdown(base), '## 철광석 채굴 시도', '',
+    lines = [report_markdown(base), '## %s 채굴 시도' % NAMES.get(block, block), '',
              '| 갈래 | 성공 | 조준 중 공격 | 시도 | 파괴 | 대상 위에서 뗌 | 조준 벗어남 | 파괴 비율 |', '|---|---|---|---|---|---|---|---|']
     for name, s in summary.items():
         e = s['attempts']['ends']
@@ -109,12 +113,13 @@ def main(argv=None):
     i = sub.add_parser('iron'); i.add_argument('--batch', type=Path, required=True)
     i.add_argument('--official', required=True); i.add_argument('--multi', required=True); i.add_argument('--iron-only')
     i.add_argument('--baseline', help='baseline student arm: use the press verdict (design 2026-11-10 §5)')
+    i.add_argument('--block', default='iron_ore', help='the target block of every run (design 2026-11-11)')
     i.add_argument('--out', type=Path, required=True)
     args = p.parse_args(argv)
     if args.command == 'survey': report, md = survey(args.batch, args.arm); name = 'survey-%s' % args.arm
     else:
         report, md = iron(args.batch, dict(official=args.official, multi=args.multi, iron_only=args.iron_only,
-                                           baseline=args.baseline))
+                                           baseline=args.baseline), block=args.block)
         name = 'iron'
     write(args.out, name + '.json', report); write(args.out, name + '.md', md)
     print(md)

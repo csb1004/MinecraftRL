@@ -14,6 +14,10 @@ compare: success, iron-step game seconds and skill-stage shares per arm, plus th
 of the arena; the step mines that block with its own "mine <block>" skill carrying the reacquire head. Without --block
 the files, run folders (s<seed>-n<n>) and input record (frozen-<arm>.json) are exactly the iron probe's; a block run is
 <arm>/<block>-s<seed>-n<n> with frozen-<arm>-<block>.json.
+
+Harder evaluation (design 2026-11-11): evaluation modes take blocks only from configs/multi-block-eval-v1.json and the
+other modes only from the training list, so an evaluation block can never be collected on a training seed. --layout low
+moves the two target blocks one row down (the bottom row of the wall); the default layout writes the old files.
 """
 import argparse
 import hashlib
@@ -30,10 +34,14 @@ from minecraftrl.reacquire_data import TRAIN_SEEDS  # noqa: E402
 
 MODES = {'train': tuple(TRAIN_SEEDS), 'dev': (130363,), 'final': (577215,),
          'final2': (662607,),   # design 2026-11-09 §5: final seed fixed by the multi-block design (spent 2026-11-09)
-         'final3': (299792,)}   # design 2026-11-10 §5: final seed of the press round, fixed before any result
+         'final3': (299792,),   # design 2026-11-10 §5: final seed of the press round (spent 2026-11-10)
+         'eval4': (141421, 173205)}   # design 2026-11-11 §3: seeds of the harder evaluation, fixed before any result
+EVAL_MODES = ('eval4',)
 SKILL = 'mine_iron_reacquire'
 IRON = 'iron_ore'
 REGISTRY = 'configs/multi-block-v1.json'
+EVAL_REGISTRY = 'configs/multi-block-eval-v1.json'
+LAYOUTS = {'wall': 1, 'low': 0}     # dy of the two target blocks in fixture v2 (wall = the original eye-level row)
 POLICY_DEVICE_MIB = 2150
 LIMIT_S, FRAME_EVERY = 180, 2
 WATCHED = ('configs/reacquire-v1.json', 'configs/iron-demo-fixture-v2.json', 'src/minecraftrl/reacquire_head.py',
@@ -53,13 +61,17 @@ def arm_config(base, checkpoint, use_stage):
     return config
 
 
-def load_registry(root):
-    return json.loads((Path(root) / REGISTRY).read_text(encoding='utf-8'))
+def registry_path(mode):
+    return EVAL_REGISTRY if mode in EVAL_MODES else REGISTRY
+
+
+def load_registry(root, mode='train'):
+    return json.loads((Path(root) / registry_path(mode)).read_text(encoding='utf-8'))
 
 
 def block_entry(registry, block):
     if block not in registry['blocks']:
-        raise ValueError('unknown training block %s (registry: %s)' % (block, ', '.join(sorted(registry['blocks']))))
+        raise ValueError('block %s is not in the block list of this mode (%s)' % (block, ', '.join(sorted(registry['blocks']))))
     return registry['blocks'][block]
 
 
@@ -75,9 +87,11 @@ def block_config(base, registry, block, checkpoint, use_stage):
     return config
 
 
-def block_fixture(base, block):
-    """Fixture v2 with its iron ores replaced by `block`; fills, trees and every other block stay."""
-    return dict(base, blocks=[dict(b, block=block) if b['block'] == IRON else b for b in base['blocks']])
+def block_fixture(base, block, layout='wall'):
+    """Fixture v2 with its iron ores replaced by `block` and put at the layout's row; fills, trees and every other block
+    stay (the stone fill of the wall closes the row the targets left)."""
+    if layout not in LAYOUTS: raise ValueError('unknown layout %s (%s)' % (layout, ', '.join(LAYOUTS)))
+    return dict(base, blocks=[dict(b, block=block, dy=LAYOUTS[layout]) if b['block'] == IRON else b for b in base['blocks']])
 
 
 def run_name(block, seed, n):
@@ -90,22 +104,26 @@ def write(path, value):
     return path
 
 
-def prepare(batch, arm, root, checkpoint, use_stage, block=IRON):
+def prepare(batch, arm, root, checkpoint, use_stage, block=IRON, mode='train', layout='wall'):
+    if layout not in LAYOUTS: raise ValueError('unknown layout %s (%s)' % (layout, ', '.join(LAYOUTS)))
     base = json.loads((root / 'configs/reacquire-v1.json').read_text(encoding='utf-8'))
     fixture_base = json.loads((root / 'configs/iron-demo-fixture-v2.json').read_text(encoding='utf-8'))
+    suffix = '' if layout == 'wall' else '-' + layout
+    moved = '' if layout == 'wall' else ' LAYOUT VARIANT (design 2026-11-11): the targets sit at dy %d.' % LAYOUTS[layout]
     if block != IRON:
-        registry = load_registry(root); entry = block_entry(registry, block)
+        registry = load_registry(root, mode); entry = block_entry(registry, block)
         config = write(batch / 'configs' / ('%s-%s.json' % (arm, block)), block_config(base, registry, block, checkpoint, use_stage))
-        fixture = write(batch / 'fixtures' / (block + '-probe.json'), dict(
-            block_fixture(fixture_base, block), give=[dict(item='stone_pickaxe', count=1)],
+        fixture = write(batch / 'fixtures' / (block + '-probe%s.json' % suffix), dict(
+            block_fixture(fixture_base, block, layout), give=[dict(item='stone_pickaxe', count=1)],
             description=fixture_base['description'] + ' DEVELOPMENT PROBE VARIANT: start items given by fixture.'
-            + ' MULTI-BLOCK VARIANT (design 2026-11-08): the iron ores are replaced by %s.' % block))
+            + ' MULTI-BLOCK VARIANT (design 2026-11-08): the iron ores are replaced by %s.' % block + moved))
         plan = write(batch / 'plans' / (block + '.json'), [dict(id=block, skill=entry['skill'], kind='policy',
                                                                 target=entry['item'], count=1, block=block)])
         return config, fixture, plan
     config = write(batch / 'configs' / (arm + '.json'), arm_config(base, checkpoint, use_stage))
-    fixture = write(batch / 'fixtures/iron-probe.json', dict(fixture_base, give=[dict(item='stone_pickaxe', count=1)],
-        description=fixture_base['description'] + ' DEVELOPMENT PROBE VARIANT: start items given by fixture.'))
+    placed = fixture_base if layout == 'wall' else block_fixture(fixture_base, IRON, layout)
+    fixture = write(batch / 'fixtures' / ('iron-probe%s.json' % suffix), dict(placed, give=[dict(item='stone_pickaxe', count=1)],
+        description=fixture_base['description'] + ' DEVELOPMENT PROBE VARIANT: start items given by fixture.' + moved))
     plan = write(batch / 'plans/iron.json', [dict(id='iron', skill=SKILL, kind='policy', target='iron_ore', count=1,
                                                   block='iron_ore')])
     return config, fixture, plan
@@ -142,21 +160,23 @@ def run_game(command, run_dir):
 
 
 def collect(*, batch, arm, checkpoint, use_stage, seeds, sampling, mode='train', root=ROOT, launch=run_game,
-            gpu_free=nvidia_free_mib, gpu_wait=(40, 15.), block=IRON):
+            gpu_free=nvidia_free_mib, gpu_wait=(40, 15.), block=IRON, layout='wall'):
     """0 done, 1 STOP, 3 GPU busy, 4 invalid launch excluded, 5 inputs changed."""
     check_seeds(mode, seeds)
     root = Path(root).resolve(); batch = Path(batch).resolve()
     if not batch.is_relative_to(root / 'results'): raise ValueError('batch must be under results/')
     if checkpoint is not None and not Path(checkpoint).exists(): raise ValueError('no checkpoint: %s' % checkpoint)
     config, fixture, plan = prepare(batch, arm, root, None if checkpoint is None else str(Path(checkpoint).resolve()), use_stage,
-                                    block=block)
-    skill = SKILL if block == IRON else block_entry(load_registry(root), block)['skill']
+                                    block=block, mode=mode, layout=layout)
+    skill = SKILL if block == IRON else block_entry(load_registry(root, mode), block)['skill']
     embedding = root / json.loads(config.read_text(encoding='utf-8'))['skills'][skill]['embedding']
-    files = [config, fixture, plan, embedding] + ([checkpoint] if checkpoint else []) + ([] if block == IRON else [root / REGISTRY])
+    files = ([config, fixture, plan, embedding] + ([checkpoint] if checkpoint else [])
+             + ([] if block == IRON else [root / registry_path(mode)]))
     frozen = batch / ('frozen-%s.json' % arm if block == IRON else 'frozen-%s-%s.json' % (arm, block))
     meta = dict(arm=arm, checkpoint=None if checkpoint is None else str(Path(checkpoint).resolve()), use_stage=bool(use_stage),
                 mode=mode, limit_s=LIMIT_S, frame_every=FRAME_EVERY, scope='reacquire probe; no API; success = server inventory')
     if block != IRON: meta['block'] = block
+    if mode in EVAL_MODES or layout != 'wall': meta['layout'] = layout
     for seed in seeds:
         for n in sampling:
             run_dir = batch / arm / run_name(block, seed, n)
@@ -203,7 +223,9 @@ def main(argv=None):
     c.add_argument('--seeds', type=int, nargs='+', required=True)
     c.add_argument('--sampling', type=int, nargs='+', required=True)
     c.add_argument('--mode', choices=tuple(MODES), default='train')
-    c.add_argument('--block', default=IRON, help='a training block of %s; default: the iron probe' % REGISTRY)
+    c.add_argument('--block', default=IRON, help='a block of %s (%s in evaluation modes); default: the iron probe'
+                   % (REGISTRY, EVAL_REGISTRY))
+    c.add_argument('--layout', choices=tuple(LAYOUTS), default='wall', help='row of the two targets (design 2026-11-11)')
     k = sub.add_parser('compare')
     k.add_argument('--batch', type=Path, required=True)
     k.add_argument('--arms', nargs='+', required=True)
@@ -212,7 +234,7 @@ def main(argv=None):
     if args.command == 'collect':
         checkpoint = None if args.checkpoint == 'official' else Path(args.checkpoint)
         return collect(batch=args.batch, arm=args.arm, checkpoint=checkpoint, use_stage=args.use_stage == 'on',
-                       seeds=args.seeds, sampling=args.sampling, mode=args.mode, block=args.block)
+                       seeds=args.seeds, sampling=args.sampling, mode=args.mode, block=args.block, layout=args.layout)
     from minecraftrl.reacquire_compare import compare, report_markdown
     batch = args.batch.resolve()
     arms = {arm: sorted(d for d in (batch / arm).iterdir() if (d / 'summary.json').exists()) for arm in args.arms}

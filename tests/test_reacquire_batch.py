@@ -146,6 +146,47 @@ class BatchTest(unittest.TestCase):
         self.assertEqual(self.collect(sampling=[1], block='sand'), 0)
         self.assertEqual(len(self.launched), 2)
 
+    # Harder evaluation (design 2026-11-11): eval-only blocks, a lower target row and the eval4 seeds.
+    def test_eval4_mode_allows_only_its_preset_seeds(self):
+        self.m.check_seeds('eval4', [141421, 173205])
+        for mode, seed in (('eval4', 299792), ('eval4', 271828), ('final3', 141421), ('train', 173205), ('dev', 141421)):
+            with self.subTest(mode=mode, seed=seed), self.assertRaises(ValueError): self.m.check_seeds(mode, [seed])
+
+    def test_eval_blocks_only_in_eval_modes_and_training_blocks_never_there(self):
+        registry = json.loads((ROOT / 'configs/multi-block-eval-v1.json').read_text(encoding='utf-8'))
+        self.assertEqual(registry['blocks']['bookshelf']['item'], 'book')
+        self.assertFalse(set(registry['blocks']) & set(json.loads((ROOT / 'configs/multi-block-v1.json').read_text())['blocks']))
+        config_path, fixture, plan = self.m.prepare(self.batch, 'sight', ROOT, None, True, block='bookshelf', mode='eval4')
+        self.assertEqual(json.loads(plan.read_text())[0]['target'], 'book')
+        self.assertEqual(json.loads(config_path.read_text())['skills']['mine_bookshelf_reacquire']['source'],
+                         'text_prompt:mine bookshelf')
+        for mode, block in (('train', 'bookshelf'), ('final3', 'bookshelf'), ('eval4', 'coal_ore')):
+            with self.subTest(mode=mode, block=block), self.assertRaises(ValueError):
+                self.m.prepare(self.batch / mode, 'x', ROOT, None, True, block=block, mode=mode)
+
+    def test_low_layout_moves_only_the_targets_one_row_down(self):
+        base = json.loads((ROOT / 'configs/iron-demo-fixture-v2.json').read_text())
+        _, fixture, _ = self.m.prepare(self.batch, 'official', ROOT, None, True, mode='eval4', layout='low')
+        self.assertEqual(fixture.name, 'iron-probe-low.json')
+        got = json.loads(fixture.read_text())
+        self.assertEqual(got['fill'], base['fill']); self.assertEqual(got['give'], [dict(item='stone_pickaxe', count=1)])
+        want = [dict(b, dy=0) if b['block'] == 'iron_ore' else b for b in base['blocks']]
+        self.assertEqual(got['blocks'], want)
+        self.assertEqual(sorted((b['dx'], b['dy'], b['dz']) for b in got['blocks'] if b['block'] == 'iron_ore'), [(-1, 0, 8), (1, 0, 8)])
+        _, wall, _ = self.m.prepare(self.batch / 'w', 'official', ROOT, None, True)
+        self.assertEqual(wall.name, 'iron-probe.json')                     # the default layout keeps the old file
+        with self.assertRaises(ValueError): self.m.prepare(self.batch / 'x', 'official', ROOT, None, True, layout='floor')
+
+    def test_eval_collect_names_runs_and_records_the_layout(self):
+        self.assertEqual(self.collect(mode='eval4', seeds=[141421], sampling=[41], block='bookshelf'), 0)
+        self.assertEqual(self.launched, [self.batch / 'official/bookshelf-s141421-n41'])
+        self.assertEqual(json.loads((self.batch / 'frozen-official-bookshelf.json').read_text())['layout'], 'wall')
+        low = self.batch / 'low'
+        self.assertEqual(self.collect(batch=low, mode='eval4', seeds=[173205], sampling=[41], layout='low'), 0)
+        self.assertEqual(self.launched[-1], low / 'official/s173205-n41')
+        self.assertEqual(json.loads((low / 'frozen-official.json').read_text())['layout'], 'low')
+        self.assertEqual(self.collect(batch=low, mode='eval4', seeds=[173205], sampling=[42]), 5)   # layout switch: inputs differ
+
     def test_unknown_or_held_out_block_names_are_refused(self):
         for block in ('diamond_ore', 'stone'):
             with self.subTest(block=block), self.assertRaises(ValueError):

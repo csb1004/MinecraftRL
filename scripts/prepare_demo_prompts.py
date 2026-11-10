@@ -17,7 +17,10 @@ ALONE_PROMPTS = {'get_iron': 'get iron'}
 # Multi-block mining (design 2026-11-08 §3): the "mine iron ore" template with the six training blocks; iron stays held out.
 BLOCK_PROMPTS = {'mine_coal_ore': 'mine coal ore', 'mine_lapis_ore': 'mine lapis lazuli ore', 'mine_sand': 'mine sand',
                  'mine_clay': 'mine clay', 'mine_white_wool': 'mine white wool', 'mine_oak_planks': 'mine oak planks'}
-SETS = {'iron': PROMPTS, 'escape': ESCAPE_PROMPTS, 'ceiling': CEILING_PROMPTS, 'alone': ALONE_PROMPTS, 'blocks': BLOCK_PROMPTS}
+# Harder evaluation (design 2026-11-11 §2): a block never trained on, with the same "mine {block}" template.
+EVAL_PROMPTS = {'mine_bookshelf': 'mine bookshelf'}
+SETS = {'iron': PROMPTS, 'escape': ESCAPE_PROMPTS, 'ceiling': CEILING_PROMPTS, 'alone': ALONE_PROMPTS, 'blocks': BLOCK_PROMPTS,
+        'eval': EVAL_PROMPTS}
 SEED = 31031
 
 

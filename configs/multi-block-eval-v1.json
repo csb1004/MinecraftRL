@@ -1,0 +1,18 @@
+{
+  "schema": "multi_block_v1",
+  "description": "Evaluation-only blocks for the harder evaluation (design docs/specs/2026-11-11-harder-evaluation-design.md). Never trained on: the batch runner accepts these blocks only in evaluation modes, and evaluation seeds are refused by the dataset builder. Each replaces the two iron ores of fixture v2; the probe gives a stone pickaxe. Prompts: the \"mine iron ore\" template, official STEVE-1 prior, seed 31031 (results/eval-prompts-20261111/manifest.json).",
+  "held_out": [
+    "iron_ore",
+    "bookshelf"
+  ],
+  "cond_scale": 6.0,
+  "blocks": {
+    "bookshelf": {
+      "item": "book",
+      "skill": "mine_bookshelf_reacquire",
+      "prompt": "mine bookshelf",
+      "embedding": "results/eval-prompts-20261111/mine_bookshelf.npy",
+      "sha256": "eed94768d8a9fa5adcf2c376b524bb69acfa167be387b520e9b7448cea604016"
+    }
+  }
+}
