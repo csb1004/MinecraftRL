@@ -8,7 +8,7 @@
   aimed·mining·collect 정답은 press 그대로이고 게임 실행 코드도 그대로다.
 - 게임 전 확인(게임 없음): 멈췄던 두 실행의 near 행 97–98%가 "걷기" 정답으로 바뀐다. 직선 계산은 near에서 서버 조준 블록과 97.2% 일치한다.
   R4 near 행의 52%는 "중심은 가렸지만 면은 보이는" 상태였다.
-- 실행: `results/multi-block-20261108/launch/sight.sh`(로그 `sight.log`, 15:52 시작). 다시 실행하면 끝난 단계를 건너뛴다.
+- 실행: `results/multi-block-20261108/launch/sight.sh`(로그 `sight.log`, 15:23 시작). 다시 실행하면 끝난 단계를 건너뛴다.
   R0–R5 재라벨 → s-r6 → R6 수집(샘플링 7) → (근처 멈춤 실행이 있으면 R7, 샘플링 8) → s-final → 오프라인 관문
   → 철광석 개발 `sight` 4회 → 판정(성공 ≥ approach 4/4, 파괴 비율 > approach 50%, 시간 중앙값 ≤ 공식 29.3초)을 통과할 때만
   final3(seed 299792, 공식·approach·sight 각 8회).
