@@ -83,6 +83,19 @@ def dev_verdict(official, multi, iron_only=None):
                 shares=dict(official=so, multi=sm, iron_only=None if iron_only is None else destroyed_share(iron_only['attempts'])))
 
 
+def hold_verdict(official, baseline, new):
+    """Press design 2026-11-10 §5: the new student holds better than the baseline student when its success is not
+    lower than the baseline's, its destroyed share is higher than the baseline's, and its median success time is not
+    longer than the official policy's. Each arm: dict(success, median_s, attempts=pooled stats)."""
+    so, sb, sn = (destroyed_share(a['attempts']) for a in (official, baseline, new))
+    if new['median_s'] is None: time_ok = False
+    elif official['median_s'] is None: time_ok = True
+    else: time_ok = new['median_s'] <= official['median_s']
+    conditions = dict(success_not_lower=new['success'] >= baseline['success'], destroyed_share_higher=sn > sb,
+                      median_not_longer=time_ok)
+    return dict(improved=all(conditions.values()), conditions=conditions, shares=dict(official=so, baseline=sb, new=sn))
+
+
 def run_block(run_dir):
     """(block, success, attempts) of one probe run folder: the plan's one step names the block."""
     run_dir = Path(run_dir)

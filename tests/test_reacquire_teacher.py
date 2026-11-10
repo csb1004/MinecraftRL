@@ -152,6 +152,44 @@ class ApproachTeacherTest(unittest.TestCase):
         self.assertIsNone(teacher_env_action(sample(), StageView('far', 9., (0, 1, 9), EYE), 'iron_ore', aim='approach'))
 
 
+class PressTeacherTest(unittest.TestCase):
+    """Design 2026-11-10 section 3: one label for the whole mining stage, so the student can hold until the block breaks."""
+
+    def off_target(self, pos):
+        # the server still reports mining the target while the crosshair already slipped onto the wall
+        return sample(hit='stone', hit_pos=(0, 1, 4), mining='iron_ore', mining_pos=pos)
+
+    def test_mining_with_the_crosshair_off_the_target_still_holds_attack_and_the_view(self):
+        view = StageView('mining', 2., (0, 1, 2), EYE)
+        a = teacher_env_action(self.off_target((0, 1, 2)), view, 'iron_ore', aim='press')
+        self.assertEqual(pressed(a), ['attack']); self.assertEqual(list(a['camera']), [0., 0.])
+        old = teacher_env_action(self.off_target((0, 1, 2)), view, 'iron_ore', aim='approach')
+        self.assertEqual(pressed(old), [])                      # the approach teacher let go and turned
+
+    def test_mining_from_afar_holds_and_walks(self):
+        a = teacher_env_action(self.off_target((1, 1, 3)), StageView('mining', 3., (1, 1, 3), EYE), 'iron_ore', aim='press')
+        self.assertEqual(pressed(a), ['attack', 'forward']); self.assertEqual(list(a['camera']), [0., 0.])
+
+    def test_other_stages_keep_the_approach_labels(self):
+        cases = [(sample(hit='stone'), StageView('near', 3., (-1, 1, 3), EYE)),
+                 (sample(hit='grass_block'), StageView('near', 3., (0, 1, -3), EYE)),
+                 (sample(hit='iron_ore', hit_pos=(1, 1, 3)), StageView('aimed', 3., (1, 1, 3), EYE)),
+                 (sample(hit='iron_ore', hit_pos=(0, 1, 2), mining='iron_ore', mining_pos=(0, 1, 2)), StageView('mining', 2., (0, 1, 2), EYE)),
+                 (sample(destroyed='iron_ore', destroyed_pos=(1, 1, 3)), StageView('collect', 4., (4, 1, 3), EYE))]
+        for s, view in cases:
+            with self.subTest(stage=view.stage):
+                old = teacher_env_action(s, view, 'iron_ore', aim='approach')
+                new = teacher_env_action(s, view, 'iron_ore', aim='press')
+                self.assertEqual(pressed(new), pressed(old)); self.assertEqual(list(new['camera']), list(old['camera']))
+
+    def test_far_rows_have_no_label_and_older_teachers_are_unchanged(self):
+        self.assertIsNone(teacher_env_action(sample(), StageView('far', 9., (0, 1, 9), EYE), 'iron_ore', aim='press'))
+        view = StageView('mining', 2., (0, 1, 2), EYE)
+        for aim in ('centre', 'hold'):
+            with self.subTest(aim=aim):
+                self.assertEqual(teacher_env_action(self.off_target((0, 1, 2)), view, 'iron_ore', aim=aim)['attack'], 0)
+
+
 @unittest.skipUnless(STEVE1, 'isolated WSL Torch/STEVE-1 environment required')
 class OfficialLabelTest(unittest.TestCase):
     def test_button_list_matches_vpt(self):

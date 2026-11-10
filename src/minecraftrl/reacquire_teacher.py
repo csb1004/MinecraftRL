@@ -7,6 +7,11 @@ axis, attacks only while the crosshair is on the target family, and presses noth
 aim='approach' (design 2026-11-09 §3) adds walking: forward while the target is farther than CLOSE blocks
 horizontally (and, when turning, roughly in front), and a collect label that turns toward the last broken target
 block (server destroy position) and walks onto its drop.
+
+aim='press' (design 2026-11-10 §3) is 'approach' with one label for the whole mining stage: attack with the view
+still, also on the rows where the server still reports mining the target after the crosshair slipped off it. The
+approach teacher let go and turned on those rows (15-17% of the mining stage), and the student, which cannot tell
+them apart by its stage input, lowered its attack probability and broke its own mining.
 """
 import math
 
@@ -61,7 +66,8 @@ def target_of(s, view, wanted):
     return view.nearest
 
 
-AIM_MODES = ('centre', 'hold', 'approach')
+AIM_MODES = ('centre', 'hold', 'approach', 'press')
+WALKING_MODES = ('approach', 'press')
 
 
 def _turn(dpitch, dyaw):
@@ -75,9 +81,10 @@ def teacher_env_action(s, view, wanted, aim='centre'):
     added 2026-11-07 after rounds 1-2: the centring label became camera jitter that kept resetting block damage) keeps
     the view still while the crosshair is on the target family and only turns while near but not aimed.
     aim='approach' (design 2026-11-09 §3) is 'hold' plus forward while the target is farther than CLOSE, and labels
-    collect rows: turn toward the broken target block and walk onto it, no attack."""
+    collect rows: turn toward the broken target block and walk onto it, no attack.
+    aim='press' (design 2026-11-10 §3) is 'approach' that holds attack and the view on every mining-stage row."""
     if aim not in AIM_MODES: raise ValueError('unknown teacher aim mode: %s' % aim)
-    stages = APPROACH_STAGES if aim == 'approach' else LABELLED_STAGES
+    stages = APPROACH_STAGES if aim in WALKING_MODES else LABELLED_STAGES
     if not s.valid or s.gui_open or view.stage not in stages: return None
     target = target_of(s, view, wanted)
     if target is None: return None
@@ -87,14 +94,14 @@ def teacher_env_action(s, view, wanted, aim='centre'):
         action['camera'] = _turn(dpitch, dyaw)
         action['forward'] = int(horizontal(s, target) > DROP_CLOSE and abs(dyaw) <= FRONT)
         return action
-    on_target = block_matches(s.hit_block, wanted)
-    if aim in ('hold', 'approach') and on_target:
+    on_target = block_matches(s.hit_block, wanted) or (aim == 'press' and view.stage == 'mining')
+    if aim != 'centre' and on_target:
         action['camera'] = np.array([0., 0.]); front = True
     else:
         dpitch, dyaw = aim_delta(view.eye, s.yaw, s.pitch, target)
         action['camera'] = _turn(dpitch, dyaw); front = abs(dyaw) <= FRONT
     action['attack'] = int(on_target)
-    if aim == 'approach': action['forward'] = int(horizontal(s, target) > CLOSE and front)
+    if aim in WALKING_MODES: action['forward'] = int(horizontal(s, target) > CLOSE and front)
     return action
 
 

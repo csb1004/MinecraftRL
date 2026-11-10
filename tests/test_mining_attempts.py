@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from minecraftrl.mining_attempts import attempts, destroyed_share, dev_verdict, pool, r0_gate, run_block
+from minecraftrl.mining_attempts import attempts, destroyed_share, dev_verdict, hold_verdict, pool, r0_gate, run_block
 
 
 def r(hit='air', mining='air', attack=1, destroys=0, destroyed='air', controller='policy'):
@@ -65,6 +65,23 @@ class GateAndVerdictTest(unittest.TestCase):
 
     def test_zero_official_share_still_needs_a_higher_share(self):
         self.assertFalse(dev_verdict(arm(0, None, 0, 5), arm(0, None, 0, 5))['conditions']['destroyed_share'])
+
+
+class HoldVerdictTest(unittest.TestCase):
+    """Design 2026-11-10 section 5: success and broken share against the baseline student, time against official."""
+
+    def test_needs_success_a_higher_broken_share_and_time_within_official(self):
+        official, baseline = arm(2, 29., 2, 58), arm(4, 5., 4, 4)
+        good = hold_verdict(official, baseline, arm(4, 6., 5, 2))
+        self.assertTrue(good['improved'])
+        self.assertEqual(good['shares'], dict(official=2 / 60, baseline=.5, new=5 / 7))
+        self.assertFalse(hold_verdict(official, baseline, arm(3, 6., 5, 2))['conditions']['success_not_lower'])
+        self.assertFalse(hold_verdict(official, baseline, arm(4, 6., 4, 4))['conditions']['destroyed_share_higher'])   # equal
+        self.assertFalse(hold_verdict(official, baseline, arm(4, 30., 5, 2))['conditions']['median_not_longer'])
+        self.assertFalse(hold_verdict(official, baseline, arm(4, None, 5, 2))['conditions']['median_not_longer'])
+
+    def test_time_passes_when_official_never_succeeded(self):
+        self.assertTrue(hold_verdict(arm(0, None, 0, 5), arm(1, 9., 1, 3), arm(1, 50., 1, 1))['improved'])
 
 
 class RunBlockTest(unittest.TestCase):

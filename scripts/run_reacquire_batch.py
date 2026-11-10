@@ -5,7 +5,8 @@ collect: one supervised game per (world seed, sampling seed) with `minecraftrl.p
 the reacquire head: `--checkpoint official` is the untrained head (the official STEVE-1 output, still recording
 latents). Finished runs are skipped; <batch>/STOP halts; inputs are hashed into <batch>/frozen-<arm>.json and must not
 change; an invalid launch is moved to <batch>/excluded/ and halts the batch. Seeds are checked against the mode:
-train = training seeds only, dev = 130363, final = 577215 (spent 2026-11-07), final2 = 662607.
+train = training seeds only, dev = 130363, final = 577215 (spent 2026-11-07), final2 = 662607 (spent 2026-11-09),
+final3 = 299792.
 
 compare: success, iron-step game seconds and skill-stage shares per arm, plus the pre-set verdict against `official`.
 
@@ -28,7 +29,8 @@ sys.path.insert(0, str(ROOT / 'src'))
 from minecraftrl.reacquire_data import TRAIN_SEEDS  # noqa: E402
 
 MODES = {'train': tuple(TRAIN_SEEDS), 'dev': (130363,), 'final': (577215,),
-         'final2': (662607,)}   # design 2026-11-09 §5: final seed fixed by the multi-block design, still unused
+         'final2': (662607,),   # design 2026-11-09 §5: final seed fixed by the multi-block design (spent 2026-11-09)
+         'final3': (299792,)}   # design 2026-11-10 §5: final seed of the press round, fixed before any result
 SKILL = 'mine_iron_reacquire'
 IRON = 'iron_ore'
 REGISTRY = 'configs/multi-block-v1.json'

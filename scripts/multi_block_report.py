@@ -4,8 +4,11 @@ survey: per training block of one arm - runs, server-inventory successes, attack
         mining attempts and how they ended, and the R0 gate (design §6).
 iron:   the iron comparison - success and iron-step game seconds (reacquire_compare) plus pooled iron mining attempts per
         arm, and the pre-set verdict for the multi-block arm (design §9; --iron-only omitted = the final form, §10).
+        With --baseline the verdict is the press design's (2026-11-10 §5): success and destroyed share of --multi against
+        the baseline student, time against official.
 Usage:  multi_block_report.py survey --batch B --arm official --out DIR
         multi_block_report.py iron --batch B --official official --multi multi [--iron-only hold-on] --out DIR
+        multi_block_report.py iron --batch B --official official --multi press --baseline approach --out DIR
 """
 import argparse
 import json
@@ -15,8 +18,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'src'))
-from minecraftrl.mining_attempts import (attack_share, destroyed_share, dev_verdict, pool, r0_gate,  # noqa: E402
-                                         run_block)
+from minecraftrl.mining_attempts import (attack_share, destroyed_share, dev_verdict, hold_verdict, pool,  # noqa: E402
+                                         r0_gate, run_block)
 
 
 def finished(folder):
@@ -81,7 +84,9 @@ def iron(batch, arms):
             stats.append(s)
         a = base['arms'][arms[name]]
         summary[name] = dict(arm=arms[name], success=a['success'], runs=a['runs'], median_s=a['median_s'], attempts=pool(stats))
-    verdict = dev_verdict(summary['official'], summary['multi'], summary.get('iron_only'))
+    held = 'baseline' in summary
+    verdict = (hold_verdict(summary['official'], summary['baseline'], summary['multi']) if held
+               else dev_verdict(summary['official'], summary['multi'], summary.get('iron_only')))
     report = dict(batch=str(batch), arms=summary, verdict=verdict, compare=base)
     lines = [report_markdown(base), '## 철광석 채굴 시도', '',
              '| 갈래 | 성공 | 조준 중 공격 | 시도 | 파괴 | 대상 위에서 뗌 | 조준 벗어남 | 파괴 비율 |', '|---|---|---|---|---|---|---|---|']
@@ -91,7 +96,8 @@ def iron(batch, arms):
             s['arm'], s['success'], s['runs'], pct(attack_share(s['attempts'])), sum(e.values()), e['destroyed'],
             e['released'], e['left'], pct(destroyed_share(s['attempts']))))
     checks = ', '.join('%s %s' % (k, 'O' if ok else 'X') for k, ok in verdict['conditions'].items())
-    lines += ['', '미리 정한 판정(설계 §9/§10): %s (%s)' % ('나아짐' if verdict['improved'] else '나아졌다고 쓰지 않음', checks)]
+    title = '미리 정한 판정(설계 2026-11-10 §5, 기준 학생 %s)' % arms['baseline'] if held else '미리 정한 판정(설계 §9/§10)'
+    lines += ['', '%s: %s (%s)' % (title, '나아짐' if verdict['improved'] else '나아졌다고 쓰지 않음', checks)]
     return report, '\n'.join(lines) + '\n'
 
 
@@ -102,11 +108,13 @@ def main(argv=None):
     s.add_argument('--out', type=Path, required=True)
     i = sub.add_parser('iron'); i.add_argument('--batch', type=Path, required=True)
     i.add_argument('--official', required=True); i.add_argument('--multi', required=True); i.add_argument('--iron-only')
+    i.add_argument('--baseline', help='baseline student arm: use the press verdict (design 2026-11-10 §5)')
     i.add_argument('--out', type=Path, required=True)
     args = p.parse_args(argv)
     if args.command == 'survey': report, md = survey(args.batch, args.arm); name = 'survey-%s' % args.arm
     else:
-        report, md = iron(args.batch, dict(official=args.official, multi=args.multi, iron_only=args.iron_only))
+        report, md = iron(args.batch, dict(official=args.official, multi=args.multi, iron_only=args.iron_only,
+                                           baseline=args.baseline))
         name = 'iron'
     write(args.out, name + '.json', report); write(args.out, name + '.md', md)
     print(md)
