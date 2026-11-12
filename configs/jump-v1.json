@@ -1,0 +1,13 @@
+{
+  "schema": "jump_config_v1",
+  "description": "Jump course skill (design docs/specs/2026-11-13-jump-course-design.md). Course ids are generator seeds of minecraftrl.jump_course.generate_course; train, dev and final courses never overlap. The embedding is the official STEVE-1 prior output for the prompt (made with scripts/prepare_demo_prompts.py --set jump); sha256 null = not made yet, and only the teacher check may run.",
+  "prompt": "jump across the platforms to the gold block",
+  "embedding": "results/jump-prompts/jump_course.npy",
+  "sha256": null,
+  "cond_scale": 6.0,
+  "courses": {
+    "train": [101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112],
+    "dev": [201, 202, 203, 204],
+    "final": [301, 302, 303, 304, 305, 306, 307, 308]
+  }
+}

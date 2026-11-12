@@ -19,8 +19,10 @@ BLOCK_PROMPTS = {'mine_coal_ore': 'mine coal ore', 'mine_lapis_ore': 'mine lapis
                  'mine_clay': 'mine clay', 'mine_white_wool': 'mine white wool', 'mine_oak_planks': 'mine oak planks'}
 # Harder evaluation (design 2026-11-11 §2): a block never trained on, with the same "mine {block}" template.
 EVAL_PROMPTS = {'mine_bookshelf': 'mine bookshelf'}
+# Jump course (design 2026-11-13 §5): the prompt of configs/jump-v1.json.
+JUMP_PROMPTS = {'jump_course': 'jump across the platforms to the gold block'}
 SETS = {'iron': PROMPTS, 'escape': ESCAPE_PROMPTS, 'ceiling': CEILING_PROMPTS, 'alone': ALONE_PROMPTS, 'blocks': BLOCK_PROMPTS,
-        'eval': EVAL_PROMPTS}
+        'eval': EVAL_PROMPTS, 'jump': JUMP_PROMPTS}
 SEED = 31031
 
 
