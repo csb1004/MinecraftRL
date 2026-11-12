@@ -26,7 +26,10 @@ HALF = .3              # half width of the player's hitbox
 FRONT = 20.            # degrees of yaw: facing the next platform
 EDGE = .35             # blocks from the centre to the platform edge toward the next platform: jump from here
 FALL_MARGIN = 1.2      # feet this far below the lowest platform top = fallen
-PAST_NEAR = 1.         # blocks past the next platform's near edge: let go of forward in the air
+# Blocks past the next platform's near edge where the air label lets go of forward. Letting go also ends a sprint, so a
+# sprint started for a long or rising jump does not carry into the next short jump. A rough movement simulation of the
+# teacher (2026-11-13, analysis only) crossed 721/800 generated courses at 1.0, 762 at 0.5 and 788 at 0.
+PAST_NEAR = 0.
 MAX_TURN = 10.         # degrees per axis per decision
 GROUND_EPS = .05
 START = dict(x0=-1, x1=1, z0=-1, z1=1, top=0, gap=0, block='stone_bricks')
@@ -97,12 +100,12 @@ def _centre(p): return (p['X0'] + p['X1']) / 2., (p['Z0'] + p['Z1']) / 2.
 
 
 def _exit(px, pz, ux, uz, p):
-    """Distance along (ux, uz) from (px, pz) to where the ray leaves rectangle p (0 when already outside)."""
-    if not (p['X0'] <= px <= p['X1'] and p['Z0'] <= pz <= p['Z1']): return 0.
+    """Distance along (ux, uz) from (px, pz) to the far side of rectangle p in that direction (0 once past it). A centre
+    that overhangs the near side (landed on the edge of a platform) is a whole platform away from jumping, not 0."""
     ts = []
     if ux: ts.append(((p['X1'] if ux > 0 else p['X0']) - px) / ux)
     if uz: ts.append(((p['Z1'] if uz > 0 else p['Z0']) - pz) / uz)
-    return min(ts) if ts else 0.
+    return max(0., min(ts)) if ts else 0.
 
 
 def _entry(px, pz, ux, uz, p):

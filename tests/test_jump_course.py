@@ -92,6 +92,13 @@ class StageTest(unittest.TestCase):
         self.assertEqual((v.stage, v.k), ('edge', 0))
         self.assertEqual(v.edge, 0.)
 
+    def test_landing_on_the_near_edge_is_a_whole_platform_from_the_next_jump(self):
+        # Simulation 2026-11-13: after a jump up the centre hung 0.04 before platform 1; reading that as the edge sent
+        # the teacher into a 5-block jump from the near side.
+        v = standing(self.t, 100.2, 65., 202.96)
+        self.assertEqual((v.stage, v.k), ('run', 1))
+        self.assertGreater(v.edge, 3.)
+
 
 class TeacherTest(unittest.TestCase):
     def setUp(self):
