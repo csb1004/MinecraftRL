@@ -175,7 +175,7 @@ class BatchTest(unittest.TestCase):
         self.assertEqual(sorted((b['dx'], b['dy'], b['dz']) for b in got['blocks'] if b['block'] == 'iron_ore'), [(-1, 0, 8), (1, 0, 8)])
         _, wall, _ = self.m.prepare(self.batch / 'w', 'official', ROOT, None, True)
         self.assertEqual(wall.name, 'iron-probe.json')                     # the default layout keeps the old file
-        with self.assertRaises(ValueError): self.m.prepare(self.batch / 'x', 'official', ROOT, None, True, layout='floor')
+        with self.assertRaises(ValueError): self.m.prepare(self.batch / 'x', 'official', ROOT, None, True, layout='ceiling')
 
     def test_eval_collect_names_runs_and_records_the_layout(self):
         self.assertEqual(self.collect(mode='eval4', seeds=[141421], sampling=[41], block='bookshelf'), 0)
@@ -186,6 +186,40 @@ class BatchTest(unittest.TestCase):
         self.assertEqual(self.launched[-1], low / 'official/s173205-n41')
         self.assertEqual(json.loads((low / 'frozen-official.json').read_text())['layout'], 'low')
         self.assertEqual(self.collect(batch=low, mode='eval4', seeds=[173205], sampling=[42]), 5)   # layout switch: inputs differ
+
+    # Mixed layouts (design 2026-11-13): three training layouts, low kept for evaluation only, final seed 223606.
+    def test_final5_mode_allows_only_its_preset_seed(self):
+        self.m.check_seeds('final5', [223606])
+        for mode, seed in (('final5', 299792), ('final5', 130363), ('train', 223606), ('dev', 223606), ('eval4', 223606)):
+            with self.subTest(mode=mode, seed=seed), self.assertRaises(ValueError): self.m.check_seeds(mode, [seed])
+
+    def test_training_layouts_move_only_the_targets(self):
+        base = json.loads((ROOT / 'configs/iron-demo-fixture-v2.json').read_text())
+        others = [b for b in base['blocks'] if b['block'] != 'iron_ore']
+        want = {'high': ([(-2, 2, 8), (1, 2, 8)], []), 'floor': ([(-2, -1, 5), (2, -1, 6)], []),
+                'pillar': ([(-1, 1, 5), (2, 1, 6)], [(-1, 0, 5), (2, 0, 6)])}
+        for layout, (targets, stone) in want.items():
+            with self.subTest(layout=layout):
+                _, fixture, _ = self.m.prepare(self.batch / layout, 'r', ROOT, None, True, block='coal_ore', layout=layout)
+                self.assertEqual(fixture.name, 'coal_ore-probe-%s.json' % layout)
+                got = json.loads(fixture.read_text())
+                self.assertEqual(got['fill'], base['fill']); self.assertEqual(got['give'], [dict(item='stone_pickaxe', count=1)])
+                spots = [(b['dx'], b['dy'], b['dz']) for b in got['blocks'] if b['block'] == 'coal_ore']
+                self.assertEqual(spots, targets)
+                added = [(b['dx'], b['dy'], b['dz']) for b in got['blocks'] if b not in others and b['block'] != 'coal_ore']
+                self.assertEqual(added, stone)
+                self.assertTrue(all(b['block'] == 'stone' for b in got['blocks'] if (b['dx'], b['dy'], b['dz']) in stone))
+                self.assertEqual([b for b in got['blocks'] if b in others], others)
+                self.assertIn('design 2026-11-13', got['description'])
+
+    def test_training_mode_refuses_the_held_out_low_layout(self):
+        with self.assertRaises(ValueError): self.collect(sampling=[1], block='coal_ore', layout='low')
+        self.assertEqual(self.launched, [])
+        self.assertEqual(self.collect(sampling=[1], block='coal_ore', layout='floor'), 0)
+        self.assertEqual(self.launched, [self.batch / 'official/coal_ore-s271828-n1'])
+        self.assertEqual(json.loads((self.batch / 'frozen-official-coal_ore.json').read_text())['layout'], 'floor')
+        low = self.batch / 'dev-low'     # evaluation modes still take the low layout
+        self.assertEqual(self.collect(batch=low, mode='dev', seeds=[130363], sampling=[1], layout='low'), 0)
 
     def test_unknown_or_held_out_block_names_are_refused(self):
         for block in ('diamond_ore', 'stone'):

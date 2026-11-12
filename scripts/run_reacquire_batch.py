@@ -18,6 +18,9 @@ the files, run folders (s<seed>-n<n>) and input record (frozen-<arm>.json) are e
 Harder evaluation (design 2026-11-11): evaluation modes take blocks only from configs/multi-block-eval-v1.json and the
 other modes only from the training list, so an evaluation block can never be collected on a training seed. --layout low
 moves the two target blocks one row down (the bottom row of the wall); the default layout writes the old files.
+
+Mixed layouts (design 2026-11-13): --layout high / floor / pillar put the targets on the top row of the wall, in the floor
+or on two stone pillars; train mode refuses low, which stays for evaluation. final5 = 223606.
 """
 import argparse
 import hashlib
@@ -35,13 +38,20 @@ from minecraftrl.reacquire_data import TRAIN_SEEDS  # noqa: E402
 MODES = {'train': tuple(TRAIN_SEEDS), 'dev': (130363,), 'final': (577215,),
          'final2': (662607,),   # design 2026-11-09 §5: final seed fixed by the multi-block design (spent 2026-11-09)
          'final3': (299792,),   # design 2026-11-10 §5: final seed of the press round (spent 2026-11-10)
-         'eval4': (141421, 173205)}   # design 2026-11-11 §3: seeds of the harder evaluation, fixed before any result
+         'eval4': (141421, 173205),   # design 2026-11-11 §3: seeds of the harder evaluation, fixed before any result
+         'final5': (223606,)}         # design 2026-11-13 §5: final seed of the mixed-layout round
 EVAL_MODES = ('eval4',)
 SKILL = 'mine_iron_reacquire'
 IRON = 'iron_ore'
 REGISTRY = 'configs/multi-block-v1.json'
 EVAL_REGISTRY = 'configs/multi-block-eval-v1.json'
 LAYOUTS = {'wall': 1, 'low': 0}     # dy of the two target blocks in fixture v2 (wall = the original eye-level row)
+# design 2026-11-13 §2: training layouts with their own target spots (dx, dy, dz) and stone put under them
+PLACED = {'high': dict(targets=((-2, 2, 8), (1, 2, 8)), stone=()),
+          'floor': dict(targets=((-2, -1, 5), (2, -1, 6)), stone=()),
+          'pillar': dict(targets=((-1, 1, 5), (2, 1, 6)), stone=((-1, 0, 5), (2, 0, 6)))}
+ALL_LAYOUTS = tuple(LAYOUTS) + tuple(PLACED)
+TRAIN_LAYOUTS = ('wall',) + tuple(PLACED)     # low is held out of training (design 2026-11-13 §1)
 POLICY_DEVICE_MIB = 2150
 LIMIT_S, FRAME_EVERY = 180, 2
 WATCHED = ('configs/reacquire-v1.json', 'configs/iron-demo-fixture-v2.json', 'src/minecraftrl/reacquire_head.py',
@@ -89,9 +99,25 @@ def block_config(base, registry, block, checkpoint, use_stage):
 
 def block_fixture(base, block, layout='wall'):
     """Fixture v2 with its iron ores replaced by `block` and put at the layout's row; fills, trees and every other block
-    stay (the stone fill of the wall closes the row the targets left)."""
-    if layout not in LAYOUTS: raise ValueError('unknown layout %s (%s)' % (layout, ', '.join(LAYOUTS)))
-    return dict(base, blocks=[dict(b, block=block, dy=LAYOUTS[layout]) if b['block'] == IRON else b for b in base['blocks']])
+    stay (the stone fill of the wall closes the row the targets left). A placed layout (design 2026-11-13) moves the two
+    targets to its own spots, in order, and puts its stone blocks first."""
+    if layout in LAYOUTS:
+        return dict(base, blocks=[dict(b, block=block, dy=LAYOUTS[layout]) if b['block'] == IRON else b for b in base['blocks']])
+    if layout not in PLACED: raise ValueError('unknown layout %s (%s)' % (layout, ', '.join(ALL_LAYOUTS)))
+    spec = PLACED[layout]
+    if sum(b['block'] == IRON for b in base['blocks']) != len(spec['targets']): raise ValueError('fixture targets do not match')
+    spots = iter(spec['targets'])
+    moved = [dict(b, block=block, **dict(zip(('dx', 'dy', 'dz'), next(spots)))) if b['block'] == IRON else b
+             for b in base['blocks']]
+    return dict(base, blocks=[dict(dx=x, dy=y, dz=z, block='stone') for x, y, z in spec['stone']] + moved)
+
+
+def layout_note(layout):
+    if layout == 'wall': return ''
+    if layout in LAYOUTS: return ' LAYOUT VARIANT (design 2026-11-11): the targets sit at dy %d.' % LAYOUTS[layout]
+    spec = PLACED[layout]
+    return (' LAYOUT VARIANT %s (design 2026-11-13): the targets sit at %s' % (layout, ', '.join(map(str, spec['targets'])))
+            + (' on stone at %s.' % ', '.join(map(str, spec['stone'])) if spec['stone'] else '.'))
 
 
 def run_name(block, seed, n):
@@ -105,11 +131,11 @@ def write(path, value):
 
 
 def prepare(batch, arm, root, checkpoint, use_stage, block=IRON, mode='train', layout='wall'):
-    if layout not in LAYOUTS: raise ValueError('unknown layout %s (%s)' % (layout, ', '.join(LAYOUTS)))
+    if layout not in ALL_LAYOUTS: raise ValueError('unknown layout %s (%s)' % (layout, ', '.join(ALL_LAYOUTS)))
     base = json.loads((root / 'configs/reacquire-v1.json').read_text(encoding='utf-8'))
     fixture_base = json.loads((root / 'configs/iron-demo-fixture-v2.json').read_text(encoding='utf-8'))
     suffix = '' if layout == 'wall' else '-' + layout
-    moved = '' if layout == 'wall' else ' LAYOUT VARIANT (design 2026-11-11): the targets sit at dy %d.' % LAYOUTS[layout]
+    moved = layout_note(layout)
     if block != IRON:
         registry = load_registry(root, mode); entry = block_entry(registry, block)
         config = write(batch / 'configs' / ('%s-%s.json' % (arm, block)), block_config(base, registry, block, checkpoint, use_stage))
@@ -163,6 +189,8 @@ def collect(*, batch, arm, checkpoint, use_stage, seeds, sampling, mode='train',
             gpu_free=nvidia_free_mib, gpu_wait=(40, 15.), block=IRON, layout='wall'):
     """0 done, 1 STOP, 3 GPU busy, 4 invalid launch excluded, 5 inputs changed."""
     check_seeds(mode, seeds)
+    if mode == 'train' and layout not in TRAIN_LAYOUTS:
+        raise ValueError('layout %s is held out of training (design 2026-11-13 §1)' % layout)
     root = Path(root).resolve(); batch = Path(batch).resolve()
     if not batch.is_relative_to(root / 'results'): raise ValueError('batch must be under results/')
     if checkpoint is not None and not Path(checkpoint).exists(): raise ValueError('no checkpoint: %s' % checkpoint)
@@ -225,7 +253,8 @@ def main(argv=None):
     c.add_argument('--mode', choices=tuple(MODES), default='train')
     c.add_argument('--block', default=IRON, help='a block of %s (%s in evaluation modes); default: the iron probe'
                    % (REGISTRY, EVAL_REGISTRY))
-    c.add_argument('--layout', choices=tuple(LAYOUTS), default='wall', help='row of the two targets (design 2026-11-11)')
+    c.add_argument('--layout', choices=ALL_LAYOUTS, default='wall',
+                   help='where the two targets sit (designs 2026-11-11, 2026-11-13; low is not allowed in train mode)')
     k = sub.add_parser('compare')
     k.add_argument('--batch', type=Path, required=True)
     k.add_argument('--arms', nargs='+', required=True)
