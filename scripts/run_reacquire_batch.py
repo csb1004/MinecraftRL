@@ -230,6 +230,7 @@ def main(argv=None):
     k.add_argument('--batch', type=Path, required=True)
     k.add_argument('--arms', nargs='+', required=True)
     k.add_argument('--out', type=Path, required=True)
+    k.add_argument('--target', default=IRON, help='block of the timed step (design 2026-11-11); default iron_ore')
     args = p.parse_args(argv)
     if args.command == 'collect':
         checkpoint = None if args.checkpoint == 'official' else Path(args.checkpoint)
@@ -238,7 +239,7 @@ def main(argv=None):
     from minecraftrl.reacquire_compare import compare, report_markdown
     batch = args.batch.resolve()
     arms = {arm: sorted(d for d in (batch / arm).iterdir() if (d / 'summary.json').exists()) for arm in args.arms}
-    report = compare(arms, root=ROOT)
+    report = compare(arms, root=ROOT, target=args.target)
     out = args.out.resolve(); out.mkdir(parents=True, exist_ok=True)
     write(out / 'report.json', report)
     (out / 'report.md').write_bytes(report_markdown(report).encode('utf-8'))

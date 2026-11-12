@@ -1,6 +1,10 @@
+import json
+import tempfile
 import unittest
+from pathlib import Path
+from unittest import mock
 
-from minecraftrl.reacquire_compare import arm_stats, verdict
+from minecraftrl.reacquire_compare import arm_stats, compare, verdict
 
 
 def step(near, total, angle=None):
@@ -35,6 +39,25 @@ class ArmStatsTest(unittest.TestCase):
         stats = arm_stats([run(True), run(True, release='failed: x'), run(True, pids=[42])],
                           [step(1., 2.), step(1., 2.), step(1., 2.)])
         self.assertEqual(stats['stop_contract_failures'], [1, 2])
+
+
+class CompareTargetTest(unittest.TestCase):
+    """Harder evaluation (design 2026-11-11): the timed step can be another block than iron_ore."""
+
+    def test_the_step_of_the_named_target_is_timed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp) / 'bookshelf-s141421-n41'; run_dir.mkdir()
+            (run_dir / 'summary.json').write_text(json.dumps(dict(execution_valid=True, all_steps_completed=True,
+                                                                  release='neutral_command_sent',
+                                                                  process_cleanup=dict(remaining_live_pids=[]))))
+            report = dict(steps=[dict(step(5., 30.), target='bookshelf')])
+            with mock.patch('minecraftrl.reacquire_compare.build_report', return_value=report):
+                iron = compare({'sight': [run_dir]}, root=tmp)
+                shelf = compare({'sight': [run_dir]}, root=tmp, target='bookshelf')
+        self.assertIsNone(iron['arms']['sight']['median_s'])                  # the old default only reads iron steps
+        self.assertEqual(shelf['arms']['sight']['median_s'], 30.)
+        self.assertAlmostEqual(shelf['arms']['sight']['reacquire_share'], 5. / 30.)
+        self.assertIn('bookshelf step', shelf['measure']); self.assertIn('iron step', iron['measure'])
 
 
 if __name__ == '__main__':

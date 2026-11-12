@@ -50,15 +50,17 @@ def verdict(official, student):
     return dict(better=all(checks.values()), checks=checks)
 
 
-def compare(arm_dirs, *, root):
-    out = dict(arms={}, verdicts={}, measure='success: server inventory; seconds: server ticks / 20 of the iron step',
+def compare(arm_dirs, *, root, target='iron_ore'):
+    """`target`: the block of the timed step (harder evaluation, design 2026-11-11; iron_ore before)."""
+    name = 'iron' if target == 'iron_ore' else target
+    out = dict(arms={}, verdicts={}, measure='success: server inventory; seconds: server ticks / 20 of the %s step' % name,
                privileged='stage seconds use fixture positions and the server pose (analysis only)')
     for arm, dirs in arm_dirs.items():
         runs, steps = [run_record(d) for d in dirs], []
         for d in dirs:
             report = build_report([d], root=root)
-            iron = [s for s in report['steps'] if s['target'] == 'iron_ore']
-            steps.append(iron[0] if len(iron) == 1 else None)
+            mined = [s for s in report['steps'] if s['target'] == target]
+            steps.append(mined[0] if len(mined) == 1 else None)
         for r, s in zip(runs, steps): r['step_s'] = None if s is None else s['total_s']
         out['arms'][arm] = dict(arm_stats(runs, steps), run_records=runs)
     if 'official' in out['arms']:

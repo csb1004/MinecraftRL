@@ -78,7 +78,7 @@ def iron(batch, arms, block='iron_ore'):
     from minecraftrl.reacquire_compare import compare, report_markdown
     batch = Path(batch)
     dirs = {name: finished(batch / arm) for name, arm in arms.items() if arm}
-    base = compare({arms[k]: v for k, v in dirs.items()}, root=ROOT)
+    base = compare({arms[k]: v for k, v in dirs.items()}, root=ROOT, target=block)
     summary = {}
     for name, runs in dirs.items():
         stats = []
