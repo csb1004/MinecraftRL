@@ -58,9 +58,17 @@ def reacquire_spec(skills, fixture):
     name, spec = named[0]; block = spec['reacquire']
     if type(block.get('use_stage')) is not bool or type(block.get('record_latents')) is not bool:
         raise ValueError('reacquire use_stage and record_latents must be true or false')
-    if not spec.get('target_block') or not spec.get('target_items'):
+    if block.get('stages', 'mining') not in ('mining', 'jump'): raise ValueError('reacquire stages must be mining or jump')
+    if block.get('stages', 'mining') == 'mining' and (not spec.get('target_block') or not spec.get('target_items')):
         raise ValueError('a reacquire skill needs target_block and target_items')
     return name, spec
+
+
+def course_of(fixture):
+    """The fixture config when it carries a jump course (design 2026-11-13), else None."""
+    if fixture is None: return None
+    config = json.loads(Path(fixture).read_text(encoding='utf-8'))
+    return config if config.get('course') else None
 
 
 def runtime_needs(steps, config, *, oversight):
@@ -193,13 +201,18 @@ def worker(args):
             from .stage_live import ReacquireHook
             name, spec = found; block = spec['reacquire']
             checkpoint = (args.root / block['checkpoint']).resolve() if block.get('checkpoint') else None
-            head = install(policy, use_stage=block['use_stage'], checkpoint=checkpoint)
+            fixture_config = json.loads(Path(args.fixture).read_text(encoding='utf-8')); feed = None
+            if block.get('stages') == 'jump':     # jump course (design 2026-11-13): its own stages and feed
+                from ..jump_course import JUMP_STAGES, JumpFeed
+                head = install(policy, use_stage=block['use_stage'], checkpoint=checkpoint, stages=JUMP_STAGES)
+                feed = JumpFeed(fixture_config)
+            else: head = install(policy, use_stage=block['use_stage'], checkpoint=checkpoint)
             meta = dict(skill=name, use_stage=block['use_stage'], checkpoint=None if checkpoint is None else str(checkpoint),
                         checkpoint_sha256=None if checkpoint is None else sha256_file(checkpoint),
                         stage_input='privileged: fixture positions and server pose' if block['use_stage'] else 'zeros')
-            reacquire = ReacquireHook(head, json.loads(Path(args.fixture).read_text(encoding='utf-8')), spec['target_block'],
-                                      spec['target_items'][0], output / 'reacquire' if block['record_latents'] else None,
-                                      cond_scale=spec['cond_scale'], meta=meta)
+            reacquire = ReacquireHook(head, fixture_config, spec.get('target_block'), (spec.get('target_items') or [None])[0],
+                                      output / 'reacquire' if block['record_latents'] else None,
+                                      cond_scale=spec['cond_scale'], meta=meta, feed=feed)
         oversight = None; llm = None
         if args.allow_paid:
             from .openai_client import ResponsesClient
@@ -231,7 +244,7 @@ def worker(args):
         session = DemoSession(env, policy, catalog, recorder, gate, args.stop_file, limit_s=limit_s, skills=skills,
                               fixture_sha52=sha52, settle_steps=int(config.get('settle_steps', 20)),
                               tool_lock=bool(config.get('policy_tool_lock', False)), oversight=oversight,
-                              reacquire=reacquire)
+                              reacquire=reacquire, course=course_of(args.fixture))
         report = session.run(steps)
         report.update(mode=args.mode, seed=seed, sampling_seed=sampling, limit_s=limit_s, fixture=str(args.fixture) if args.fixture else None,
                       fixture_sha52=sha52, jar=str(jar), jar_receipt=json.loads(jar.with_suffix('.json').read_text()),

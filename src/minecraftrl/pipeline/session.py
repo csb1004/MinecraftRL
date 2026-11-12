@@ -20,7 +20,7 @@ CONTROLLERS = {'policy': 'policy', 'rule': 'rule', 'scripted': 'scripted_probe'}
 STOP_STATUSES = ('stop_file', 'time_limit', 'environment_done')
 WORKSHOP_SAMPLE = ('world_time', 'server_tick', 'server_x', 'server_y', 'server_z', 'yaw', 'pitch', 'screen',
                    'server_selected_item', 'server_health', 'server_available', 'hit_x', 'hit_y', 'hit_z',
-                   'held_key_count')
+                   'held_key_count', 'server_on_ground', 'server_fall_distance')
 
 
 def fixture_sha52(path):
@@ -74,7 +74,7 @@ def lock_tool(action, hit_block=None):
 class DemoSession:
     def __init__(self, env, policy, catalog, recorder, gate, stop_file, *, limit_s, skills, clock=time.monotonic,
                  rule_controller=None, fixture_sha52=None, settle_steps=20, prepare_limit=400, tool_lock=False, oversight=None,
-                 reacquire=None):
+                 reacquire=None, course=None):
         if not 0 < limit_s <= 900: raise ValueError('limit_s must be in (0, 900]')
         if rule_controller is None:
             from ..workshop import WorkshopController as rule_controller
@@ -91,6 +91,12 @@ class DemoSession:
         # Reacquire hook (stage_live.ReacquireHook): live stage input for the residual head and the latent record.
         # It only acts on policy steps whose skill has a `reacquire` block.
         self.reacquire = reacquire
+        # Jump course (design 2026-11-13): the fixture's course; its stage feed ends `until='course'` steps on the goal
+        # platform (success) or a fall (failure) and drives the preparation-only teacher check.
+        if course is not None:
+            from ..jump_course import JumpFeed
+            course = JumpFeed(course)
+        self.course = course
         self.steps = 0; self.obs = None; self.info = {}; self.started = None
 
     # Workshop controller adapter: it reads .gui, .env.raw.action_space and .steps.
@@ -128,6 +134,7 @@ class DemoSession:
         if masked: sample['masked'] = list(masked)
         row = self.recorder.telemetry(self.steps, sample)
         if self.reacquire is not None: self.reacquire.observe(row)
+        if self.course is not None: self.course.observe(row)
         if done: self.gate.stop('environment_done')
         return True
 
@@ -257,6 +264,7 @@ class DemoSession:
         column = None; cleared = 0; seen = int(self.demo().get('demo_destroys', 0))
         if until == 'clear_above':
             column = tuple(math.floor(float(self.gui['server_' + a])) for a in 'xyz')
+        if until == 'course' and self.course is None: raise ValueError("until='course' needs a course fixture")
 
         oversight = self.oversight; attack_masks = 0
         if oversight:
@@ -312,6 +320,12 @@ class DemoSession:
                     peak_y = max(peak_y, y)
                     if surface is not None and y >= surface: return finish('completed', completion='server_surface')
                     if y - start_y >= step.count: return finish('completed', completion='server_rise')
+            if until == 'course':
+                view = self.course.decision_view()
+                if view is not None and view.stage == 'goal':
+                    return finish('completed', completion='server_course_goal', best_platform=self.course.tracker.best)
+                if view is not None and view.stage == 'fallen':
+                    return finish('course_fell', best_platform=self.course.tracker.best, fell_from=view.k)
             if column is not None and int(self.demo().get('demo_destroys', 0)) > seen:
                 seen = int(self.demo()['demo_destroys'])
                 x, y, z = (int(self.demo()['demo_last_destroy_' + a]) for a in 'xyz')
@@ -431,6 +445,7 @@ class DemoSession:
 
     def run_scripted(self, step, start):
         """Preparation-only telemetry check: hold attack until the server records a block destroy."""
+        if step.params.get('driver') == 'course_teacher': return self.run_course_teacher(step)
         attack = self.noop(); attack['attack'] = 1
         destroys = int(self.demo().get('demo_destroys', 0)); mining_start = None
         for _ in range(int(step.params.get('limit_steps', 600))):
@@ -446,3 +461,20 @@ class DemoSession:
                 status = 'completed' if block_matches(destroy['block'], step.block) else 'wrong_block_destroyed'
                 return status, dict(destroy=destroy)
         return 'scripted_limit', {}
+
+    def run_course_teacher(self, step):
+        """Preparation-only check of the jump course teacher (design 2026-11-13 §4): the privileged teacher drives until
+        the goal, a fall or the step limit. Recorded as scripted_probe; never a policy result."""
+        if self.course is None: raise ValueError('the course teacher needs a course fixture')
+        for _ in range(int(step.params.get('limit_steps', 1200))):
+            view = self.course.decision_view()
+            if view is not None and view.stage == 'goal':
+                return 'completed', dict(completion='server_course_goal', best_platform=self.course.tracker.best)
+            if view is not None and view.stage == 'fallen':
+                return 'course_fell', dict(best_platform=self.course.tracker.best, fell_from=view.k)
+            action = self.noop()
+            label = None if view is None else self.course.label(self.course.last_row, view)
+            for k, v in (label or {}).items():
+                if k in action: action[k] = np.asarray(v, dtype=np.float32) if k == 'camera' else v
+            if not self.dispatch(action, 'scripted_probe'): return self.gate.reason, {}
+        return 'scripted_limit', dict(best_platform=self.course.tracker.best if self.course.tracker else 0)

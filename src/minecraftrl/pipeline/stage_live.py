@@ -71,8 +71,8 @@ class LiveStageFeed:
 class LatentLog:
     """Policy latents per dispatched policy step: chunked npz files and a manifest kept current after each chunk."""
 
-    def __init__(self, folder, *, width, cond_scale, meta, chunk=256):
-        self.folder = Path(folder); self.folder.mkdir(parents=True, exist_ok=True)
+    def __init__(self, folder, *, width, cond_scale, meta, chunk=256, stages=STAGES):
+        self.folder = Path(folder); self.folder.mkdir(parents=True, exist_ok=True); self.stages = tuple(stages)
         self.width = int(width); self.cond_scale = float(cond_scale); self.meta = dict(meta); self.chunk = int(chunk)
         self.rows = []; self.chunks = []; self.total = 0
 
@@ -94,7 +94,7 @@ class LatentLog:
         self._manifest(complete=False)
 
     def _manifest(self, *, complete):
-        manifest = dict(schema=LATENT_SCHEMA, width=self.width, cond_scale=self.cond_scale, stages=list(STAGES),
+        manifest = dict(schema=LATENT_SCHEMA, width=self.width, cond_scale=self.cond_scale, stages=list(self.stages),
                         rows=self.total, chunks=list(self.chunks), complete=complete, meta=self.meta)
         (self.folder / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')
         return manifest
@@ -107,11 +107,14 @@ class LatentLog:
 class ReacquireHook:
     """What DemoSession calls around policy actions of a skill with a `reacquire` block."""
 
-    def __init__(self, head, fixture, wanted, target_item, folder, *, cond_scale, meta, chunk=256):
+    def __init__(self, head, fixture, wanted, target_item, folder, *, cond_scale, meta, chunk=256, feed=None):
+        """`feed` replaces the mining stage feed for a skill with its own stages (jump course, design 2026-11-13); its
+        views name stages of the head's stage list."""
         self.head = head; self.meta = dict(meta); self.decisions = 0
-        self.feed = LiveStageFeed(fixture, wanted, target_item)
+        self.stages = tuple(getattr(head, 'stages', STAGES))
+        self.feed = feed if feed is not None else LiveStageFeed(fixture, wanted, target_item)
         self.log = None if folder is None else LatentLog(folder, width=head.width, cond_scale=cond_scale, meta=meta,
-                                                          chunk=chunk)
+                                                          chunk=chunk, stages=self.stages)
 
     def observe(self, row): self.feed.observe(row)
 
@@ -124,7 +127,7 @@ class ReacquireHook:
 
     def before_act(self):
         view = self.feed.decision_view()
-        self.head.stage = None if view is None else STAGES.index(view.stage)
+        self.head.stage = None if view is None else self.stages.index(view.stage)
 
     def after_dispatch(self, step):
         self.decisions += 1

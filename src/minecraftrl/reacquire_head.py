@@ -17,8 +17,8 @@ CHECKPOINT_SCHEMA = 'reacquire_head_v1'
 INIT_SEED = 110201
 
 
-def stage_onehot(index, use_stage):
-    values = [0.] * STAGE_DIM
+def stage_onehot(index, use_stage, dim=STAGE_DIM):
+    values = [0.] * dim
     if use_stage and index is not None and index >= 0: values[int(index)] = 1.
     return values
 
@@ -27,10 +27,12 @@ _onehot = stage_onehot   # ReacquireHead.forward's keyword argument shadows the 
 
 
 class ReacquireHead(torch.nn.Module):
-    def __init__(self, base, width, *, use_stage, hidden=64):
+    def __init__(self, base, width, *, use_stage, hidden=64, stages=STAGES):
         super().__init__()
         self.base = base; self.width = int(width); self.use_stage = bool(use_stage)
-        self.stage = None          # STAGES index the caller sets before each action; None = no stage
+        # The stage list of the skill (default: the mining stages; the jump course has its own, design 2026-11-13).
+        self.stages = tuple(stages); self.stage_dim = len(self.stages)
+        self.stage = None          # index into self.stages the caller sets before each action; None = no stage
         self.last_latent = None    # detached policy latent of the last forward, [B, T, width]
         # False = the official head alone. install() turns it off; the live hook turns it on only for policy steps of
         # the skill with a `reacquire` block, so other skills in the same game keep the official policy.
@@ -38,7 +40,7 @@ class ReacquireHead(torch.nn.Module):
         # Local initialization must not consume the policy's sampling RNG stream.
         with torch.random.fork_rng(devices=[]):
             torch.manual_seed(INIT_SEED)
-            self.adapter = torch.nn.Sequential(torch.nn.Linear(self.width + STAGE_DIM, hidden), torch.nn.Tanh(),
+            self.adapter = torch.nn.Sequential(torch.nn.Linear(self.width + self.stage_dim, hidden), torch.nn.Tanh(),
                                                torch.nn.Linear(hidden, self.width))
         torch.nn.init.zeros_(self.adapter[-1].weight); torch.nn.init.zeros_(self.adapter[-1].bias)
 
@@ -47,12 +49,12 @@ class ReacquireHead(torch.nn.Module):
         return self.adapter(torch.cat([pi_h.float(), onehot.float()], -1))
 
     def forward(self, pi_h, mask=None, stage_onehot=None):
-        """stage_onehot ([B, T, STAGE_DIM]) overrides `self.stage` row by row (training batches)."""
+        """stage_onehot ([B, T, stage_dim]) overrides `self.stage` row by row (training batches)."""
         self.last_latent = pi_h.detach()
         if not self.active: return self.base(pi_h, mask=mask)
         if stage_onehot is None:
-            row = torch.tensor(_onehot(self.stage, self.use_stage), device=pi_h.device)
-            stage_onehot = row.view(*(1,) * (pi_h.dim() - 1), STAGE_DIM).expand(*pi_h.shape[:-1], STAGE_DIM)
+            row = torch.tensor(_onehot(self.stage, self.use_stage, self.stage_dim), device=pi_h.device)
+            stage_onehot = row.view(*(1,) * (pi_h.dim() - 1), self.stage_dim).expand(*pi_h.shape[:-1], self.stage_dim)
         latent = pi_h + self.delta(pi_h, stage_onehot.to(pi_h.device)).to(pi_h.dtype)
         return self.base(latent, mask=mask)
 
@@ -71,7 +73,7 @@ def sha256_file(path):
 
 def save_checkpoint(head, path, *, base_weights_sha256, metadata):
     path = Path(path); path.parent.mkdir(parents=True, exist_ok=True)
-    torch.save(dict(schema=CHECKPOINT_SCHEMA, use_stage=head.use_stage, stages=list(STAGES), width=head.width,
+    torch.save(dict(schema=CHECKPOINT_SCHEMA, use_stage=head.use_stage, stages=list(head.stages), width=head.width,
                     adapter={k: v.detach().cpu() for k, v in head.adapter.state_dict().items()},
                     base_weights_sha256=base_weights_sha256, metadata=metadata), path)
     return sha256_file(path)
@@ -80,19 +82,19 @@ def save_checkpoint(head, path, *, base_weights_sha256, metadata):
 def load_into(head, path, *, base_weights_sha256):
     saved = torch.load(Path(path), map_location='cpu')
     if (saved.get('schema') != CHECKPOINT_SCHEMA or saved.get('use_stage') != head.use_stage
-            or saved.get('stages') != list(STAGES) or saved.get('width') != head.width
+            or saved.get('stages') != list(head.stages) or saved.get('width') != head.width
             or saved.get('base_weights_sha256') != base_weights_sha256):
         raise ValueError('incompatible reacquire checkpoint')
     head.adapter.load_state_dict(saved['adapter'], strict=True)
     return head
 
 
-def install(policy, *, use_stage, checkpoint=None):
+def install(policy, *, use_stage, checkpoint=None, stages=STAGES):
     """Wrap the official action head of a Steve1Policy; the base stays frozen. Returns the head, inactive until a
     reacquire step turns it on (ReacquireHook.activate)."""
     agent_policy = policy.agent.policy
     base = agent_policy.pi_head.requires_grad_(False)
-    head = ReacquireHead(base, agent_policy.net.output_latent_size(), use_stage=use_stage)
+    head = ReacquireHead(base, agent_policy.net.output_latent_size(), use_stage=use_stage, stages=stages)
     if checkpoint is not None:
         load_into(head, checkpoint, base_weights_sha256=sha256_file(Path(policy.root) / 'weights/steve1/steve1.weights'))
     device = next(base.parameters()).device

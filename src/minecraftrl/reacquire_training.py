@@ -14,15 +14,16 @@ from pathlib import Path
 
 import torch
 
+from .pipeline.stage_replay import STAGES
 from .reacquire_head import STAGE_DIM, ReacquireHead, load_into, save_checkpoint, sha256_file
 
 SOURCES = ('src/minecraftrl/reacquire_training.py', 'src/minecraftrl/reacquire_head.py')
 EVAL_BATCH = 1024
 
 
-def stage_onehots(stage, device):
+def stage_onehots(stage, device, dim=STAGE_DIM):
     st = stage.long().to(device)
-    onehot = torch.zeros(len(st), STAGE_DIM, device=device)
+    onehot = torch.zeros(len(st), dim, device=device)
     valid = st >= 0
     onehot[valid.nonzero().squeeze(1), st[valid]] = 1.
     return onehot
@@ -32,7 +33,7 @@ def guided_logp(head, cond, uncond, stage, cond_scale, *, official=False):
     """{key: [N, n] log-probs} of the guided distribution for N rows; `official` skips the residual."""
     x = torch.stack([cond.float(), uncond.float()], 0)           # [2 (cond, uncond), N, width]
     if official: pd = head.base(x)
-    else: pd = head(x, stage_onehot=stage_onehots(stage, x.device).unsqueeze(0).expand(2, -1, -1))
+    else: pd = head(x, stage_onehot=stage_onehots(stage, x.device, head.stage_dim).unsqueeze(0).expand(2, -1, -1))
     out = {}
     for key, value in pd.items():
         value = value.float().reshape(2, x.shape[1], -1)          # drop the singleton action dimension
@@ -103,10 +104,10 @@ def official_action_head(root):
 def official_factory(root):
     base_sha = sha256_file(Path(root) / 'weights/steve1/steve1.weights')
 
-    def factory(use_stage, width):
+    def factory(use_stage, width, stages=STAGES):
         base, base_width = official_action_head(root)
         if base_width != width: raise ValueError('dataset latent width %d differs from the policy (%d)' % (width, base_width))
-        return ReacquireHead(base.requires_grad_(False), width, use_stage=use_stage), base_sha
+        return ReacquireHead(base.requires_grad_(False), width, use_stage=use_stage, stages=stages), base_sha
     return factory
 
 
@@ -122,7 +123,12 @@ def train(dataset_path, *, use_stage, out_dir, lr=1e-4, batch=32, epochs=16, kl_
     if device == 'cuda': torch.cuda.reset_peak_memory_stats()
     dataset_path = Path(dataset_path); data = torch.load(dataset_path)
     factory = head_factory or official_factory(root)
-    head, base_sha = factory(use_stage, int(data['width'])); head = head.to(device)
+    # A dataset of another skill names its own stage list (jump course, design 2026-11-13); mining datasets keep the
+    # default call, so earlier factories and checkpoints are unchanged.
+    stages = tuple(data.get('stages') or STAGES)
+    make = (lambda: factory(use_stage, int(data['width']))) if stages == tuple(STAGES) else (
+        lambda: factory(use_stage, int(data['width']), stages))
+    head, base_sha = make(); head = head.to(device)
     head.base.requires_grad_(False); head.adapter.requires_grad_(True)
     cond, uncond = data['cond'].to(device), data['uncond'].to(device)
     stage, labelled = data['stage'].to(device), data['labelled'].to(device)
@@ -206,7 +212,7 @@ def train(dataset_path, *, use_stage, out_dir, lr=1e-4, batch=32, epochs=16, kl_
     checkpoint_sha = save_checkpoint(head, path, base_weights_sha256=base_sha,
                                      metadata=dict(dataset=str(dataset_path), dataset_sha256=dataset_sha, hyper=hyper,
                                                    updates_kept=updates_kept, candidate=candidate))
-    fresh, _ = factory(use_stage, int(data['width']))
+    fresh, _ = make()
     fresh = load_into(fresh, path, base_weights_sha256=base_sha).to(device)
     check = train_rows[:256]
     with torch.no_grad():

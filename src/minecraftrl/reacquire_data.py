@@ -26,13 +26,14 @@ def sha256(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
-def load_latents(folder):
-    """(manifest, arrays) of a complete latent record whose chunk hashes match."""
+def load_latents(folder, stages=STAGES):
+    """(manifest, arrays) of a complete latent record whose chunk hashes match. `stages` is the skill's stage list (the
+    jump course has its own, design 2026-11-13)."""
     folder = Path(folder)
     if not (folder / 'manifest.json').exists(): raise ValueError('no latent record: %s' % folder)
     manifest = json.loads((folder / 'manifest.json').read_text(encoding='utf-8'))
     if not manifest.get('complete'): raise ValueError('latent record was not closed: %s' % folder)
-    if manifest.get('stages') != list(STAGES): raise ValueError('latent record uses another stage list')
+    if manifest.get('stages') != list(stages): raise ValueError('latent record uses another stage list')
     parts = []
     for chunk in manifest['chunks']:
         path = folder / chunk['file']

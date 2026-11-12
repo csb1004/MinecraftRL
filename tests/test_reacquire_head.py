@@ -93,6 +93,25 @@ class ReacquireHeadTest(unittest.TestCase):
         with self.assertRaises(ValueError): load_into(self.Head(self.base, 8, use_stage=False), path, base_weights_sha256='b')
         with self.assertRaises(ValueError): load_into(self.Head(self.base, 8, use_stage=True), path, base_weights_sha256='c')
 
+    def test_a_skill_stage_list_sets_the_input_and_checkpoints_do_not_cross(self):
+        # Jump course design 2026-11-13 §3: the jump head has its own six stages; mining checkpoints keep seven.
+        from minecraftrl.jump_course import JUMP_STAGES
+        from minecraftrl.reacquire_head import STAGE_DIM, load_into, save_checkpoint
+        jump = self.Head(self.base, 8, use_stage=True, stages=JUMP_STAGES)
+        self.assertEqual((jump.stage_dim, self.Head(self.base, 8, use_stage=True).stage_dim), (6, STAGE_DIM))
+        self.assertEqual(jump.adapter[0].in_features, 8 + 6)
+        jump.stage = 5
+        for k, v in self.base(self.x).items(): self.assertTrue(torch.equal(jump(self.x)[k], v))   # zero init still exact
+        path = Path(self.tmp.name) / 'jump.pt'
+        save_checkpoint(jump, path, base_weights_sha256='b', metadata={})
+        self.assertEqual(torch.load(path)['stages'], list(JUMP_STAGES))
+        load_into(self.Head(self.base, 8, use_stage=True, stages=JUMP_STAGES), path, base_weights_sha256='b')
+        with self.assertRaises(ValueError): load_into(self.Head(self.base, 8, use_stage=True), path, base_weights_sha256='b')
+        mining = Path(self.tmp.name) / 'mining.pt'
+        save_checkpoint(self.trained(use_stage=True), mining, base_weights_sha256='b', metadata={})
+        with self.assertRaises(ValueError):
+            load_into(self.Head(self.base, 8, use_stage=True, stages=JUMP_STAGES), mining, base_weights_sha256='b')
+
     def test_initialization_does_not_consume_the_global_rng(self):
         torch.manual_seed(5); expected = torch.rand(1)
         torch.manual_seed(5); self.Head(self.base, 8, use_stage=True)

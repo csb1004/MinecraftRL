@@ -1041,5 +1041,64 @@ class ConditionTests(unittest.TestCase):
             self.assertEqual(fixture_sha52(path), int('44136fa355b36', 16))
 
 
+class CourseSessionTests(unittest.TestCase):
+    """Jump course (design 2026-11-13): server-judged goal and fall, and the preparation-only teacher check."""
+    COURSE = dict(schema='jump_course_v1', seed=0, platforms=[
+        dict(x0=-1, x1=1, z0=-1, z1=1, top=0, gap=0, block='stone_bricks'),
+        dict(x0=-1, x1=1, z0=3, z1=5, top=0, gap=1, block='gold_block')])
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(); self.out = Path(self.temp.name); self.gate = StopGate()
+        from minecraftrl.jump_course import course_fixture
+        self.fixture = course_fixture(self.COURSE)
+
+    def tearDown(self):
+        self.recorder.close(); self.temp.cleanup()
+
+    def run_course(self, script, step):
+        self.recorder = Recorder(self.out / 'run')
+        env = FakeEnv(script)
+        session = DemoSession(env, FakePolicy(), None, self.recorder, self.gate, self.out / 'STOP', limit_s=60.,
+                              skills=SKILLS, clock=Clock(), rule_controller=FakeController, settle_steps=0, course=self.fixture)
+        return env, session.run([step])
+
+    @staticmethod
+    def at(x, y, z, ground):
+        value = located(info(x=x, y=y, z=z, pitch=20., demo_fixture_origin_y=64))
+        value['workshop']['server_on_ground'] = int(ground); return value
+
+    def rows(self):
+        return [json.loads(line) for line in (self.out / 'run/telemetry.jsonl').read_text().splitlines()]
+
+    def test_goal_platform_completes_the_step_and_rows_record_the_ground_flag(self):
+        path = {1: (0.5, 64., 0.5, 1), 2: (0.5, 64.6, 2.5, 0), 3: (0.5, 64., 4.5, 1)}
+        _, report = self.run_course(lambda n, a: self.at(*path.get(n, path[3])),
+                                    Step('jump', 'dig', 'policy', 'course_goal', 1, params={'until': 'course'}))
+        stage = report['stage_results'][0]
+        self.assertEqual((stage['status'], stage['completion'], stage['best_platform']), ('completed', 'server_course_goal', 1))
+        self.assertTrue(report['all_steps_completed'])
+        self.assertEqual([r['server_on_ground'] for r in self.rows()[:3]], [1, 0, 1])
+
+    def test_a_fall_ends_the_step_as_a_valid_failure(self):
+        path = {1: (0.5, 64., 0.5, 1), 2: (0.5, 63.4, 2.5, 0), 3: (0.5, 61., 2.5, 1)}
+        env, report = self.run_course(lambda n, a: self.at(*path.get(n, path[3])),
+                                      Step('jump', 'dig', 'policy', 'course_goal', 1, params={'until': 'course'}))
+        stage = report['stage_results'][0]
+        self.assertEqual((stage['status'], stage['fell_from']), ('course_fell', 0))
+        self.assertEqual((report['status'], report['execution_valid'], env.calls), ('step_failed', True, 3))
+
+    def test_teacher_check_drives_as_a_scripted_probe(self):
+        path = {1: (0.5, 64., 0.5, 1), 2: (0.5, 64., 0.9, 1), 3: (0.5, 64.,  4.5, 1)}
+        env, report = self.run_course(lambda n, a: self.at(*path.get(n, path[3])),
+                                      Step('check', 'course', 'scripted', 'course_goal', 1, params={'driver': 'course_teacher'}))
+        stage = report['stage_results'][0]
+        self.assertEqual((stage['status'], stage['completion'], stage['controller']),
+                         ('completed', 'server_course_goal', 'scripted_probe'))
+        controllers = [r['controller'] for r in self.rows()]
+        self.assertEqual(controllers[0], 'prepare')               # the neutral step that saw the fixture applied
+        self.assertEqual(set(controllers[1:]), {'scripted_probe'})
+        self.assertEqual((env.actions[1]['forward'], env.actions[1]['jump']), (1, 0))   # run toward the goal platform
+
+
 if __name__ == '__main__':
     unittest.main()
