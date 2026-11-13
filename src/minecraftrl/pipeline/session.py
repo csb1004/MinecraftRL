@@ -20,7 +20,9 @@ CONTROLLERS = {'policy': 'policy', 'rule': 'rule', 'scripted': 'scripted_probe'}
 STOP_STATUSES = ('stop_file', 'time_limit', 'environment_done')
 WORKSHOP_SAMPLE = ('world_time', 'server_tick', 'server_x', 'server_y', 'server_z', 'yaw', 'pitch', 'screen',
                    'server_selected_item', 'server_health', 'server_available', 'hit_x', 'hit_y', 'hit_z',
-                   'held_key_count', 'server_on_ground', 'server_fall_distance')
+                   'held_key_count', 'server_on_ground', 'server_fall_distance',
+                   # jump course (game check 2026-11-13): the client pose leads the server pose by about 4 ticks
+                   'client_x', 'client_y', 'client_z', 'client_on_ground', 'client_tick')
 
 
 def fixture_sha52(path):
@@ -321,11 +323,11 @@ class DemoSession:
                     if surface is not None and y >= surface: return finish('completed', completion='server_surface')
                     if y - start_y >= step.count: return finish('completed', completion='server_rise')
             if until == 'course':
-                view = self.course.decision_view()
+                view = self.course.server_view()       # success and falls on the server state only
                 if view is not None and view.stage == 'goal':
-                    return finish('completed', completion='server_course_goal', best_platform=self.course.tracker.best)
+                    return finish('completed', completion='server_course_goal', best_platform=self.course.best())
                 if view is not None and view.stage == 'fallen':
-                    return finish('course_fell', best_platform=self.course.tracker.best, fell_from=view.k)
+                    return finish('course_fell', best_platform=self.course.best(), fell_from=view.k)
             if column is not None and int(self.demo().get('demo_destroys', 0)) > seen:
                 seen = int(self.demo()['demo_destroys'])
                 x, y, z = (int(self.demo()['demo_last_destroy_' + a]) for a in 'xyz')
@@ -467,14 +469,15 @@ class DemoSession:
         the goal, a fall or the step limit. Recorded as scripted_probe; never a policy result."""
         if self.course is None: raise ValueError('the course teacher needs a course fixture')
         for _ in range(int(step.params.get('limit_steps', 1200))):
-            view = self.course.decision_view()
-            if view is not None and view.stage == 'goal':
-                return 'completed', dict(completion='server_course_goal', best_platform=self.course.tracker.best)
-            if view is not None and view.stage == 'fallen':
-                return 'course_fell', dict(best_platform=self.course.tracker.best, fell_from=view.k)
+            server = self.course.server_view()     # success and falls on the server state only
+            if server is not None and server.stage == 'goal':
+                return 'completed', dict(completion='server_course_goal', best_platform=self.course.best())
+            if server is not None and server.stage == 'fallen':
+                return 'course_fell', dict(best_platform=self.course.best(), fell_from=server.k)
+            view = self.course.decision_view()     # labels on the client pose (the player's own position)
             action = self.noop()
             label = None if view is None else self.course.label(self.course.last_row, view)
             for k, v in (label or {}).items():
                 if k in action: action[k] = np.asarray(v, dtype=np.float32) if k == 'camera' else v
             if not self.dispatch(action, 'scripted_probe'): return self.gate.reason, {}
-        return 'scripted_limit', dict(best_platform=self.course.tracker.best if self.course.tracker else 0)
+        return 'scripted_limit', dict(best_platform=self.course.best())

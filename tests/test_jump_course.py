@@ -18,9 +18,9 @@ class GeneratorTest(unittest.TestCase):
             with self.subTest(seed=seed):
                 p = jc.generate_course(seed)['platforms']
                 self.assertEqual(len(p), 4)                                # three jumps
-                self.assertEqual(p[0], dict(x0=-1, x1=1, z0=-1, z1=0, top=0, gap=0, block='stone_bricks'))
+                self.assertEqual(p[0], dict(x0=-1, x1=1, z0=-1, z1=2, top=0, gap=0, block='stone_bricks'))   # 2.5 blocks of run-up
                 self.assertEqual(p[-1]['block'], 'gold_block')
-                self.assertEqual((p[-1]['x1'] - p[-1]['x0'], p[-1]['z1'] - p[-1]['z0']), (2, 2))
+                self.assertEqual((p[-1]['x1'] - p[-1]['x0'], p[-1]['z1'] - p[-1]['z0']), (2, 1))           # 3 wide, 2 long
                 for prev, cur in zip(p, p[1:]):
                     self.assertIn(cur['gap'], (1, 2))
                     self.assertEqual(cur['z0'], prev['z1'] + cur['gap'] + 1)
@@ -108,6 +108,16 @@ class StageTest(unittest.TestCase):
         self.assertEqual((v.stage, v.k), ('run', 1))
         self.assertGreater(v.edge, 3.)
 
+    def test_the_edge_is_judged_where_the_client_player_is(self):
+        # Game check 2026-11-13: the server position lags the keys by about 4 ticks, so a walking player (0.2 blocks per
+        # tick) 1.1 blocks from the server edge is already near the real edge.
+        self.assertEqual(self.t.update(100.5, 64., 200.5, 0., True, tick=10).stage, 'run')
+        v = self.t.update(100.5, 64., 200.7, 0., True, tick=11)
+        self.assertEqual(v.stage, 'run'); self.assertAlmostEqual(v.ahead[1], 201.5)
+        v = self.t.update(100.5, 64., 200.9, 0., True, tick=12)
+        self.assertEqual(v.stage, 'edge'); self.assertAlmostEqual(v.edge, .3, places=1)
+        self.assertEqual(self.t.update(100.5, 64., 201.1, 0., True, tick=30).ahead, (100.5, 201.1))   # long gap: speed unknown
+
 
 class TeacherTest(unittest.TestCase):
     def setUp(self):
@@ -158,6 +168,22 @@ class RowTest(unittest.TestCase):
         self.assertEqual(feed.decision_view().stage, 'air')
         feed.observe(dict(base, server_on_ground=None, demo=dict(demo_available=1, demo_fixture_state=2)))
         self.assertIsNone(feed.decision_view())                   # a row without the ground flag is unknown
+
+    def test_decisions_follow_the_client_pose_and_success_the_server_pose(self):
+        # Game check 2026-11-13: the server pose trails the keys by about 4 ticks; the client pose is the player's own.
+        feed = jc.JumpFeed(jc.course_fixture(WorldTest.course))
+        demo = dict(demo_available=1, demo_fixture_state=2, demo_fixture_origin_y=64)
+        row = dict(t=1., controller='policy', server_x=100.5, server_y=64., server_z=200.5, server_on_ground=1, server_tick=5,
+                   client_x=100.4, client_y=64., client_z=201.8, client_on_ground=1, client_tick=5, yaw=0., pitch=20.,
+                   server_available=1, demo=demo)
+        feed.observe(row)
+        self.assertEqual((feed.decision_view().stage, feed.last_source, feed.server_view().stage), ('edge', 'client', 'run'))
+        self.assertEqual(feed.label(row, feed.decision_view())['jump'], 1)
+        goal = dict(row, client_z=209.5, server_tick=6, client_tick=6)
+        feed.observe(goal)
+        self.assertEqual((feed.decision_view().stage, feed.server_view().stage), ('goal', 'run'))   # not a success yet
+        feed.observe(dict(goal, server_z=209.5, server_tick=7, client_tick=7))
+        self.assertEqual((feed.server_view().stage, feed.best()), ('goal', 2))
 
 
 if __name__ == '__main__':

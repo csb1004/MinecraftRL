@@ -11,7 +11,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .jump_course import JUMP_STAGES, JumpFeed, teacher_action
+from .jump_course import JUMP_STAGES, JumpFeed
 from .pipeline.monitor_replay import load_run
 from .reacquire_data import _checked_request, load_latents, sha256
 from .reacquire_teacher import policy_label
@@ -32,10 +32,8 @@ def jump_run_examples(run_dir, mapper, transformer, *, root):
     for r in run.rows:
         inside = r['step'] >= step.start_step and (step.end_step is None or r['step'] <= step.end_step)
         if inside and r['t'] >= step.start_t and r.get('controller') == 'policy':
-            view, seen = feed.decision_view(), feed.last_row
-            action = None if view is None else teacher_action(
-                float(seen['server_x']), float(seen['server_y']), float(seen['server_z']), float(seen['yaw']),
-                float(seen['pitch']), view, feed.platforms)
+            view, seen, source = feed.decision_view(), feed.last_row, feed.last_source
+            action = None if view is None else feed.label(seen, view, source)
             decisions.append((r['step'], view, action))
         feed.observe(r)
     if [d[0] for d in decisions] != lat['step'].tolist():
