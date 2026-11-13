@@ -1007,6 +1007,20 @@ class LoaderTests(unittest.TestCase):
             self.assertIsNone(place_of(path))
         self.assertIsNone(place_of(None))
 
+    def test_bridge_skills_and_a_bridge_fixture_are_found(self):
+        # Bridging (design 2026-11-14).
+        from minecraftrl.bridge_task import bridge_fixture, generate_bridge
+        from minecraftrl.pipeline.cli import bridge_of, reacquire_spec
+        block = dict(checkpoint=None, use_stage=True, record_latents=True, stages='bridge')
+        self.assertEqual(reacquire_spec({'b': dict(reacquire=block)}, Path('f.json'))[0], 'b')
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / 'f.json'
+            path.write_text(json.dumps(bridge_fixture(generate_bridge(3))), encoding='utf-8')
+            self.assertEqual(bridge_of(path)['bridge']['seed'], 3)
+            path.write_text(json.dumps(dict(schema='iron_demo_fixture_v1', blocks=[])), encoding='utf-8')
+            self.assertIsNone(bridge_of(path))
+        self.assertIsNone(bridge_of(None))
+
     def test_reacquire_config_adds_only_the_new_skill(self):
         root = Path(__file__).resolve().parents[1]
         demo = json.loads((root / 'configs/iron-demo.json').read_text(encoding='utf-8'))
@@ -1184,6 +1198,70 @@ class PlaceSessionTests(unittest.TestCase):
         stage = report['stage_results'][0]
         self.assertEqual((stage['status'], stage['controller']), ('completed', 'scripted_probe'))
         self.assertEqual(env.actions[2]['use'], 1)                         # it saw the support top under the crosshair
+
+
+class BridgeSessionTests(unittest.TestCase):
+    """Bridging (design 2026-11-14): success on the server goal platform, falls end the step, filled cells and wrong
+    placements from the server placement record, and the preparation-only teacher check."""
+    TASK = dict(schema='bridge_task_v1', seed=0, gap=3, goal_dx=0, block='cobblestone')
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(); self.out = Path(self.temp.name); self.gate = StopGate()
+        from minecraftrl.bridge_task import bridge_fixture
+        self.fixture = bridge_fixture(self.TASK)
+
+    def tearDown(self):
+        self.recorder.close(); self.temp.cleanup()
+
+    def run_bridge(self, script, step):
+        self.recorder = Recorder(self.out / 'run')
+        env = FakeEnv(script)
+        session = DemoSession(env, FakePolicy(), None, self.recorder, self.gate, self.out / 'STOP', limit_s=60.,
+                              skills=SKILLS, clock=Clock(), rule_controller=FakeController, settle_steps=0, bridge=self.fixture)
+        return env, session.run([step])
+
+    @staticmethod
+    def at(z, *, y=64., ground=1, count=0, last=(-999, -999, -999), yaw=180., pitch=80., hit=None, face=1):
+        # The start block is (0, 64, 0) facing south: the bridge cells are (0, 63, 3..5), the goal starts at z 6.
+        value = located(info(x=0.5, y=y, z=z, pitch=pitch, demo_fixture_origin_y=64,
+                             demo_hit_block='air' if hit is None else 'stone_bricks'), yaw=yaw)
+        value['workshop'].update(server_on_ground=ground, client_x=0.5, client_y=y, client_z=z, client_on_ground=ground,
+                                 hit_x=0 if hit is None else hit[0], hit_y=0 if hit is None else hit[1],
+                                 hit_z=0 if hit is None else hit[2], hit_face=face)
+        value['place'] = dict(place_available=1, place_count=count, place_last_x=last[0], place_last_y=last[1],
+                              place_last_z=last[2], place_last_tick=1, place_last_block='cobblestone')
+        return value
+
+    def test_the_goal_platform_completes_with_the_filled_cells_and_wrong_placements(self):
+        # The first row fixes the start facing (south, yaw 0).
+        script = {1: self.at(.5, yaw=0.), 2: self.at(3.2, count=1, last=(0, 64, 2)), 3: self.at(3.2, count=2, last=(0, 63, 3)),
+                  4: self.at(6.6, count=4, last=(0, 63, 5))}
+        _, report = self.run_bridge(lambda n, a: script.get(n, script[4]),
+                                    Step('bridge', 'dig', 'policy', 'bridge_goal', 1, params={'until': 'bridge'}))
+        stage = report['stage_results'][0]
+        self.assertEqual((stage['status'], stage['completion']), ('completed', 'server_bridge_goal'))
+        self.assertEqual((stage['filled'], stage['wrong'], stage['unknown_placements']), (1, 1, 1))
+        self.assertTrue(report['all_steps_completed'])
+
+    def test_a_fall_ends_the_step_as_a_valid_failure(self):
+        script = {1: self.at(.5, yaw=0.), 2: self.at(3.4, y=63.5, ground=0), 3: self.at(3.4, y=62., ground=0)}
+        env, report = self.run_bridge(lambda n, a: script.get(n, script[3]),
+                                      Step('bridge', 'dig', 'policy', 'bridge_goal', 1, params={'until': 'bridge'}))
+        stage = report['stage_results'][0]
+        self.assertEqual((stage['status'], stage['filled']), ('bridge_fell', 0))
+        self.assertEqual((report['status'], report['execution_valid'], env.calls), ('step_failed', True, 3))
+
+    def test_teacher_check_sneaks_backward_and_uses_on_the_edge_face(self):
+        edge = self.at(3.27, pitch=82., hit=(0, 63, 2), face=3)
+        script = {1: self.at(.5, yaw=0.), 2: self.at(.5), 3: edge, 4: edge, 5: self.at(6.6, count=1, last=(0, 63, 3))}
+        env, report = self.run_bridge(lambda n, a: script.get(n, script[5]),
+                                      Step('check', 'bridge', 'scripted', 'bridge_goal', 1, params={'driver': 'bridge_teacher'}))
+        stage = report['stage_results'][0]
+        self.assertEqual((stage['status'], stage['controller'], stage['completion']),
+                         ('completed', 'scripted_probe', 'server_bridge_goal'))
+        self.assertEqual((env.actions[1]['back'], env.actions[1]['sneak']), (0, 1))      # facing the gap: turn first
+        self.assertEqual((env.actions[2]['back'], env.actions[2]['sneak']), (1, 1))      # facing the start: walk back
+        self.assertEqual((env.actions[3]['use'], env.actions[3]['sneak']), (1, 1))       # the edge face under the crosshair
 
 
 if __name__ == '__main__':
