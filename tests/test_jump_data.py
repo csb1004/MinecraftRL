@@ -85,6 +85,16 @@ class JumpExamplesTest(unittest.TestCase):
         self.assertEqual(summary['labelled_by_stage']['edge'], 2)
         self.assertEqual(data['block'].tolist(), [0, 0, 0, 0])
 
+    def test_summary_names_the_pose_each_privileged_input_uses(self):
+        """Stages and labels follow the client pose since 2026-11-13 09:20; the note must not say server pose."""
+        from minecraftrl.jump_data import build_jump_dataset
+        runs = [make_jump_run(Path(self.tmp.name) / 'f' / name) for name in ('r1', 'r2')]
+        summary = build_jump_dataset(runs, Path(self.tmp.name) / 'ds2.pt', holdout='r2', mapper=self.mapper,
+                                     transformer=self.transformer, root=Path(self.tmp.name))
+        self.assertIn('client pose', summary['privileged'])
+        self.assertIn('server pose', summary['privileged'])
+        self.assertNotIn('use the course and the server pose', summary['privileged'])
+
 
 if __name__ == '__main__':
     unittest.main()

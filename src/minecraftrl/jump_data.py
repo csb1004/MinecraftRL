@@ -89,7 +89,9 @@ def build_jump_dataset(run_dirs, out_path, *, holdout, mapper, transformer, root
     summary = dict(dataset=str(out_path), dataset_sha256=sha256(out_path), teacher='course', holdout=holdout, runs=[],
                    rows=int(len(labelled)), labelled=int(labelled.sum()),
                    labelled_by_stage={s: int((labelled & (stage == i)).sum()) for i, s in enumerate(JUMP_STAGES)},
-                   privileged='teacher labels and stages use the course and the server pose and ground flag',
+                   privileged=('teacher labels and stages use the course and the client pose and ground flag '
+                               '(rows without it: server pose plus a 4-tick speed prediction); success and falls use '
+                               'the server pose'),
                    source={p: sha256(Path(root) / p) for p in SOURCES if (Path(root) / p).exists()})
     for name, p in zip(names, parts):
         summary['runs'].append(dict(run=name, course=p['course'], seed=p['seed'], success=p['success'], rows=int(len(p['step'])),
