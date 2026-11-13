@@ -132,17 +132,44 @@ def patch_destroy_observation(source):
     return source.replace(permission,permission+'\n               minecraftRLRecordDestroy(block, itemstack1, pos, flag, flag1);')
 
 
+def patch_place_observation(source):
+    """PlayerInteractionManager: count every block the player placed (block placing plan 2026-11-13 §1, evidence only).
+    BlockItem.tryPlace calls minecraftRLRecordPlace on the server after a placement it reports to the advancements."""
+    declaration='public class PlayerInteractionManager {'
+    if source.count(declaration)!=1: raise ValueError('unexpected_place_observation_source')
+    return source.replace(declaration,declaration+'''
+   // Evidence only: every block the player placed on the server (BlockItem.tryPlace).
+   public long minecraftRLPlaces = 0, minecraftRLLastPlaceTick = -1;
+   public String minecraftRLLastPlaced = "air";
+   public BlockPos minecraftRLLastPlace = BlockPos.ZERO;
+   public void minecraftRLRecordPlace(Block block, BlockPos pos) {
+      minecraftRLPlaces++; minecraftRLLastPlaceTick = this.world.getGameTime();
+      minecraftRLLastPlaced = net.minecraft.util.registry.Registry.BLOCK.getKey(block).getPath();
+      minecraftRLLastPlace = pos.toImmutable();
+   }
+''')
+
+
+def patch_block_item_place(source):
+    """BlockItem.tryPlace: record a server-side placement where the game triggers its PLACED_BLOCK advancement."""
+    anchor='CriteriaTriggers.PLACED_BLOCK.trigger((ServerPlayerEntity)playerentity, blockpos, itemstack);'
+    if source.count(anchor)!=1: raise ValueError('unexpected_block_item_source')
+    return source.replace(anchor,anchor+'\n                     ((ServerPlayerEntity)playerentity).interactionManager.minecraftRLRecordPlace(block, blockpos);')
+
+
 def patch_demo_recipe_ids(source):
     anchor='"stone_axe",'
     if source.count(anchor)!=1 or '"stone_pickaxe"' in source:raise ValueError('unexpected_recipe_ids_source')
     return source.replace(anchor,anchor+'"stone_pickaxe",')
 
 
-def patched_sources(root,minecraft_dir,*,craft_monitor=False,workshop_monitor=False,startup_control=False,demo_monitor=False):
+def patched_sources(root,minecraft_dir,*,craft_monitor=False,workshop_monitor=False,startup_control=False,demo_monitor=False,
+                    place_monitor=False):
     """Patched ReplaySender, extra sources, and their hash; no compilation."""
     if workshop_monitor and not craft_monitor:raise ValueError('workshop monitor requires craft monitor')
     if startup_control and not workshop_monitor:raise ValueError('startup control requires workshop monitor')
     if demo_monitor and not workshop_monitor:raise ValueError('demo monitor requires workshop monitor')
+    if place_monitor and not demo_monitor:raise ValueError('place monitor requires demo monitor')
     minecraft_dir=Path(minecraft_dir)
     if digest(minecraft_dir/'build/libs/mcprec-6.13.jar')!=UPSTREAM_SHA256: raise ValueError('unsupported_upstream_world_jar')
     source=minecraft_dir/('src/main/java/'+CLASS+'.java')
@@ -188,13 +215,22 @@ def patched_sources(root,minecraft_dir,*,craft_monitor=False,workshop_monitor=Fa
                 extra['PlayerInteractionManager.java']=patch_destroy_observation(extra['PlayerInteractionManager.java'])
                 for name in ('DemoObservation.java','DemoFixture.java'):
                     extra[name]=Path(__file__).with_name(name).read_text(encoding='utf-8')
+                if place_monitor:     # block placing plan 2026-11-13 §1; jars without it keep their earlier hash
+                    extra['EnvServer.java']=extra['EnvServer.java'].replace(marker,marker+'\n        infoJson.add("place", net.minecraft.client.gui.screen.inventory.PlaceObservation.snapshot());')
+                    extra['WorkshopObservation.java']=extra['WorkshopObservation.java'].replace(
+                        'DemoObservation.capture();','DemoObservation.capture();PlaceObservation.capture();')
+                    extra['PlayerInteractionManager.java']=patch_place_observation(extra['PlayerInteractionManager.java'])
+                    item=minecraft_dir/'src/main/java/net/minecraft/item/BlockItem.java'
+                    extra['BlockItem.java']=patch_block_item_place(item.read_text(encoding='utf-8'))
+                    extra['PlaceObservation.java']=Path(__file__).with_name('PlaceObservation.java').read_text(encoding='utf-8')
     return patched,extra,hashlib.sha256((patched+''.join(extra.values())).encode()).hexdigest()
 
 
-def build_save_jar(root,minecraft_dir,*,craft_monitor=False,workshop_monitor=False,startup_control=False,demo_monitor=False):
+def build_save_jar(root,minecraft_dir,*,craft_monitor=False,workshop_monitor=False,startup_control=False,demo_monitor=False,
+                   place_monitor=False):
     root=Path(root); minecraft_dir=Path(minecraft_dir)
     patched,extra,patch_hash=patched_sources(root,minecraft_dir,craft_monitor=craft_monitor,
-        workshop_monitor=workshop_monitor,startup_control=startup_control,demo_monitor=demo_monitor)
+        workshop_monitor=workshop_monitor,startup_control=startup_control,demo_monitor=demo_monitor,place_monitor=place_monitor)
     upstream=minecraft_dir/'build/libs/mcprec-6.13.jar'
     source=minecraft_dir/('src/main/java/'+CLASS+'.java')
     base=root/'.runtime/world-save'; base.mkdir(parents=True,exist_ok=True)
@@ -230,5 +266,6 @@ def build_save_jar(root,minecraft_dir,*,craft_monitor=False,workshop_monitor=Fal
                             (' + read-only craft GUI monitor' if craft_monitor else '') +
                             (' + read-only workshop telemetry + opt-in terminal death handshake' if workshop_monitor else '')+
                             (' + opt-in startup random block tick restoration' if startup_control else '')+
-                            (' + opt-in demo destroy/aim telemetry and fixture' if demo_monitor else '')})
+                            (' + opt-in demo destroy/aim telemetry and fixture' if demo_monitor else '')+
+                            (' + opt-in block placement telemetry' if place_monitor else '')})
         return artifact

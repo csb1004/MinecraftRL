@@ -58,10 +58,32 @@ def reacquire_spec(skills, fixture):
     name, spec = named[0]; block = spec['reacquire']
     if type(block.get('use_stage')) is not bool or type(block.get('record_latents')) is not bool:
         raise ValueError('reacquire use_stage and record_latents must be true or false')
-    if block.get('stages', 'mining') not in ('mining', 'jump'): raise ValueError('reacquire stages must be mining or jump')
+    if block.get('stages', 'mining') not in ('mining', 'jump', 'place', 'bridge', 'build'):
+        raise ValueError('reacquire stages must be mining, jump, place, bridge or build')
     if block.get('stages', 'mining') == 'mining' and (not spec.get('target_block') or not spec.get('target_items')):
         raise ValueError('a reacquire skill needs target_block and target_items')
     return name, spec
+
+
+def place_of(fixture):
+    """The fixture config when it carries a block placing task (design 2026-11-14), else None."""
+    if fixture is None: return None
+    config = json.loads(Path(fixture).read_text(encoding='utf-8'))
+    return config if config.get('place') else None
+
+
+def bridge_of(fixture):
+    """The fixture config when it carries a bridging task (design 2026-11-14), else None."""
+    if fixture is None: return None
+    config = json.loads(Path(fixture).read_text(encoding='utf-8'))
+    return config if config.get('bridge') else None
+
+
+def build_of(fixture):
+    """The fixture config when it carries a building task (design 2026-11-14), else None."""
+    if fixture is None: return None
+    config = json.loads(Path(fixture).read_text(encoding='utf-8'))
+    return config if config.get('build') else None
 
 
 def course_of(fixture):
@@ -179,7 +201,10 @@ def worker(args):
         from .session import DemoSession, fixture_sha52
         process_watcher.launch = partial(launch_scoped_watcher, output)
         minecraft_dir = Path(InstanceManager.MINECRAFT_DIR)
-        jar = build_save_jar(args.root, minecraft_dir, craft_monitor=True, workshop_monitor=True, demo_monitor=True)
+        # Opt-in placement telemetry (block placing plan 2026-11-13 §1); without it the jar is the earlier demo jar.
+        place = bool(config.get('place_monitor', False))
+        jar = build_save_jar(args.root, minecraft_dir, craft_monitor=True, workshop_monitor=True, demo_monitor=True,
+                             place_monitor=place)
         prepare_jar_cache(minecraft_dir, output, source_override=jar)
         sha52 = None
         if args.fixture:
@@ -187,7 +212,7 @@ def worker(args):
             os.environ['MINECRAFTRL_DEMO_FIXTURE'] = str(fixture)
         else: os.environ.pop('MINECRAFTRL_DEMO_FIXTURE', None)
         catalog = RecipeCatalog.from_jar(jar, extra_ids=('stone_pickaxe',)) if need_catalog else None
-        env = MineRLEnvironment(workshop_survival(**ENV_KWARGS, terminate_on_death=True, demo=True).make())
+        env = MineRLEnvironment(workshop_survival(**ENV_KWARGS, terminate_on_death=True, demo=True, place=place).make())
         preparation = None
         if policy_skills:
             from ..cuda_startup import prime_convolution
@@ -206,13 +231,33 @@ def worker(args):
                 from ..jump_course import JUMP_STAGES, JumpFeed
                 head = install(policy, use_stage=block['use_stage'], checkpoint=checkpoint, stages=JUMP_STAGES)
                 feed = JumpFeed(fixture_config)
+            elif block.get('stages') == 'place':  # block placing (design 2026-11-14): its own stages and feed
+                from ..place_task import PLACE_STAGES, PlaceFeed
+                head = install(policy, use_stage=block['use_stage'], checkpoint=checkpoint, stages=PLACE_STAGES)
+                feed = PlaceFeed(fixture_config)
+            elif block.get('stages') == 'bridge':  # bridging (design 2026-11-14): its own stages and feed
+                from ..bridge_task import BRIDGE_STAGES, BridgeFeed
+                head = install(policy, use_stage=block['use_stage'], checkpoint=checkpoint, stages=BRIDGE_STAGES)
+                feed = BridgeFeed(fixture_config)
+            elif block.get('stages') == 'build':  # building (design 2026-11-14): its own stages and feed
+                from ..build_task import BUILD_STAGES, BuildFeed
+                head = install(policy, use_stage=block['use_stage'], checkpoint=checkpoint, stages=BUILD_STAGES)
+                feed = BuildFeed(fixture_config)
             else: head = install(policy, use_stage=block['use_stage'], checkpoint=checkpoint)
             meta = dict(skill=name, use_stage=block['use_stage'], checkpoint=None if checkpoint is None else str(checkpoint),
                         checkpoint_sha256=None if checkpoint is None else sha256_file(checkpoint),
                         stage_input=('privileged: course positions and client pose' if block.get('stages') == 'jump'
+                                     else 'privileged: place target, client pose and crosshair' if block.get('stages') == 'place'
+                                     else 'privileged: bridge task, client pose, crosshair and server placements'
+                                     if block.get('stages') == 'bridge'
+                                     else 'privileged: blueprint, client pose, crosshair and server placements'
+                                     if block.get('stages') == 'build'
                                      else 'privileged: fixture positions and server pose') if block['use_stage'] else 'zeros')
             if getattr(head, 'features', ()):     # direction input (jump and mining designs 2026-11-14)
-                source = 'the course and the client pose' if block.get('stages') == 'jump' else 'fixture positions and the server pose'
+                source = {'jump': 'the course and the client pose', 'place': 'the place target and the client pose',
+                          'bridge': 'the bridge task, the client pose and the server placements',
+                          'build': 'the blueprint, the client pose and the server placements'}.get(
+                    block.get('stages'), 'fixture positions and the server pose')
                 meta['feature_input'] = ('privileged: %s from %s, times %g' % (', '.join(head.features), source, head.feature_gain)
                                          if block['use_stage'] else 'zeros')
             reacquire = ReacquireHook(head, fixture_config, spec.get('target_block'), (spec.get('target_items') or [None])[0],
@@ -249,7 +294,8 @@ def worker(args):
         session = DemoSession(env, policy, catalog, recorder, gate, args.stop_file, limit_s=limit_s, skills=skills,
                               fixture_sha52=sha52, settle_steps=int(config.get('settle_steps', 20)),
                               tool_lock=bool(config.get('policy_tool_lock', False)), oversight=oversight,
-                              reacquire=reacquire, course=course_of(args.fixture))
+                              reacquire=reacquire, course=course_of(args.fixture), place=place_of(args.fixture),
+                              bridge=bridge_of(args.fixture), build=build_of(args.fixture))
         report = session.run(steps)
         report.update(mode=args.mode, seed=seed, sampling_seed=sampling, limit_s=limit_s, fixture=str(args.fixture) if args.fixture else None,
                       fixture_sha52=sha52, jar=str(jar), jar_receipt=json.loads(jar.with_suffix('.json').read_text()),

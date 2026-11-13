@@ -2,9 +2,12 @@
 DEMO_NUMBERS=('demo_available','demo_destroys','demo_last_destroy_tick','demo_last_destroy_removed',
               'demo_last_destroy_harvestable','demo_last_destroy_x','demo_last_destroy_y','demo_last_destroy_z',
               'demo_mining_x','demo_mining_y','demo_mining_z','demo_fixture_state','demo_fixture_blocks','demo_fixture_sha52')
+# Opt-in placement telemetry (block placing plan 2026-11-13 §1).
+PLACE_NUMBERS=('place_available','place_count','place_last_tick','place_last_x','place_last_y','place_last_z')
 
 
-def workshop_survival(*,terminate_on_death=False,demo=False,**kwargs):
+def workshop_survival(*,terminate_on_death=False,demo=False,place=False,**kwargs):
+    if place and not demo:raise ValueError('the place monitor needs the demo monitor')
     from minerl.herobraine.env_specs.human_survival_specs import HumanSurvival
     from minerl.herobraine.hero.handlers.translation import TranslationHandler
     from minerl.herobraine.hero import spaces,mc
@@ -38,6 +41,8 @@ def workshop_survival(*,terminate_on_death=False,demo=False,**kwargs):
     demo_schema={key:number() for key in DEMO_NUMBERS}
     demo_schema.update(demo_last_destroyed_block=block(),demo_last_destroy_tool=item(),
                        demo_mining_block=block(),demo_hit_block=block())
+    place_schema={key:number() for key in PLACE_NUMBERS}
+    place_schema.update(place_last_block=block())
     class Monitor(TranslationHandler):
         def __init__(self,name='workshop',fields=schema):
             super().__init__(spaces.Dict(fields));self.name=name
@@ -47,7 +52,8 @@ def workshop_survival(*,terminate_on_death=False,demo=False,**kwargs):
         def from_universal(self,value):return self.from_hero(value)
     class Survival(HumanSurvival):
         def create_monitors(self):
-            return super().create_monitors()+[Monitor()]+([Monitor('demo',demo_schema)] if demo else [])
+            return (super().create_monitors()+[Monitor()]+([Monitor('demo',demo_schema)] if demo else [])+
+                    ([Monitor('place',place_schema)] if place else []))
         def create_agent_start(self):
             handlers=super().create_agent_start()
             if terminate_on_death:
