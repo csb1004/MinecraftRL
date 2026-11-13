@@ -179,7 +179,10 @@ def worker(args):
         from .session import DemoSession, fixture_sha52
         process_watcher.launch = partial(launch_scoped_watcher, output)
         minecraft_dir = Path(InstanceManager.MINECRAFT_DIR)
-        jar = build_save_jar(args.root, minecraft_dir, craft_monitor=True, workshop_monitor=True, demo_monitor=True)
+        # Opt-in placement telemetry (block placing plan 2026-11-13 §1); without it the jar is the earlier demo jar.
+        place = bool(config.get('place_monitor', False))
+        jar = build_save_jar(args.root, minecraft_dir, craft_monitor=True, workshop_monitor=True, demo_monitor=True,
+                             place_monitor=place)
         prepare_jar_cache(minecraft_dir, output, source_override=jar)
         sha52 = None
         if args.fixture:
@@ -187,7 +190,7 @@ def worker(args):
             os.environ['MINECRAFTRL_DEMO_FIXTURE'] = str(fixture)
         else: os.environ.pop('MINECRAFTRL_DEMO_FIXTURE', None)
         catalog = RecipeCatalog.from_jar(jar, extra_ids=('stone_pickaxe',)) if need_catalog else None
-        env = MineRLEnvironment(workshop_survival(**ENV_KWARGS, terminate_on_death=True, demo=True).make())
+        env = MineRLEnvironment(workshop_survival(**ENV_KWARGS, terminate_on_death=True, demo=True, place=place).make())
         preparation = None
         if policy_skills:
             from ..cuda_startup import prime_convolution

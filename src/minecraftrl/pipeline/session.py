@@ -123,6 +123,7 @@ class DemoSession:
         value = {k: w.get(k) for k in WORKSHOP_SAMPLE}
         value.update(controller=controller, action=compact_action(action),
                      inventory=nonzero(w.get('server_inventory', {})), demo=dict(self.demo()))
+        if 'place' in self.info: value['place'] = dict(self.info['place'])   # opt-in place monitor (plan 2026-11-13 §1)
         return value
 
     def dispatch(self, action, controller, masked=()):

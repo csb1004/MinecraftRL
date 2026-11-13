@@ -79,6 +79,44 @@ class DemoPatchTests(unittest.TestCase):
         for hook in ('minecraftRLRecordDestroy(block', 'minecraftRLRecordHarvest(block', 'minecraftRLMiningTarget()'):
             self.assertIn(hook, out)
 
+    # Block placing plan 2026-11-13 §1: a server observation of every placed block, opt-in.
+    def test_place_hooks_count_server_placements(self):
+        from minecraftrl.world_save_patch import patch_block_item_place, patch_place_observation
+        out = patch_place_observation(DECLARATION + '\n}')
+        self.assertIn('public long minecraftRLPlaces = 0', out)
+        self.assertIn('public void minecraftRLRecordPlace(Block block, BlockPos pos)', out)
+        trigger = '                     CriteriaTriggers.PLACED_BLOCK.trigger((ServerPlayerEntity)playerentity, blockpos, itemstack);'
+        item = 'if (playerentity instanceof ServerPlayerEntity) {\n' + trigger + '\n}'
+        placed = patch_block_item_place(item)
+        self.assertEqual(placed.count('interactionManager.minecraftRLRecordPlace(block, blockpos);'), 1)
+        self.assertLess(placed.index('PLACED_BLOCK.trigger'), placed.index('minecraftRLRecordPlace'))
+        for invalid in ('class X {}', item + item):
+            with self.subTest(invalid=invalid[:40]), self.assertRaises(ValueError): patch_block_item_place(invalid)
+        with self.assertRaises(ValueError): patch_place_observation('class X {}')
+
+    def test_place_monitor_requires_the_demo_monitor(self):
+        for call in (build_save_jar, patched_sources):
+            with self.subTest(call=call.__name__), self.assertRaises(ValueError):
+                call(ROOT, ROOT / 'missing-minecraft', craft_monitor=True, workshop_monitor=True, place_monitor=True)
+
+    def test_place_sources_are_opt_in_additions(self):
+        mc = minecraft_dir()
+        if mc is None: self.skipTest('MCP-Reborn source is unavailable')
+        plain = patched_sources(ROOT, mc, craft_monitor=True, workshop_monitor=True, demo_monitor=True)
+        same = patched_sources(ROOT, mc, craft_monitor=True, workshop_monitor=True, demo_monitor=True, place_monitor=False)
+        self.assertEqual(plain[2], same[2])                         # the demo jar of every earlier experiment is unchanged
+        _, extra, digest = patched_sources(ROOT, mc, craft_monitor=True, workshop_monitor=True, demo_monitor=True,
+                                           place_monitor=True)
+        self.assertNotEqual(digest, plain[2])
+        self.assertIn('PlaceObservation.java', extra)
+        self.assertEqual(extra['BlockItem.java'].count('minecraftRLRecordPlace(block, blockpos);'), 1)
+        self.assertEqual(extra['EnvServer.java'].count('PlaceObservation.snapshot()'), 1)
+        self.assertEqual(extra['WorkshopObservation.java'].count('PlaceObservation.capture();'), 1)
+        self.assertEqual(extra['WorkshopObservation.java'].count('DemoObservation.capture();'), 1)
+        interaction = extra['PlayerInteractionManager.java']
+        self.assertEqual(interaction.count('public void minecraftRLRecordPlace('), 1)
+        self.assertEqual(interaction.count('minecraftRLRecordDestroy(block, itemstack1, pos, flag, flag1);'), 1)
+
     def test_destroy_hook_rejects_unexpected_source(self):
         for invalid in ('class X {}', DECLARATION + '\n' + MARK_HARVEST + '\n}',
                         DECLARATION + '\n' + MARK_HARVEST + '\n' + MARK_FLAG1 + '\n}',
@@ -144,6 +182,18 @@ class DemoPatchTests(unittest.TestCase):
         self.assertIn('stone_pickaxe', monitors['workshop'].space.spaces['recipes'].spaces)
         normal_workshop = [m for m in normal.create_monitors() if m.to_string() == 'workshop'][0]
         self.assertNotIn('stone_pickaxe', normal_workshop.space.spaces['recipes'].spaces)
+
+    @unittest.skipUnless(sys.platform == 'linux', 'MineRL specification is installed in WSL')
+    def test_workshop_survival_place_monitor_is_opt_in(self):
+        # Block placing plan 2026-11-13 §1.
+        from minecraftrl.workshop_monitor import workshop_survival
+        demo = {m.to_string() for m in workshop_survival(demo=True).create_monitors()}
+        self.assertNotIn('place', demo)
+        monitors = {m.to_string(): m for m in workshop_survival(demo=True, place=True).create_monitors()}
+        for key in ('place_available', 'place_count', 'place_last_tick', 'place_last_x', 'place_last_y', 'place_last_z',
+                    'place_last_block'):
+            self.assertIn(key, monitors['place'].space.spaces)
+        with self.assertRaises(ValueError): workshop_survival(place=True)
 
     def test_recipe_catalog_extra_ids_from_game_jar(self):
         mc = minecraft_dir()

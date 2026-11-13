@@ -191,6 +191,22 @@ class SessionTests(unittest.TestCase):
         telemetry = [json.loads(l) for l in (self.out / 'run/telemetry.jsonl').read_text().splitlines()]
         self.assertEqual([t.get('masked') for t in telemetry if t['controller'] == 'policy'], [['hotbar.3']] * 3)
 
+    def test_placement_telemetry_is_recorded_only_when_the_game_reports_it(self):
+        # Block placing plan 2026-11-13 §1: the opt-in place monitor adds info['place']; other runs keep their rows.
+        place = dict(place_available=1, place_count=2, place_last_block='cobblestone', place_last_x=1, place_last_y=64,
+                     place_last_z=3, place_last_tick=990)
+        env = FakeEnv(lambda n, a: dict(info({'cobblestone': 3 if n >= 3 else 0}), place=place))
+        self.session(env).run([Step('s1', 'dig', 'policy', 'cobblestone', 3, block='stone')])
+        rows = [json.loads(l) for l in (self.out / 'run/telemetry.jsonl').read_text().splitlines()]
+        self.assertTrue(rows); self.assertTrue(all(r['place'] == place for r in rows))
+        self.recorder.close(); del self.recorder
+        self.temp.cleanup(); self.temp = tempfile.TemporaryDirectory(); self.out = Path(self.temp.name)
+        self.stop = self.out / 'STOP'; self.gate = StopGate()      # a fresh run (the first run latched its gate)
+        env = FakeEnv(lambda n, a: info({'cobblestone': 3 if n >= 3 else 0}))
+        self.session(env).run([Step('s1', 'dig', 'policy', 'cobblestone', 3, block='stone')])
+        rows = [json.loads(l) for l in (self.out / 'run/telemetry.jsonl').read_text().splitlines()]
+        self.assertTrue(rows); self.assertFalse(any('place' in r for r in rows))
+
     def test_tool_lock_masks_drop_and_inventory(self):
         # Real probe: STEVE-1 dropped the given stone pickaxe with Q while the hotbar was locked.
         action = noop(); action['drop'] = 1; action['inventory'] = 1; action['attack'] = 1
