@@ -95,11 +95,11 @@ class JumpBatchTest(unittest.TestCase):
                                                                      stage_results=[stage])), encoding='utf-8')
         r = report.arm_report(arm)
         self.assertEqual((r['runs'], r['success'], r['fell'], r['other'], r['median_s']), (3, 1, 1, {'time_limit': 1}, 20.))
-        self.assertEqual(r['best'], {'0': 1, '1': 1, '4': 1})
+        self.assertEqual(r['best'], {'0': 1, '1': 1, '3': 1})
         p = generate_course(101)['platforms']
         first = 'gap %d, %+d' % (p[1]['gap'], p[1]['top'] - p[0]['top'])
         tried = sum(t for t, _ in r['jumps'].values()); made = sum(m for _, m in r['jumps'].values())
-        self.assertEqual((tried, made), (4 + 2 + 1, 4 + 1))      # success: 4 jumps; fall after 1: 2 tried; time-out: 1
+        self.assertEqual((tried, made), (3 + 2 + 1, 3 + 1))      # success: 3 jumps; fall after 1: 2 tried; time-out: 1
         self.assertGreaterEqual(r['jumps'][first][0], 2)
 
 

@@ -17,8 +17,8 @@ class GeneratorTest(unittest.TestCase):
         for seed in range(200):
             with self.subTest(seed=seed):
                 p = jc.generate_course(seed)['platforms']
-                self.assertEqual(len(p), 5)
-                self.assertEqual(p[0], dict(x0=-1, x1=1, z0=-1, z1=1, top=0, gap=0, block='stone_bricks'))
+                self.assertEqual(len(p), 4)                                # three jumps
+                self.assertEqual(p[0], dict(x0=-1, x1=1, z0=-1, z1=0, top=0, gap=0, block='stone_bricks'))
                 self.assertEqual(p[-1]['block'], 'gold_block')
                 self.assertEqual((p[-1]['x1'] - p[-1]['x0'], p[-1]['z1'] - p[-1]['z0']), (2, 2))
                 for prev, cur in zip(p, p[1:]):
@@ -32,6 +32,15 @@ class GeneratorTest(unittest.TestCase):
                     self.assertTrue(-3 <= cur['x0'] and cur['x1'] <= 3)
                 for mid in p[1:-1]:
                     self.assertEqual((mid['x1'] - mid['x0'], mid['z1'] - mid['z0'], mid['block']), (1, 2, 'stone_bricks'))
+
+    def test_every_fixture_offset_is_within_the_mod_limit(self):
+        # Game check 2026-11-13: DemoFixture refuses offsets beyond 16 blocks ("Fixture offset out of range"); the first
+        # four-jump courses reached 25 and all three teacher-check launches failed before the game started.
+        for seed in list(range(300)) + [101, 112, 201, 204, 301, 308]:
+            f = jc.course_fixture(jc.generate_course(seed))
+            values = [v for r in f['fill'] for v in r['from'] + r['to']] + [b[k] for b in f['blocks'] for k in ('dx', 'dy', 'dz')]
+            with self.subTest(seed=seed): self.assertLessEqual(max(abs(v) for v in values), jc.MAX_OFFSET)
+        self.assertEqual(jc.MAX_OFFSET, 16)
 
 
 class FixtureTest(unittest.TestCase):
@@ -48,7 +57,7 @@ class FixtureTest(unittest.TestCase):
         floor = [r for r in f['fill'] if r['block'] == 'grass_block']
         self.assertEqual([(r['from'][1], r['to'][1]) for r in floor], [(-4, -4)])
         air = [r for r in f['fill'] if r['block'] == 'air'][0]
-        self.assertGreaterEqual(air['to'][2], course['platforms'][-1]['z1'] + 2)
+        self.assertEqual(air['to'][2], course['platforms'][-1]['z1'])
         self.assertTrue(any(r['block'] == 'barrier' for r in f['fill']))
 
 

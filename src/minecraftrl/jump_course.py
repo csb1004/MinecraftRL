@@ -32,8 +32,13 @@ FALL_MARGIN = 1.2      # feet this far below the lowest platform top = fallen
 PAST_NEAR = 0.
 MAX_TURN = 10.         # degrees per axis per decision
 GROUND_EPS = .05
-START = dict(x0=-1, x1=1, z0=-1, z1=1, top=0, gap=0, block='stone_bricks')
-JUMPS = 4
+START = dict(x0=-1, x1=1, z0=-1, z1=0, top=0, gap=0, block='stone_bricks')   # 3 wide, the player on its front row
+# DemoFixture refuses offsets beyond 16 blocks (game check 2026-11-13: four jumps reached 25 and every launch failed), so
+# a course has three jumps and ends right behind the goal: its barrier is at most 16 blocks ahead. Middle platforms stay 3
+# long (2 long: the simulated teacher overshot and crossed only 415/800 courses).
+JUMPS = 3
+MID_LENGTH = 3
+MAX_OFFSET = 16
 LATERAL = 3            # platforms stay within dx -LATERAL..LATERAL
 TOPS = (-1, 2)
 
@@ -54,7 +59,7 @@ def generate_course(seed, jumps=JUMPS):
                    if abs(x0 + (width - 1) / 2. - centre) <= 1. and min(x0 + width - 1, prev['x1']) >= max(x0, prev['x0'])]
         x0 = rng.choice(options)
         z0 = prev['z1'] + gap + 1
-        platforms.append(dict(x0=x0, x1=x0 + width - 1, z0=z0, z1=z0 + 2, top=top, gap=gap,
+        platforms.append(dict(x0=x0, x1=x0 + width - 1, z0=z0, z1=z0 + (2 if goal else MID_LENGTH - 1), top=top, gap=gap,
                               block='gold_block' if goal else 'stone_bricks'))
     return dict(schema=SCHEMA, seed=seed, platforms=platforms)
 
@@ -62,7 +67,8 @@ def generate_course(seed, jumps=JUMPS):
 def course_fixture(course):
     """DemoFixture config: stone and a grass fall floor (top 3 below the start), cleared air, barrier walls, then every
     platform block. The course itself rides along under `course` (DemoFixture ignores it)."""
-    end = max(p['z1'] for p in course['platforms']) + 3
+    end = max(p['z1'] for p in course['platforms'])
+    if end + 1 > MAX_OFFSET: raise ValueError('course %s reaches %d blocks ahead (limit %d)' % (course['seed'], end + 1, MAX_OFFSET))
     w = LATERAL + 2
     fill = [dict({'from': [-w, -8, -3], 'to': [w, -5, end]}, block='stone'),
             dict({'from': [-w, -4, -3], 'to': [w, -4, end]}, block='grass_block'),
