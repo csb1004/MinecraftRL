@@ -126,6 +126,26 @@ def target_of(s, view, wanted):
     return view.nearest
 
 
+MINING_FEATURES = ('sin_yaw', 'cos_yaw', 'pitch', 'dist')
+FEATURE_PITCH = 60.        # degrees of pitch per unit of the `pitch` feature
+FEATURE_DIST = 9.          # blocks per unit of the `dist` feature (0..1)
+
+
+def mining_features(s, view, wanted):
+    """Privileged head input next to the stage (mining direction input design 2026-11-14 §1), in MINING_FEATURES order:
+    the direction from the eye to the centre of the block the teacher aims at (target_of) as the sin and cos of the yaw
+    difference and the pitch difference / 60, and the eye distance / 9. Zeros without a sample, a view or a target, or
+    with a GUI open."""
+    zeros = [0.] * len(MINING_FEATURES)
+    if s is None or view is None or not s.valid or s.gui_open or view.stage == 'gui': return zeros
+    target = target_of(s, view, wanted)
+    if target is None: return zeros
+    dpitch, dyaw = aim_delta(view.eye, s.yaw, s.pitch, target)
+    dist = math.dist(view.eye, tuple(c + .5 for c in target))
+    return [math.sin(math.radians(dyaw)), math.cos(math.radians(dyaw)), max(-1., min(1., dpitch / FEATURE_PITCH)),
+            min(dist, FEATURE_DIST) / FEATURE_DIST]
+
+
 AIM_MODES = ('centre', 'hold', 'approach', 'press', 'sight')
 WALKING_MODES = ('approach', 'press', 'sight')
 PRESS_MODES = ('press', 'sight')

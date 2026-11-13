@@ -49,6 +49,18 @@ class LiveStageFeedTest(unittest.TestCase):
         feed.observe(row(1, controller='prepare', fixture_state=1.)); feed.start_step(START_T)
         self.assertIsNone(feed.decision_view())
 
+    def test_features_are_the_mining_features_of_the_decision_view(self):
+        # Mining direction input design 2026-11-14 §1.
+        from minecraftrl.reacquire_teacher import mining_features
+        feed = LiveStageFeed(FIXTURE, 'iron_ore', 'iron_ore')
+        self.assertEqual(feed.features(), [0.] * 4)               # nothing seen yet
+        feed.observe(row(1, controller='prepare')); feed.start_step(START_T)
+        view = feed.decision_view()
+        self.assertEqual(feed.features(), mining_features(feed.last_sample, view, 'iron_ore'))
+        self.assertGreater(feed.features()[1], .9)                 # the iron is ahead of the start
+        for r in walk_rows()[:3]: feed.observe(r)
+        self.assertEqual(feed.features(), mining_features(feed.last_sample, feed.decision_view(), 'iron_ore'))
+
     def test_breaks_before_the_step_are_applied_without_a_collect(self):
         iron = (0, 65, 8)
         rows = [row(1, controller='prepare'),

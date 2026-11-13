@@ -211,8 +211,9 @@ def worker(args):
                         checkpoint_sha256=None if checkpoint is None else sha256_file(checkpoint),
                         stage_input=('privileged: course positions and client pose' if block.get('stages') == 'jump'
                                      else 'privileged: fixture positions and server pose') if block['use_stage'] else 'zeros')
-            if getattr(head, 'features', ()):     # jump direction input (design 2026-11-14 §2)
-                meta['feature_input'] = ('privileged: %s from the course and the client pose' % ', '.join(head.features)
+            if getattr(head, 'features', ()):     # direction input (jump and mining designs 2026-11-14)
+                source = 'the course and the client pose' if block.get('stages') == 'jump' else 'fixture positions and the server pose'
+                meta['feature_input'] = ('privileged: %s from %s, times %g' % (', '.join(head.features), source, head.feature_gain)
                                          if block['use_stage'] else 'zeros')
             reacquire = ReacquireHook(head, fixture_config, spec.get('target_block'), (spec.get('target_items') or [None])[0],
                                       output / 'reacquire' if block['record_latents'] else None,

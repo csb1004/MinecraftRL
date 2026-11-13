@@ -26,9 +26,10 @@ def mapping():
 
 
 def make_run(folder, *, seed=271828, policy=((2, {}), (3, {})), recorded=('far', 'far'), latents=None,
-             complete=True, valid=True, tamper=False, block='iron_ore', item='iron_ore'):
+             complete=True, valid=True, tamper=False, block='iron_ore', item='iron_ore', features=None):
     """A recorded probe run: one prepare row, then policy rows (step, row kwargs), with its latent record. `block`
-    replaces the fixture's iron ore and names the step's block (multi-block runs, design 2026-11-08)."""
+    replaces the fixture's iron ore and names the step's block (multi-block runs, design 2026-11-08). `features`: values
+    logged with the latents by a head with the mining direction input (design 2026-11-14)."""
     folder = Path(folder); (folder / 'reacquire').mkdir(parents=True, exist_ok=True)
     fixture = folder.parent / ('fixture.json' if block == 'iron_ore' else 'fixture-%s.json' % block)
     if not fixture.exists():
@@ -46,13 +47,17 @@ def make_run(folder, *, seed=271828, policy=((2, {}), (3, {})), recorded=('far',
     n = len(steps)
     stage = [STAGES.index(x) if x else -1 for x in recorded][:n] + [-1] * max(0, n - len(recorded))
     path = folder / 'reacquire/latents-000.npz'
+    extra = {} if features is None else dict(features=np.asarray(features, np.float32))
     np.savez(path, step=np.array(steps, np.int32), cond=np.ones((n, 4), np.float16) * np.arange(n)[:, None],
-             uncond=np.zeros((n, 4), np.float16), stage=np.array(stage, np.int8))
+             uncond=np.zeros((n, 4), np.float16), stage=np.array(stage, np.int8), **extra)
     digest = hashlib.sha256(path.read_bytes()).hexdigest()
     if tamper: digest = '0' * 64
     manifest = dict(schema='reacquire_latents_v1', width=4, cond_scale=6., stages=list(STAGES), rows=n,
                     chunks=[dict(file=path.name, rows=n, sha256=digest)], complete=complete,
                     meta=dict(skill=skill, use_stage=True))
+    if features is not None:
+        from minecraftrl.reacquire_teacher import MINING_FEATURES
+        manifest['features'] = list(MINING_FEATURES)
     (folder / 'reacquire/manifest.json').write_text(json.dumps(manifest), encoding='utf-8')
     return folder
 
@@ -160,6 +165,33 @@ class ExamplesTest(unittest.TestCase):
         self.assertEqual(summary['holdout'], ['coal_ore-s161803-n1', 'sand-s161803-n1'])
         self.assertEqual(summary['labelled_by_block'], dict(coal_ore=2, sand=1))
         self.assertEqual([r['block'] for r in summary['runs']], ['coal_ore', 'coal_ore', 'sand'])
+
+    def test_direction_features_are_recomputed_and_checked_against_the_record(self):
+        # Mining direction input design 2026-11-14 §1-§2: earlier records get the features from telemetry; a record that
+        # logged them must agree with the replay.
+        import torch
+        from minecraftrl.reacquire_teacher import MINING_FEATURES
+        near = dict(policy=((2, NEAR), (3, NEAR)), recorded=('far', 'near'))
+        old = make_run(self.root / 'r0/coal_ore-s271828-n1', block='coal_ore', item='coal', **near)
+        self.assertNotIn('features', self.examples(old))
+        ex = run_examples(old, self.mapper, self.transformer, root=self.root, teacher='sight', features=True)
+        self.assertEqual(ex['features'].shape, (2, len(MINING_FEATURES)))
+        self.assertGreater(ex['features'][0][1], .9)               # start row: the target is ahead
+        self.assertLess(ex['features'][1][1], -.9)                 # near row facing away: the target is behind
+        logged = make_run(self.root / 'r1/coal_ore-s271828-n1', block='coal_ore', item='coal', features=ex['features'], **near)
+        np.testing.assert_allclose(run_examples(logged, self.mapper, self.transformer, root=self.root, features=True)['features'],
+                                   ex['features'], atol=1e-6)
+        wrong = ex['features'].copy(); wrong[1, 2] += .5
+        bad = make_run(self.root / 'r2/coal_ore-s271828-n1', block='coal_ore', item='coal', features=wrong, **near)
+        with self.assertRaisesRegex(ValueError, 'features differ'):
+            run_examples(bad, self.mapper, self.transformer, root=self.root, features=True)
+        out = self.root / 'data/f.pt'
+        other = make_run(self.root / 'r0/sand-s161803-n1', block='sand', item='sand', **near)
+        summary = build_dataset([old, other], out, holdout='sand-s161803-n1', mapper=self.mapper,
+                                transformer=self.transformer, root=self.root, teacher='sight', features=True)
+        data = torch.load(out)
+        self.assertEqual((data['feature_names'], tuple(data['features'].shape)), (list(MINING_FEATURES), (4, 4)))
+        self.assertEqual(summary['features'], list(MINING_FEATURES))
 
     def test_a_held_out_block_is_refused(self):
         near = dict(policy=((2, NEAR), (3, NEAR)), recorded=('far', 'near'))

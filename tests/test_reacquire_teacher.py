@@ -54,6 +54,34 @@ class AimDeltaTest(unittest.TestCase):
         self.assertTrue(in_view(30., 45.)); self.assertFalse(in_view(40., 0.)); self.assertFalse(in_view(0., 60.))
 
 
+class MiningFeatureTest(unittest.TestCase):
+    """Mining direction input design 2026-11-14 §1: the direction to the block the teacher aims at."""
+
+    def test_names_and_values(self):
+        import math
+        from minecraftrl.reacquire_teacher import MINING_FEATURES, mining_features
+        self.assertEqual(MINING_FEATURES, ('sin_yaw', 'cos_yaw', 'pitch', 'dist'))
+        view = StageView('near', 3., (0, 1, -3), EYE)              # behind the player (yaw 0 looks to +z)
+        f = dict(zip(MINING_FEATURES, mining_features(sample(), view, 'iron_ore')))
+        dpitch, dyaw = aim_delta(EYE, 0., 0., (0, 1, -3))
+        self.assertAlmostEqual(f['sin_yaw'], math.sin(math.radians(dyaw)))
+        self.assertAlmostEqual(f['cos_yaw'], math.cos(math.radians(dyaw)))
+        self.assertLess(f['cos_yaw'], -.9)
+        self.assertAlmostEqual(f['pitch'], max(-1., min(1., dpitch / 60.)))
+        self.assertAlmostEqual(f['dist'], math.dist(EYE, (.5, 1.5, -2.5)) / 9.)
+
+    def test_the_aimed_block_wins_and_missing_targets_are_zero(self):
+        from minecraftrl.reacquire_teacher import mining_features
+        aimed = mining_features(sample(hit='iron_ore', hit_pos=(0, 1, 3)), StageView('aimed', 3., (1, 1, 3), EYE), 'iron_ore')
+        self.assertAlmostEqual(aimed[0], 0.)                        # straight ahead: no yaw to the aimed block
+        self.assertEqual(mining_features(sample(), StageView('far', None, None, EYE), 'iron_ore'), [0.] * 4)
+        self.assertEqual(mining_features(sample(gui=True), StageView('gui', 3., (0, 1, 3), EYE), 'iron_ore'), [0.] * 4)
+        self.assertEqual(mining_features(sample(), None, 'iron_ore'), [0.] * 4)
+        self.assertEqual(mining_features(None, StageView('near', 3., (0, 1, 3), EYE), 'iron_ore'), [0.] * 4)
+        far = mining_features(sample(), StageView('far', 30., (0, 1, 30), EYE), 'iron_ore')
+        self.assertEqual(far[3], 1.)                                # distance clipped to 1
+
+
 class TeacherActionTest(unittest.TestCase):
     def test_near_not_aimed_turns_without_attack(self):
         a = teacher_env_action(sample(hit='grass_block'), StageView('near', 3., (0, 1, -3), EYE), 'iron_ore')

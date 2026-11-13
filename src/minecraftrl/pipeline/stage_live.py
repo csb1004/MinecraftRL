@@ -67,6 +67,11 @@ class LiveStageFeed:
         self._apply_due(self.last_sample)     # breaks before the step only remove blocks (no collect before start)
         return self.tracker.peek(self.last_sample)
 
+    def features(self):
+        """Privileged direction features of the decision view (mining direction input design 2026-11-14 §1)."""
+        from ..reacquire_teacher import mining_features
+        return mining_features(self.last_sample, self.decision_view(), self.wanted)
+
 
 class LatentLog:
     """Policy latents per dispatched policy step: chunked npz files and a manifest kept current after each chunk."""
