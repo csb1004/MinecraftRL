@@ -71,24 +71,28 @@ class LiveStageFeed:
 class LatentLog:
     """Policy latents per dispatched policy step: chunked npz files and a manifest kept current after each chunk."""
 
-    def __init__(self, folder, *, width, cond_scale, meta, chunk=256, stages=STAGES):
+    def __init__(self, folder, *, width, cond_scale, meta, chunk=256, stages=STAGES, features=()):
         self.folder = Path(folder); self.folder.mkdir(parents=True, exist_ok=True); self.stages = tuple(stages)
         self.width = int(width); self.cond_scale = float(cond_scale); self.meta = dict(meta); self.chunk = int(chunk)
+        self.features = tuple(features)    # feature names the head saw (jump direction input, design 2026-11-14)
         self.rows = []; self.chunks = []; self.total = 0
 
-    def add(self, step, latent, stage):
+    def add(self, step, latent, stage, features=None):
         value = latent.detach().float().cpu().numpy() if hasattr(latent, 'detach') else np.asarray(latent, dtype=np.float32)
         if value.shape != (2, 1, self.width): raise ValueError('latent must be [2, 1, width] (conditional, unconditional)')
+        feats = np.zeros(len(self.features), np.float32) if features is None else np.asarray(features, np.float32)
+        if feats.shape != (len(self.features),): raise ValueError('expected %d feature values' % len(self.features))
         self.rows.append((int(step), value[0, 0].astype(np.float16), value[1, 0].astype(np.float16),
-                          -1 if stage is None else int(stage)))
+                          -1 if stage is None else int(stage), feats))
         if len(self.rows) >= self.chunk: self._flush()
 
     def _flush(self):
         if not self.rows: return
         name = 'latents-%03d.npz' % len(self.chunks); path = self.folder / name
-        steps, cond, uncond, stage = zip(*self.rows)
+        steps, cond, uncond, stage, feats = zip(*self.rows)
+        extra = dict(features=np.stack(feats)) if self.features else {}
         np.savez(path, step=np.array(steps, np.int32), cond=np.stack(cond), uncond=np.stack(uncond),
-                 stage=np.array(stage, np.int8))
+                 stage=np.array(stage, np.int8), **extra)
         self.chunks.append(dict(file=name, rows=len(self.rows), sha256=hashlib.sha256(path.read_bytes()).hexdigest()))
         self.total += len(self.rows); self.rows = []
         self._manifest(complete=False)
@@ -96,6 +100,7 @@ class LatentLog:
     def _manifest(self, *, complete):
         manifest = dict(schema=LATENT_SCHEMA, width=self.width, cond_scale=self.cond_scale, stages=list(self.stages),
                         rows=self.total, chunks=list(self.chunks), complete=complete, meta=self.meta)
+        if self.features: manifest['features'] = list(self.features)
         (self.folder / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')
         return manifest
 
@@ -112,26 +117,30 @@ class ReacquireHook:
         views name stages of the head's stage list."""
         self.head = head; self.meta = dict(meta); self.decisions = 0
         self.stages = tuple(getattr(head, 'stages', STAGES))
+        # A head with privileged features (jump direction input, design 2026-11-14) gets them from the feed each decision.
+        self.features = tuple(getattr(head, 'features', ()))
         self.feed = feed if feed is not None else LiveStageFeed(fixture, wanted, target_item)
         self.log = None if folder is None else LatentLog(folder, width=head.width, cond_scale=cond_scale, meta=meta,
-                                                          chunk=chunk, stages=self.stages)
+                                                          chunk=chunk, stages=self.stages, features=self.features)
 
     def observe(self, row): self.feed.observe(row)
 
     def activate(self, on):
         """Residual on for a policy step of the reacquire skill, off (official head, no stage) for any other."""
         self.head.active = bool(on)
-        if not on: self.head.stage = None
+        if not on: self.head.stage = None; self.head.feature = None
 
     def start_step(self, start_t): self.feed.start_step(start_t)
 
     def before_act(self):
         view = self.feed.decision_view()
         self.head.stage = None if view is None else self.stages.index(view.stage)
+        if self.features: self.head.feature = list(self.feed.features())
 
     def after_dispatch(self, step):
         self.decisions += 1
-        if self.log is not None: self.log.add(step, self.head.last_latent, self.head.stage)
+        if self.log is not None:
+            self.log.add(step, self.head.last_latent, self.head.stage, self.head.feature if self.features else None)
 
     def close(self):
         manifest = self.log.close() if self.log is not None else None

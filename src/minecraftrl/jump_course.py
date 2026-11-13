@@ -219,6 +219,26 @@ def teacher_action(x, y, z, yaw, pitch, view, platforms):
     return action
 
 
+JUMP_FEATURES = ('sin_yaw', 'cos_yaw', 'pitch', 'edge', 'gap2', 'rise', 'past')
+PITCH_SCALE = 60.          # degrees of pitch to the target per unit of the `pitch` feature
+EDGE_SCALE = 3.            # blocks to the edge per unit of the `edge` feature (0..1)
+
+
+def jump_features(x, y, z, yaw, pitch, view, platforms):
+    """Privileged head input next to the stage (jump direction input design 2026-11-14 §2), in JUMP_FEATURES order:
+    the direction to the next platform's top centre (sin, cos of the yaw difference; pitch difference / 60), the ground
+    distance to the edge / 3 (0 in the air), whether the next jump spans two blocks, its rise, and how far the player is
+    past the next platform's near edge / 3. The teacher reads the same quantities. Zeros on terminal or unknown stages."""
+    if view is None or view.stage not in LABELLED: return [0.] * len(JUMP_FEATURES)
+    dpitch, dyaw = point_delta((x, y + EYE, z), yaw, pitch, view.target)
+    cur, nxt = platforms[view.k], platforms[view.nxt]
+    ax, az = view.ahead if view.ahead is not None else (x, z)
+    edge = 0. if view.edge is None else min(view.edge, EDGE_SCALE) / EDGE_SCALE
+    past = max(-1., min(1. / 3, past_near(ax, az, view, platforms) / 3.))
+    return [math.sin(math.radians(dyaw)), math.cos(math.radians(dyaw)), max(-1., min(1., dpitch / PITCH_SCALE)), edge,
+            float(nxt['gap'] >= 2), float(max(-1., min(1., nxt['top'] - cur['top']))), past]
+
+
 POSES = {'server': ('server_x', 'server_y', 'server_z', 'server_on_ground', 'server_tick'),
          'client': ('client_x', 'client_y', 'client_z', 'client_on_ground', 'client_tick')}
 
@@ -285,6 +305,13 @@ class JumpFeed:
 
     def best(self):
         return self.server.best if self.server is not None else 0
+
+    def features(self):
+        """jump_features of the decision view on the pose it was judged from (zeros while unknown)."""
+        view = self.last_view
+        if view is None or self.last_row is None: return jump_features(0., 0., 0., 0., 0., None, self.platforms)
+        x, y, z, _, _ = _pose(self.last_row, self.last_source)
+        return jump_features(x, y, z, float(self.last_row['yaw']), float(self.last_row['pitch']), view, self.platforms)
 
     def label(self, row, view, source=None):
         """Teacher label for a recorded row and the decision view made from it (same pose source)."""

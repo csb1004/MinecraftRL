@@ -29,11 +29,17 @@ def stage_onehots(stage, device, dim=STAGE_DIM):
     return onehot
 
 
-def guided_logp(head, cond, uncond, stage, cond_scale, *, official=False):
-    """{key: [N, n] log-probs} of the guided distribution for N rows; `official` skips the residual."""
+def guided_logp(head, cond, uncond, stage, cond_scale, *, official=False, features=None):
+    """{key: [N, n] log-probs} of the guided distribution for N rows; `official` skips the residual. `features` ([N, F])
+    are the rows' privileged feature values for a head that reads them (jump direction input, design 2026-11-14)."""
     x = torch.stack([cond.float(), uncond.float()], 0)           # [2 (cond, uncond), N, width]
     if official: pd = head.base(x)
-    else: pd = head(x, stage_onehot=stage_onehots(stage, x.device, head.stage_dim).unsqueeze(0).expand(2, -1, -1))
+    else:
+        extra = {}
+        if getattr(head, 'feature_dim', 0):
+            if features is None: raise ValueError('this head reads features; pass the rows\' feature values')
+            extra['feature_values'] = features.float().to(x.device).unsqueeze(0).expand(2, -1, -1)
+        pd = head(x, stage_onehot=stage_onehots(stage, x.device, head.stage_dim).unsqueeze(0).expand(2, -1, -1), **extra)
     out = {}
     for key, value in pd.items():
         value = value.float().reshape(2, x.shape[1], -1)          # drop the singleton action dimension
@@ -104,18 +110,19 @@ def official_action_head(root):
 def official_factory(root):
     base_sha = sha256_file(Path(root) / 'weights/steve1/steve1.weights')
 
-    def factory(use_stage, width, stages=STAGES):
+    def factory(use_stage, width, stages=STAGES, features=(), feature_gain=1.):
         base, base_width = official_action_head(root)
         if base_width != width: raise ValueError('dataset latent width %d differs from the policy (%d)' % (width, base_width))
-        return ReacquireHead(base.requires_grad_(False), width, use_stage=use_stage, stages=stages), base_sha
+        return ReacquireHead(base.requires_grad_(False), width, use_stage=use_stage, stages=stages,
+                             features=features, feature_gain=feature_gain), base_sha
     return factory
 
 
 def train(dataset_path, *, use_stage, out_dir, lr=1e-4, batch=32, epochs=16, kl_coef=.01, kl_limit=3., clip=1., seed=17,
-          head_factory=None, root=None, device=None, balance=False, patience=None):
+          head_factory=None, root=None, device=None, balance=False, patience=None, feature_gain=1.):
     """`balance`: BC weighted by group_weights over the training rows (the holdout NLL uses its own rows' weights).
     `patience`: stop when the holdout NLL has not reached a new low for that many epochs and restore the best state
-    (the untrained head counts as epoch 0)."""
+    (the untrained head counts as epoch 0). `feature_gain`: multiplier of the feature input for a dataset with features."""
     started = time.time(); out_dir = Path(out_dir)
     if out_dir.exists() and any(out_dir.iterdir()): raise FileExistsError('refusing to overwrite %s' % out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -126,10 +133,20 @@ def train(dataset_path, *, use_stage, out_dir, lr=1e-4, batch=32, epochs=16, kl_
     # A dataset of another skill names its own stage list (jump course, design 2026-11-13); mining datasets keep the
     # default call, so earlier factories and checkpoints are unchanged.
     stages = tuple(data.get('stages') or STAGES)
-    make = (lambda: factory(use_stage, int(data['width']))) if stages == tuple(STAGES) else (
-        lambda: factory(use_stage, int(data['width']), stages))
+    # A dataset with privileged features (jump direction input, design 2026-11-14) trains a head with the same list.
+    feature_names = tuple(data.get('feature_names') or ())
+    if feature_names:
+        make = lambda: factory(use_stage, int(data['width']), stages, features=feature_names,   # noqa: E731
+                               feature_gain=float(feature_gain))
+    elif stages == tuple(STAGES): make = lambda: factory(use_stage, int(data['width']))       # noqa: E731
+    else: make = lambda: factory(use_stage, int(data['width']), stages)                      # noqa: E731
     head, base_sha = make(); head = head.to(device)
     head.base.requires_grad_(False); head.adapter.requires_grad_(True)
+    features = data['features'].float().to(device) if feature_names else None
+    if features is not None and tuple(features.shape) != (len(data['stage']), len(feature_names)):
+        raise ValueError('dataset features must be [rows, %d]' % len(feature_names))
+
+    def fv(idx): return None if features is None else features[idx]
     cond, uncond = data['cond'].to(device), data['uncond'].to(device)
     stage, labelled = data['stage'].to(device), data['labelled'].to(device)
     label_buttons, label_camera, camera_on = data['label_buttons'].to(device), data['label_camera'].to(device), data['camera_on'].to(device)
@@ -151,7 +168,7 @@ def train(dataset_path, *, use_stage, out_dir, lr=1e-4, batch=32, epochs=16, kl_
         with torch.no_grad():
             for b in range(0, len(rows), EVAL_BATCH):
                 idx = rows[b:b + EVAL_BATCH]; lab = labelled[idx]
-                logp = guided_logp(head, cond[idx], uncond[idx], stage[idx], scale)
+                logp = guided_logp(head, cond[idx], uncond[idx], stage[idx], scale, features=fv(idx))
                 kl = kl_to_official(logp, guided_logp(head, cond[idx], uncond[idx], stage[idx], scale, official=True))
                 kl_sum += kl.sum().item(); free_sum += kl[~lab].sum().item(); free_n += int((~lab).sum())
                 if lab.any():
@@ -177,7 +194,7 @@ def train(dataset_path, *, use_stage, out_dir, lr=1e-4, batch=32, epochs=16, kl_
         losses, updates = [], 0
         for b in range(0, len(order), batch):
             idx = order[b:b + batch]; lab = labelled[idx]
-            logp = guided_logp(head, cond[idx], uncond[idx], stage[idx], scale)
+            logp = guided_logp(head, cond[idx], uncond[idx], stage[idx], scale, features=fv(idx))
             loss = torch.zeros((), device=device)
             if lab.any():
                 loss = loss + bc_nll({k: v[lab] for k, v in logp.items()}, label_buttons[idx][lab], label_camera[idx][lab],
@@ -216,10 +233,11 @@ def train(dataset_path, *, use_stage, out_dir, lr=1e-4, batch=32, epochs=16, kl_
     fresh = load_into(fresh, path, base_weights_sha256=base_sha).to(device)
     check = train_rows[:256]
     with torch.no_grad():
-        a = guided_logp(head, cond[check], uncond[check], stage[check], scale)
-        b = guided_logp(fresh, cond[check], uncond[check], stage[check], scale)
+        a = guided_logp(head, cond[check], uncond[check], stage[check], scale, features=fv(check))
+        b = guided_logp(fresh, cond[check], uncond[check], stage[check], scale, features=fv(check))
     reload_diff = max(float((a[k] - b[k]).abs().max()) for k in a) if len(check) else 0.
     report = dict(dataset=str(dataset_path), dataset_sha256=dataset_sha, use_stage=use_stage, hyper=hyper,
+                  features=list(feature_names), feature_gain=float(feature_gain) if feature_names else None,
                   rows=dict(train=len(train_rows), holdout=len(hold_rows), labelled_train=int(labelled[train_rows].sum()),
                             labelled_holdout=int(labelled[hold_rows].sum())),
                   holdout=[data['runs'][i] for i in held_ids] if isinstance(holdout, (list, tuple)) else data['runs'][held_ids[0]],

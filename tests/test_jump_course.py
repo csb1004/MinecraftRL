@@ -154,6 +154,65 @@ class TeacherTest(unittest.TestCase):
         self.assertIsNone(self.act(100.5, 64., 209.5, 0., 0., True)[1])
 
 
+class FeatureTest(unittest.TestCase):
+    """Jump direction input design 2026-11-14 §2: the privileged features the head gets next to the stage one-hot."""
+
+    def setUp(self):
+        self.w = jc.world_platforms(WorldTest.course, (100, 64, 200), 0.)
+        self.t = jc.JumpTracker(self.w)
+
+    def feat(self, x, y, z, yaw, pitch, ground):
+        view = self.t.update(x, y, z, yaw, ground)
+        return view, dict(zip(jc.JUMP_FEATURES, jc.jump_features(x, y, z, yaw, pitch, view, self.w)))
+
+    def test_names_and_values_on_the_start(self):
+        import math
+        from minecraftrl.reacquire_teacher import point_delta
+        self.assertEqual(jc.JUMP_FEATURES, ('sin_yaw', 'cos_yaw', 'pitch', 'edge', 'gap2', 'rise', 'past'))
+        view, f = self.feat(100.5, 64., 200.5, 0., 30., True)
+        self.assertEqual(view.stage, 'run')
+        self.assertAlmostEqual(f['sin_yaw'], math.sin(math.radians(view.dyaw)))
+        self.assertAlmostEqual(f['cos_yaw'], math.cos(math.radians(view.dyaw)))
+        self.assertGreater(f['cos_yaw'], .9)                       # platform 1 is ahead
+        dpitch = point_delta((100.5, 64. + jc.EYE, 200.5), 0., 30., view.target)[0]
+        self.assertAlmostEqual(f['pitch'], max(-1., min(1., dpitch / 60.)))
+        self.assertAlmostEqual(f['edge'], min(view.edge, 3.) / 3.)
+        self.assertEqual((f['gap2'], f['rise']), (0., 1.))         # gap 1, one block up
+        self.assertAlmostEqual(f['past'], max(-1., min(1. / 3, jc.past_near(100.5, 200.5, view, self.w) / 3.)))
+        self.assertLess(f['past'], 0.)
+
+    def test_turn_direction_is_in_the_sign(self):
+        _, left = self.feat(100.5, 64., 200.5, 90., 0., True)
+        _, right = self.feat(100.5, 64., 200.5, -90., 0., True)
+        self.assertGreater(abs(left['sin_yaw']), .9)
+        self.assertLess(left['sin_yaw'] * right['sin_yaw'], 0.)
+
+    def test_air_has_no_edge_and_the_next_jump_is_described(self):
+        _, f = self.feat(100.5, 65.4, 202.6, 0., 30., False)
+        self.assertEqual(f['edge'], 0.)
+        standing(self.t, 100.2, 65., 204.)
+        _, f = self.feat(100.2, 65., 204.2, 0., 30., True)          # on platform 1: next jump is gap 2, one down
+        self.assertEqual((f['gap2'], f['rise']), (1., -1.))
+
+    def test_terminal_stages_are_zero(self):
+        _, f = self.feat(100.5, 62., 202., 0., 0., False)
+        self.assertEqual(list(f.values()), [0.] * 7)
+        _, f = self.feat(100.5, 64., 209.5, 0., 0., True)
+        self.assertEqual(list(f.values()), [0.] * 7)
+        self.assertEqual(jc.jump_features(100.5, 64., 200.5, 0., 0., None, self.w), [0.] * 7)
+
+    def test_feed_features_use_the_decision_pose(self):
+        feed = jc.JumpFeed(jc.course_fixture(WorldTest.course))
+        self.assertEqual(feed.features(), [0.] * 7)                # nothing seen yet
+        demo = dict(demo_available=1, demo_fixture_state=2, demo_fixture_origin_y=64)
+        row = dict(t=1., controller='policy', server_x=100.5, server_y=64., server_z=200.5, server_on_ground=1, server_tick=5,
+                   client_x=100.4, client_y=64., client_z=201.8, client_on_ground=1, client_tick=5, yaw=0., pitch=20.,
+                   server_available=1, demo=demo)
+        feed.observe(row)
+        view = feed.decision_view()
+        self.assertEqual(feed.features(), jc.jump_features(100.4, 64., 201.8, 0., 20., view, feed.platforms))
+
+
 class RowTest(unittest.TestCase):
     def test_feed_reads_rows_after_the_fixture_is_applied(self):
         fixture = jc.course_fixture(WorldTest.course)

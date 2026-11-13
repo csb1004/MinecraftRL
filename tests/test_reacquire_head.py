@@ -112,6 +112,73 @@ class ReacquireHeadTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             load_into(self.Head(self.base, 8, use_stage=True, stages=JUMP_STAGES), mining, base_weights_sha256='b')
 
+    def test_feature_input_extends_the_adapter_and_checkpoints_name_it(self):
+        # Jump direction input design 2026-11-14 §2: privileged features next to the stage one-hot.
+        from types import SimpleNamespace
+        from minecraftrl.jump_course import JUMP_STAGES
+        from minecraftrl.reacquire_head import install, load_into, save_checkpoint
+        names = ('a', 'b', 'c')
+        head = self.Head(self.base, 8, use_stage=True, stages=JUMP_STAGES, features=names)
+        self.assertEqual((head.features, head.feature_dim, head.adapter[0].in_features), (names, 3, 8 + 6 + 3))
+        head.stage = 1; head.feature = [.5, -.5, 1.]
+        for k, v in self.base(self.x).items(): self.assertTrue(torch.equal(head(self.x)[k], v))   # zero init still exact
+        with torch.no_grad():
+            for p in head.adapter.parameters(): p.add_(torch.randn(p.shape, generator=torch.Generator().manual_seed(2)))
+        a = head(self.x); head.feature = [-.5, .5, 0.]; b = head(self.x)
+        self.assertFalse(all(torch.equal(a[k], b[k]) for k in a))
+        rows = torch.tensor([-.5, .5, 0.]).view(1, 1, 3).expand(2, 1, 3)
+        head.feature = None; c = head(self.x, feature_values=rows)
+        for k in b: self.assertTrue(torch.allclose(b[k], c[k]))
+        head.use_stage = False; head.feature = [.5, -.5, 1.]; d = head(self.x); head.feature = [-.5, .5, 0.]
+        for k, v in head(self.x).items(): self.assertTrue(torch.equal(d[k], v))                  # image-only: features zeroed
+        head.use_stage = True
+        path = Path(self.tmp.name) / 'feat.pt'
+        save_checkpoint(head, path, base_weights_sha256='b', metadata={})
+        self.assertEqual(torch.load(path)['features'], list(names))
+        load_into(self.Head(self.base, 8, use_stage=True, stages=JUMP_STAGES, features=names), path, base_weights_sha256='b')
+        with self.assertRaises(ValueError):
+            load_into(self.Head(self.base, 8, use_stage=True, stages=JUMP_STAGES), path, base_weights_sha256='b')
+        plain = Path(self.tmp.name) / 'plain.pt'
+        save_checkpoint(self.Head(self.base, 8, use_stage=True, stages=JUMP_STAGES), plain, base_weights_sha256='b', metadata={})
+        with self.assertRaises(ValueError):
+            load_into(self.Head(self.base, 8, use_stage=True, stages=JUMP_STAGES, features=names), plain, base_weights_sha256='b')
+        # install follows the checkpoint's feature list (the weights hash is of a stand-in file here)
+        root = Path(self.tmp.name); (root / 'weights/steve1').mkdir(parents=True); (root / 'weights/steve1/steve1.weights').write_bytes(b'w')
+        from minecraftrl.reacquire_head import sha256_file
+        save_checkpoint(head, path, base_weights_sha256=sha256_file(root / 'weights/steve1/steve1.weights'), metadata={})
+        net = SimpleNamespace(output_latent_size=lambda: 8)
+        policy = SimpleNamespace(agent=SimpleNamespace(policy=SimpleNamespace(pi_head=self.base, net=net)), root=root)
+        installed = install(policy, use_stage=True, checkpoint=path, stages=JUMP_STAGES)
+        self.assertEqual(installed.features, names)
+
+    def test_feature_gain_scales_the_feature_input_and_is_part_of_the_checkpoint(self):
+        # Design 2026-11-14 §3 (offline gate): features of size 1 next to a 2048-wide latent were barely used; a gain lets
+        # the adapter weigh them. A gain-g head on values v equals a gain-1 head on g * v.
+        from minecraftrl.jump_course import JUMP_STAGES
+        from minecraftrl.reacquire_head import checkpoint_feature_gain, load_into, save_checkpoint
+        names = ('a', 'b')
+        one = self.Head(self.base, 8, use_stage=True, stages=JUMP_STAGES, features=names)
+        ten = self.Head(self.base, 8, use_stage=True, stages=JUMP_STAGES, features=names, feature_gain=10.)
+        with torch.no_grad():
+            for p in one.adapter.parameters(): p.add_(torch.randn(p.shape, generator=torch.Generator().manual_seed(2)))
+        ten.adapter.load_state_dict(one.adapter.state_dict())
+        one.stage = ten.stage = 2; one.feature = [3., -1.]; ten.feature = [.3, -.1]
+        for k, v in one(self.x).items(): self.assertTrue(torch.allclose(ten(self.x)[k], v, atol=1e-5))
+        path = Path(self.tmp.name) / 'gain.pt'
+        save_checkpoint(ten, path, base_weights_sha256='b', metadata={})
+        self.assertEqual(checkpoint_feature_gain(path), 10.)
+        load_into(self.Head(self.base, 8, use_stage=True, stages=JUMP_STAGES, features=names, feature_gain=10.), path,
+                  base_weights_sha256='b')
+        with self.assertRaises(ValueError):
+            load_into(self.Head(self.base, 8, use_stage=True, stages=JUMP_STAGES, features=names), path, base_weights_sha256='b')
+        from types import SimpleNamespace
+        from minecraftrl.reacquire_head import install, sha256_file
+        root = Path(self.tmp.name); (root / 'weights/steve1').mkdir(parents=True); (root / 'weights/steve1/steve1.weights').write_bytes(b'w')
+        save_checkpoint(ten, path, base_weights_sha256=sha256_file(root / 'weights/steve1/steve1.weights'), metadata={})
+        net = SimpleNamespace(output_latent_size=lambda: 8)
+        policy = SimpleNamespace(agent=SimpleNamespace(policy=SimpleNamespace(pi_head=self.base, net=net)), root=root)
+        self.assertEqual(install(policy, use_stage=True, checkpoint=path, stages=JUMP_STAGES).feature_gain, 10.)
+
     def test_initialization_does_not_consume_the_global_rng(self):
         torch.manual_seed(5); expected = torch.rand(1)
         torch.manual_seed(5); self.Head(self.base, 8, use_stage=True)

@@ -83,6 +83,42 @@ class LatentLogTest(unittest.TestCase):
         log = LatentLog(self.folder, width=4, cond_scale=6., meta={})
         with self.assertRaises(ValueError): log.add(1, np.zeros((1, 1, 4)), 0)
 
+    def test_feature_values_are_recorded_per_decision(self):
+        # Jump direction input design 2026-11-14 §2: the features the head saw are kept next to the stage.
+        log = LatentLog(self.folder, width=4, cond_scale=6., meta={}, features=('a', 'b'))
+        log.add(1, np.zeros((2, 1, 4)), 0, features=[.5, -1.]); log.add(2, np.zeros((2, 1, 4)), None, features=None)
+        manifest = log.close()
+        self.assertEqual(manifest['features'], ['a', 'b'])
+        with np.load(self.folder / manifest['chunks'][0]['file']) as data:
+            self.assertEqual(data['features'].dtype, np.float32)
+            self.assertEqual(data['features'].tolist(), [[.5, -1.], [0., 0.]])
+        with self.assertRaises(ValueError): log.add(3, np.zeros((2, 1, 4)), 0, features=[1.])
+        plain = LatentLog(Path(self.tmp.name) / 'p', width=4, cond_scale=6., meta={})
+        plain.add(1, np.zeros((2, 1, 4)), 0); manifest = plain.close()
+        self.assertNotIn('features', manifest)                    # records without features keep the earlier format
+        with np.load(Path(self.tmp.name) / 'p' / manifest['chunks'][0]['file']) as data: self.assertNotIn('features', data)
+
+    def test_hook_gives_the_head_the_feed_features_and_logs_them(self):
+        from types import SimpleNamespace
+        from minecraftrl.pipeline.stage_live import ReacquireHook
+
+        class Feed:
+            def observe(self, row): pass
+            def start_step(self, t): pass
+            def decision_view(self): return SimpleNamespace(stage='run')
+            def features(self): return [.25, .75]
+
+        head = SimpleNamespace(stages=('turn', 'run'), width=4, features=('a', 'b'), stage=None, feature=None,
+                               active=False, last_latent=np.zeros((2, 1, 4)))
+        hook = ReacquireHook(head, {}, None, None, self.folder, cond_scale=6., meta={}, feed=Feed())
+        hook.before_act()
+        self.assertEqual((head.stage, head.feature), (1, [.25, .75]))
+        hook.after_dispatch(7); manifest = hook.log.close()
+        with np.load(self.folder / manifest['chunks'][0]['file']) as data:
+            self.assertEqual(data['features'].tolist(), [[.25, .75]])
+        hook.activate(False)
+        self.assertEqual((head.stage, head.feature), (None, None))
+
 
 if __name__ == '__main__':
     unittest.main()

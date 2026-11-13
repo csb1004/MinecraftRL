@@ -34,12 +34,14 @@ def load_latents(folder, stages=STAGES):
     manifest = json.loads((folder / 'manifest.json').read_text(encoding='utf-8'))
     if not manifest.get('complete'): raise ValueError('latent record was not closed: %s' % folder)
     if manifest.get('stages') != list(stages): raise ValueError('latent record uses another stage list')
+    # A head with privileged features (jump direction input, design 2026-11-14) also logged them per decision.
+    keys = ('step', 'cond', 'uncond', 'stage') + (('features',) if manifest.get('features') else ())
     parts = []
     for chunk in manifest['chunks']:
         path = folder / chunk['file']
         if sha256(path) != chunk['sha256']: raise ValueError('latent chunk hash differs: %s' % path)
-        with np.load(path) as data: parts.append({k: data[k] for k in ('step', 'cond', 'uncond', 'stage')})
-    arrays = {k: np.concatenate([p[k] for p in parts]) if parts else np.zeros((0,)) for k in ('step', 'cond', 'uncond', 'stage')}
+        with np.load(path) as data: parts.append({k: data[k] for k in keys})
+    arrays = {k: np.concatenate([p[k] for p in parts]) if parts else np.zeros((0,)) for k in keys}
     if len(arrays['step']) != manifest['rows']: raise ValueError('latent record row count differs from its manifest')
     return manifest, arrays
 

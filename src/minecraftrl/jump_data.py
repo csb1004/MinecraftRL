@@ -11,7 +11,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .jump_course import JUMP_STAGES, JumpFeed
+from .jump_course import JUMP_FEATURES, JUMP_STAGES, JumpFeed
 from .pipeline.monitor_replay import load_run
 from .reacquire_data import _checked_request, load_latents, sha256
 from .reacquire_teacher import policy_label
@@ -20,21 +20,28 @@ SOURCES = ('src/minecraftrl/jump_data.py', 'src/minecraftrl/jump_course.py', 'sr
 GROUP = 'jump_course'
 
 
-def jump_run_examples(run_dir, mapper, transformer, *, root):
+FEATURE_TOLERANCE = 1e-4
+
+
+def jump_run_examples(run_dir, mapper, transformer, *, root, features=False):
+    """`features`: also the privileged direction features of every decision (jump direction input design 2026-11-14),
+    recomputed from telemetry; a latent record that logged them must agree."""
     run_dir = Path(run_dir)
     request, fixture = _checked_request(run_dir, root)
     if not fixture.get('course'): raise ValueError('not a jump course run: %s' % run_dir)
     manifest, lat = load_latents(run_dir / 'reacquire', JUMP_STAGES)
+    if manifest.get('features') and list(manifest['features']) != list(JUMP_FEATURES):
+        raise ValueError('latent record uses another feature list: %s' % run_dir)
     run = load_run(run_dir)
     steps = [s for s in run.steps if s.skill == manifest['meta']['skill']]
     if len(steps) != 1: raise ValueError('expected one %s step, found %d' % (manifest['meta']['skill'], len(steps)))
-    step = steps[0]; feed = JumpFeed(fixture); decisions = []
+    step = steps[0]; feed = JumpFeed(fixture); decisions = []; feats = []
     for r in run.rows:
         inside = r['step'] >= step.start_step and (step.end_step is None or r['step'] <= step.end_step)
         if inside and r['t'] >= step.start_t and r.get('controller') == 'policy':
             view, seen, source = feed.decision_view(), feed.last_row, feed.last_source
             action = None if view is None else feed.label(seen, view, source)
-            decisions.append((r['step'], view, action))
+            decisions.append((r['step'], view, action)); feats.append(feed.features())
         feed.observe(r)
     if [d[0] for d in decisions] != lat['step'].tolist():
         raise ValueError('latent record does not match the policy rows (%d latents, %d policy rows)'
@@ -56,14 +63,20 @@ def jump_run_examples(run_dir, mapper, transformer, *, root):
         out['labelled'][i] = True; out['label_buttons'][i] = label['buttons']; out['label_camera'][i] = label['camera']
         out['camera_on'][i] = label['camera_on']; out['in_view'][i] = True
         out['label_pitch'][i], out['label_yaw'][i] = label['decoded_camera']
+    if 'features' in lat:
+        recorded, replayed = np.asarray(lat['features'], np.float32), np.asarray(feats, np.float32).reshape(n, -1)
+        if recorded.shape != replayed.shape or (n and float(np.abs(recorded - replayed).max()) > FEATURE_TOLERANCE):
+            raise ValueError('live features differ from replay: %s' % run_dir)
+    if features: out['features'] = np.asarray(feats, np.float32).reshape(n, len(JUMP_FEATURES))
     out.update(manifest=manifest, seed=request['seed'], course=fixture['course']['seed'],
                success=bool(json.loads((run_dir / 'summary.json').read_text(encoding='utf-8')).get('all_steps_completed')))
     return out
 
 
-def build_jump_dataset(run_dirs, out_path, *, holdout, mapper, transformer, root):
+def build_jump_dataset(run_dirs, out_path, *, holdout, mapper, transformer, root, features=False):
     """Concatenate the runs' examples; `holdout` (run folder names) is kept for validation. Every row is in one block
-    group, so the balanced loss weighs the stages (reacquire_training.group_weights)."""
+    group, so the balanced loss weighs the stages (reacquire_training.group_weights). `features` adds the privileged
+    direction features (design 2026-11-14) as `features` [N, 7] with their names in `feature_names`."""
     import torch
     run_dirs = [Path(d) for d in run_dirs]
     names = [d.parent.name + '/' + d.name for d in run_dirs]
@@ -73,7 +86,7 @@ def build_jump_dataset(run_dirs, out_path, *, holdout, mapper, transformer, root
         if len(matches) != 1: raise ValueError('holdout must name exactly one run folder: %s' % name)
         held.append(matches[0])
     if not held or len(set(held)) != len(held): raise ValueError('holdout runs must be distinct and not empty')
-    parts = [jump_run_examples(d, mapper, transformer, root=root) for d in run_dirs]
+    parts = [jump_run_examples(d, mapper, transformer, root=root, features=features) for d in run_dirs]
     scales = {p['cond_scale'] for p in parts}
     if len(scales) != 1: raise ValueError('runs use different guidance scales: %s' % sorted(scales))
     keys = ('cond', 'uncond', 'stage', 'labelled', 'label_buttons', 'label_camera', 'camera_on', 'in_view',
@@ -83,6 +96,9 @@ def build_jump_dataset(run_dirs, out_path, *, holdout, mapper, transformer, root
                 block=torch.from_numpy(np.concatenate([np.zeros(len(p['step']), np.int64) for p in parts])),
                 runs=names, blocks=[GROUP], holdout=held[0] if isinstance(holdout, str) else held,
                 cond_scale=scales.pop(), width=int(parts[0]['cond'].shape[1]), stages=list(JUMP_STAGES), teacher='course')
+    if features:
+        data.update(features=torch.from_numpy(np.concatenate([p['features'] for p in parts])),
+                    feature_names=list(JUMP_FEATURES))
     out_path = Path(out_path); out_path.parent.mkdir(parents=True, exist_ok=True)
     torch.save(data, out_path)
     labelled = data['labelled'].numpy(); stage = data['stage'].numpy()
@@ -93,6 +109,10 @@ def build_jump_dataset(run_dirs, out_path, *, holdout, mapper, transformer, root
                                '(rows without it: server pose plus a 4-tick speed prediction); success and falls use '
                                'the server pose'),
                    source={p: sha256(Path(root) / p) for p in SOURCES if (Path(root) / p).exists()})
+    if features:
+        summary['features'] = list(JUMP_FEATURES)
+        summary['privileged'] += ('; direction features (next platform direction, edge distance, next gap and rise, '
+                                  'past the near edge) from the same course and pose')
     for name, p in zip(names, parts):
         summary['runs'].append(dict(run=name, course=p['course'], seed=p['seed'], success=p['success'], rows=int(len(p['step'])),
                                     labelled=int(p['labelled'].sum()), chunks=[c['sha256'] for c in p['manifest']['chunks']],

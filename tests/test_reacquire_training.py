@@ -172,6 +172,30 @@ class TrainTest(unittest.TestCase):
         self.assertEqual(report['epochs'][report['best_epoch'] - 1]['holdout_nll'], lowest)
         self.assertTrue(report['candidate'])
 
+    def test_a_dataset_with_features_trains_a_head_that_reads_them(self):
+        # Jump direction input design 2026-11-14 §3: the label depends only on a feature the latent does not carry.
+        path = toy_dataset(self.root / 'toy.pt'); data = torch.load(path); n = len(data['stage'])
+        sign = torch.tensor([1. if (i // 2) % 2 else -1. for i in range(n)])
+        data['features'] = torch.stack([sign, torch.zeros(n)], 1); data['feature_names'] = ['s', 'z']
+        data['label_camera'] = torch.where(data['labelled'], torch.where(sign > 0, torch.tensor(2), torch.tensor(0)),
+                                           torch.tensor(-1)).long()
+        torch.save(data, path)
+        seen = {}
+
+        def factory(use_stage, width, stages=None, features=(), feature_gain=1.):
+            from minecraftrl.reacquire_head import ReacquireHead
+            seen['features'] = tuple(features); seen['gain'] = feature_gain
+            return ReacquireHead(FakeBase().requires_grad_(False), width, use_stage=use_stage, stages=stages,
+                                 features=features, feature_gain=feature_gain), 'base-sha'
+        report = self.train(path, use_stage=True, out_dir=self.root / 'out', epochs=6, lr=1e-2, kl_limit=1e9,
+                            head_factory=factory, device='cpu', feature_gain=10.)
+        self.assertEqual((seen['features'], seen['gain']), (('s', 'z'), 10.))
+        self.assertEqual((report['feature_gain'], torch.load(self.root / 'out/checkpoint.pt')['feature_gain']), (10., 10.))
+        self.assertTrue(report['candidate']); self.assertEqual(report['reload_max_abs_diff'], 0.)
+        self.assertEqual(torch.load(self.root / 'out/checkpoint.pt')['features'], ['s', 'z'])
+        self.assertEqual(report['features'], ['s', 'z'])
+        self.assertLess(report['final']['holdout_nll'], report['initial']['holdout_nll'] - .3)
+
     def test_a_list_of_holdout_runs_is_read(self):
         path = toy_dataset(self.root / 'toy.pt'); data = torch.load(path); data['holdout'] = [1]; torch.save(data, path)
         report = self.train(path, use_stage=True, out_dir=self.root / 'out', epochs=2, lr=1e-2, head_factory=fake_factory,
