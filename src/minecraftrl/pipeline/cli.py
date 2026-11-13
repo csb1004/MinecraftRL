@@ -58,10 +58,18 @@ def reacquire_spec(skills, fixture):
     name, spec = named[0]; block = spec['reacquire']
     if type(block.get('use_stage')) is not bool or type(block.get('record_latents')) is not bool:
         raise ValueError('reacquire use_stage and record_latents must be true or false')
-    if block.get('stages', 'mining') not in ('mining', 'jump'): raise ValueError('reacquire stages must be mining or jump')
+    if block.get('stages', 'mining') not in ('mining', 'jump', 'place'):
+        raise ValueError('reacquire stages must be mining, jump or place')
     if block.get('stages', 'mining') == 'mining' and (not spec.get('target_block') or not spec.get('target_items')):
         raise ValueError('a reacquire skill needs target_block and target_items')
     return name, spec
+
+
+def place_of(fixture):
+    """The fixture config when it carries a block placing task (design 2026-11-14), else None."""
+    if fixture is None: return None
+    config = json.loads(Path(fixture).read_text(encoding='utf-8'))
+    return config if config.get('place') else None
 
 
 def course_of(fixture):
@@ -209,13 +217,19 @@ def worker(args):
                 from ..jump_course import JUMP_STAGES, JumpFeed
                 head = install(policy, use_stage=block['use_stage'], checkpoint=checkpoint, stages=JUMP_STAGES)
                 feed = JumpFeed(fixture_config)
+            elif block.get('stages') == 'place':  # block placing (design 2026-11-14): its own stages and feed
+                from ..place_task import PLACE_STAGES, PlaceFeed
+                head = install(policy, use_stage=block['use_stage'], checkpoint=checkpoint, stages=PLACE_STAGES)
+                feed = PlaceFeed(fixture_config)
             else: head = install(policy, use_stage=block['use_stage'], checkpoint=checkpoint)
             meta = dict(skill=name, use_stage=block['use_stage'], checkpoint=None if checkpoint is None else str(checkpoint),
                         checkpoint_sha256=None if checkpoint is None else sha256_file(checkpoint),
                         stage_input=('privileged: course positions and client pose' if block.get('stages') == 'jump'
+                                     else 'privileged: place target, client pose and crosshair' if block.get('stages') == 'place'
                                      else 'privileged: fixture positions and server pose') if block['use_stage'] else 'zeros')
             if getattr(head, 'features', ()):     # direction input (jump and mining designs 2026-11-14)
-                source = 'the course and the client pose' if block.get('stages') == 'jump' else 'fixture positions and the server pose'
+                source = {'jump': 'the course and the client pose', 'place': 'the place target and the client pose'}.get(
+                    block.get('stages'), 'fixture positions and the server pose')
                 meta['feature_input'] = ('privileged: %s from %s, times %g' % (', '.join(head.features), source, head.feature_gain)
                                          if block['use_stage'] else 'zeros')
             reacquire = ReacquireHook(head, fixture_config, spec.get('target_block'), (spec.get('target_items') or [None])[0],
@@ -252,7 +266,7 @@ def worker(args):
         session = DemoSession(env, policy, catalog, recorder, gate, args.stop_file, limit_s=limit_s, skills=skills,
                               fixture_sha52=sha52, settle_steps=int(config.get('settle_steps', 20)),
                               tool_lock=bool(config.get('policy_tool_lock', False)), oversight=oversight,
-                              reacquire=reacquire, course=course_of(args.fixture))
+                              reacquire=reacquire, course=course_of(args.fixture), place=place_of(args.fixture))
         report = session.run(steps)
         report.update(mode=args.mode, seed=seed, sampling_seed=sampling, limit_s=limit_s, fixture=str(args.fixture) if args.fixture else None,
                       fixture_sha52=sha52, jar=str(jar), jar_receipt=json.loads(jar.with_suffix('.json').read_text()),

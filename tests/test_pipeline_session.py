@@ -992,6 +992,21 @@ class LoaderTests(unittest.TestCase):
         with self.assertRaises(ValueError): reacquire_spec({'r': dict(spec, reacquire=dict(block, use_stage='yes'))}, Path('f.json'))
         with self.assertRaises(ValueError): reacquire_spec({'r': dict(spec, target_items=[])}, Path('f.json'))
 
+    def test_place_skills_need_no_target_block_and_a_place_fixture_is_found(self):
+        # Block placing (design 2026-11-14).
+        from minecraftrl.pipeline.cli import place_of, reacquire_spec
+        from minecraftrl.place_task import generate_target, place_fixture
+        block = dict(checkpoint=None, use_stage=True, record_latents=True, stages='place')
+        self.assertEqual(reacquire_spec({'p': dict(reacquire=block)}, Path('f.json'))[0], 'p')
+        with self.assertRaises(ValueError): reacquire_spec({'p': dict(reacquire=dict(block, stages='build'))}, Path('f.json'))
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / 'f.json'
+            path.write_text(json.dumps(place_fixture(generate_target(3))), encoding='utf-8')
+            self.assertEqual(place_of(path)['place']['seed'], 3)
+            path.write_text(json.dumps(dict(schema='iron_demo_fixture_v1', blocks=[])), encoding='utf-8')
+            self.assertIsNone(place_of(path))
+        self.assertIsNone(place_of(None))
+
     def test_reacquire_config_adds_only_the_new_skill(self):
         root = Path(__file__).resolve().parents[1]
         demo = json.loads((root / 'configs/iron-demo.json').read_text(encoding='utf-8'))
@@ -1114,6 +1129,61 @@ class CourseSessionTests(unittest.TestCase):
         self.assertEqual(controllers[0], 'prepare')               # the neutral step that saw the fixture applied
         self.assertEqual(set(controllers[1:]), {'scripted_probe'})
         self.assertEqual((env.actions[1]['forward'], env.actions[1]['jump']), (1, 0))   # run toward the goal platform
+
+
+class PlaceSessionTests(unittest.TestCase):
+    """Block placing (design 2026-11-14): success on a server placement at the target, wrong ones counted, teacher check."""
+    TASK = dict(schema='place_task_v1', seed=0, target=(1, 1, 4), supports=[(1, 0, 4)], block='cobblestone')
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(); self.out = Path(self.temp.name); self.gate = StopGate()
+        from minecraftrl.place_task import place_fixture
+        self.fixture = place_fixture(self.TASK)
+
+    def tearDown(self):
+        self.recorder.close(); self.temp.cleanup()
+
+    def run_place(self, script, step):
+        self.recorder = Recorder(self.out / 'run')
+        env = FakeEnv(script)
+        session = DemoSession(env, FakePolicy(), None, self.recorder, self.gate, self.out / 'STOP', limit_s=60.,
+                              skills=SKILLS, clock=Clock(), rule_controller=FakeController, settle_steps=0, place=self.fixture)
+        return env, session.run([step])
+
+    @staticmethod
+    def at(count, last, *, hit=None, face=1, z=201.5):
+        # The start block is (0, 64, 0) facing south, so the target (1, 1, 4) is the world cell (-1, 65, 4).
+        value = located(info(x=0.5, y=64., z=0.5, pitch=30., demo_fixture_origin_y=64,
+                             demo_hit_block='air' if hit is None else 'stone_bricks'))
+        value['workshop'].update(client_x=0.5, client_y=64., client_z=z - 200., client_on_ground=1,
+                                 hit_x=0 if hit is None else hit[0], hit_y=0 if hit is None else hit[1],
+                                 hit_z=0 if hit is None else hit[2], hit_face=face)
+        value['place'] = dict(place_available=1, place_count=count, place_last_x=last[0], place_last_y=last[1],
+                              place_last_z=last[2], place_last_tick=1, place_last_block='cobblestone')
+        return value
+
+    def rows(self):
+        return [json.loads(line) for line in (self.out / 'run/telemetry.jsonl').read_text().splitlines()]
+
+    def test_a_placement_at_the_target_completes_and_wrong_ones_are_counted(self):
+        none = (-999, -999, -999)
+        script = {1: self.at(0, none), 2: self.at(0, none), 3: self.at(1, (0, 64, 3)), 4: self.at(2, (-1, 65, 4))}
+        _, report = self.run_place(lambda n, a: script.get(n, script[4]),
+                                   Step('place', 'dig', 'policy', 'place_target', 1, params={'until': 'place'}))
+        stage = report['stage_results'][0]
+        self.assertEqual((stage['status'], stage['completion'], stage['wrong']), ('completed', 'server_place_target', 1))
+        self.assertTrue(report['all_steps_completed'])
+        self.assertEqual(self.rows()[1]['hit_face'], 1)                    # rows record the crosshair face
+
+    def test_teacher_check_uses_on_the_support_face(self):
+        none = (-999, -999, -999)
+        aimed = self.at(0, none, hit=(-1, 64, 4))
+        script = {1: self.at(0, none), 2: aimed, 3: aimed, 4: self.at(1, (-1, 65, 4), hit=(-1, 64, 4))}
+        env, report = self.run_place(lambda n, a: script.get(n, script[4]),
+                                     Step('check', 'place', 'scripted', 'place_target', 1, params={'driver': 'place_teacher'}))
+        stage = report['stage_results'][0]
+        self.assertEqual((stage['status'], stage['controller']), ('completed', 'scripted_probe'))
+        self.assertEqual(env.actions[2]['use'], 1)                         # it saw the support top under the crosshair
 
 
 if __name__ == '__main__':

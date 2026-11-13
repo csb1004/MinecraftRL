@@ -1,0 +1,40 @@
+{
+  "schema": "place_config_v1",
+  "description": "Block placing skill (design docs/specs/2026-11-14-place-block-design.md). Target ids are generator seeds of minecraftrl.place_task.generate_target; train, dev and final targets never overlap. The embedding is the official STEVE-1 prior output for the prompt (made with scripts/prepare_demo_prompts.py --set place); sha256 null = not made yet, and only the teacher check may run.",
+  "prompt": "place a block",
+  "embedding": "results/place-prompts/place_block.npy",
+  "sha256": null,
+  "cond_scale": 6.0,
+  "targets": {
+    "train": [
+      101,
+      102,
+      103,
+      104,
+      105,
+      106,
+      107,
+      108,
+      109,
+      110,
+      111,
+      112
+    ],
+    "dev": [
+      201,
+      202,
+      203,
+      204
+    ],
+    "final": [
+      301,
+      302,
+      303,
+      304,
+      305,
+      306,
+      307,
+      308
+    ]
+  }
+}
