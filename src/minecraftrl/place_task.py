@@ -32,12 +32,15 @@ FEATURE_DIST = 6.
 
 def generate_target(seed):
     """A target cell 2-5 ahead and -2..2 sideways, on the floor (dy 0) or one up (dy 1) on one stone-brick support below
-    it or beside it (never above it, never behind the player's side)."""
+    it, behind it, or on its outer side (never above it)."""
     rng = random.Random(seed)
     dx, dz, dy = rng.randint(-2, 2), rng.randint(2, 5), rng.choice((0, 1))
     supports = []
     if dy == 1:
-        supports = [list(rng.choice([(dx, 0, dz), (dx - 1, 1, dz), (dx + 1, 1, dz), (dx, 1, dz + 1)]))]
+        # A side support sits on the outer side of the target: one between the start column and the target would hide
+        # its only face from the player (offline check 2026-11-14).
+        sides = [(dx - 1, 1, dz), (dx + 1, 1, dz)] if dx == 0 else [(dx + (1 if dx > 0 else -1), 1, dz)]
+        supports = [list(rng.choice([(dx, 0, dz), (dx, 1, dz + 1)] + sides))]
     # Lists, not tuples: the task rides along in the fixture JSON and must read back equal.
     return dict(schema=SCHEMA, seed=seed, target=[dx, dy, dz], supports=supports, block='cobblestone')
 

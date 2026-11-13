@@ -27,6 +27,20 @@ class TargetTest(unittest.TestCase):
         self.assertEqual(kinds, {'below', 'side'})
         self.assertGreater(len({repr(pt.generate_target(s)) for s in range(40)}), 25)
 
+    def test_every_target_has_a_face_seen_from_the_start_and_reached_after_the_walk(self):
+        # Offline check 2026-11-14: a side support between the start column and the target hides its only face.
+        for seed in list(range(300)) + list(range(101, 113)) + list(range(201, 205)) + list(range(301, 309)):
+            task = pt.generate_target(seed)
+            w = pt.world_task(task, (0, 64, 0), 0.)
+            with self.subTest(seed=seed):
+                self.assertIsNotNone(pt.choose_face((0.5, 64. + pt.EYE, 0.5), w['target'], w['solids']))
+                centre = tuple(c + .5 for c in w['target'])
+                z = .5                                              # walk straight ahead until the target is in reach
+                while math.dist((.5, 64. + pt.EYE, z), centre) > pt.REACH: z += .2
+                face = pt.choose_face((.5, 64. + pt.EYE, z), w['target'], w['solids'])
+                self.assertIsNotNone(face)
+                self.assertLessEqual(math.dist((.5, 64. + pt.EYE, z), face['centre']), 4.5)
+
     def test_fixture_builds_the_arena_supports_and_gives_blocks(self):
         task = pt.generate_target(3)
         f = pt.place_fixture(task)
