@@ -26,10 +26,11 @@ def mapping():
 
 
 def make_run(folder, *, seed=271828, policy=((2, {}), (3, {})), recorded=('far', 'far'), latents=None,
-             complete=True, valid=True, tamper=False, block='iron_ore', item='iron_ore', features=None):
+             complete=True, valid=True, tamper=False, block='iron_ore', item='iron_ore', features=None, feature_names=None):
     """A recorded probe run: one prepare row, then policy rows (step, row kwargs), with its latent record. `block`
     replaces the fixture's iron ore and names the step's block (multi-block runs, design 2026-11-08). `features`: values
-    logged with the latents by a head with the mining direction input (design 2026-11-14)."""
+    logged with the latents by a head with the mining direction input (design 2026-11-14), under `feature_names`
+    (default MINING_FEATURES)."""
     folder = Path(folder); (folder / 'reacquire').mkdir(parents=True, exist_ok=True)
     fixture = folder.parent / ('fixture.json' if block == 'iron_ore' else 'fixture-%s.json' % block)
     if not fixture.exists():
@@ -57,7 +58,7 @@ def make_run(folder, *, seed=271828, policy=((2, {}), (3, {})), recorded=('far',
                     meta=dict(skill=skill, use_stage=True))
     if features is not None:
         from minecraftrl.reacquire_teacher import MINING_FEATURES
-        manifest['features'] = list(MINING_FEATURES)
+        manifest['features'] = list(feature_names or MINING_FEATURES)
     (folder / 'reacquire/manifest.json').write_text(json.dumps(manifest), encoding='utf-8')
     return folder
 
@@ -192,6 +193,41 @@ class ExamplesTest(unittest.TestCase):
         data = torch.load(out)
         self.assertEqual((data['feature_names'], tuple(data['features'].shape)), (list(MINING_FEATURES), (4, 4)))
         self.assertEqual(summary['features'], list(MINING_FEATURES))
+
+    def test_aim_features_are_output_while_records_are_checked_by_their_own_list(self):
+        # Mining aim point design 2026-11-14 §1, §5: the output list is chosen; a logged record replays its own list.
+        import torch
+        from minecraftrl.reacquire_teacher import AIM_FEATURES, MINING_FEATURES
+        near = dict(policy=((2, NEAR), (3, NEAR)), recorded=('far', 'near'))
+        old = make_run(self.root / 'r0/coal_ore-s271828-n1', block='coal_ore', item='coal', **near)
+        centre = run_examples(old, self.mapper, self.transformer, root=self.root, teacher='sight', features=True)
+        aim = run_examples(old, self.mapper, self.transformer, root=self.root, teacher='sight', features=AIM_FEATURES)
+        self.assertEqual((aim['feature_names'], aim['features'].shape), (AIM_FEATURES, (2, 4)))
+        self.assertEqual(centre['feature_names'], MINING_FEATURES)
+        np.testing.assert_allclose(aim['features'], centre['features'], atol=1e-6)   # open fixture: the centre is in sight
+        v2 = make_run(self.root / 'r1/coal_ore-s271828-n1', block='coal_ore', item='coal', features=centre['features'], **near)
+        run_examples(v2, self.mapper, self.transformer, root=self.root, features=AIM_FEATURES)          # checked as v2
+        wrong = centre['features'].copy(); wrong[1, 2] += .5
+        bad = make_run(self.root / 'r2/coal_ore-s271828-n1', block='coal_ore', item='coal', features=wrong, **near)
+        with self.assertRaisesRegex(ValueError, 'features differ'):
+            run_examples(bad, self.mapper, self.transformer, root=self.root, features=AIM_FEATURES)
+        v3 = make_run(self.root / 'r3/coal_ore-s271828-n1', block='coal_ore', item='coal', features=aim['features'],
+                      feature_names=AIM_FEATURES, **near)
+        run_examples(v3, self.mapper, self.transformer, root=self.root, features=True)                  # checked as v3
+        odd = make_run(self.root / 'r4/coal_ore-s271828-n1', block='coal_ore', item='coal', features=aim['features'],
+                       feature_names=('a', 'b', 'c', 'd'), **near)
+        with self.assertRaisesRegex(ValueError, 'another feature list'):
+            run_examples(odd, self.mapper, self.transformer, root=self.root, features=AIM_FEATURES)
+        with self.assertRaisesRegex(ValueError, 'unknown mining feature list'):
+            run_examples(old, self.mapper, self.transformer, root=self.root, features=('a', 'b'))
+        other = make_run(self.root / 'r0/sand-s161803-n1', block='sand', item='sand', **near)
+        out = self.root / 'data/aim.pt'
+        summary = build_dataset([old, other], out, holdout='sand-s161803-n1', mapper=self.mapper,
+                                transformer=self.transformer, root=self.root, teacher='sight', features=AIM_FEATURES)
+        data = torch.load(out)
+        self.assertEqual((data['feature_names'], tuple(data['features'].shape)), (list(AIM_FEATURES), (4, 4)))
+        self.assertEqual(summary['features'], list(AIM_FEATURES))
+        self.assertIn('aim point', summary['privileged'])
 
     def test_a_held_out_block_is_refused(self):
         near = dict(policy=((2, NEAR), (3, NEAR)), recorded=('far', 'near'))

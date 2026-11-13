@@ -141,9 +141,52 @@ def mining_features(s, view, wanted):
     target = target_of(s, view, wanted)
     if target is None: return zeros
     dpitch, dyaw = aim_delta(view.eye, s.yaw, s.pitch, target)
-    dist = math.dist(view.eye, tuple(c + .5 for c in target))
+    return _direction_features(dpitch, dyaw, math.dist(view.eye, tuple(c + .5 for c in target)))
+
+
+def _direction_features(dpitch, dyaw, dist):
     return [math.sin(math.radians(dyaw)), math.cos(math.radians(dyaw)), max(-1., min(1., dpitch / FEATURE_PITCH)),
             min(dist, FEATURE_DIST) / FEATURE_DIST]
+
+
+AIM_FEATURES = ('aim_sin_yaw', 'aim_cos_yaw', 'aim_pitch', 'aim_dist')
+
+
+def aim_view(s, view, wanted, geometry):
+    """(dpitch, dyaw, distance) toward where the sight teacher turns the view (mining aim point design 2026-11-14 §1),
+    or None without a target. A near row off the target with `geometry` follows sight_plan: the visible face point of a
+    hidden centre, or for a walk the pitch to the centre, the yaw to the standing spot and the horizontal walk from the
+    feet. Every other row (and 'centre'/'hidden') uses the target block centre, as mining_features does."""
+    target = target_of(s, view, wanted)
+    if target is None: return None
+    on_target = block_matches(s.hit_block, wanted) or view.stage == 'mining'
+    if geometry is not None and view.stage == 'near' and not on_target:
+        plan, point = sight_plan(s, view, target, geometry)
+        if plan == 'walk':
+            dpitch, _ = aim_delta(view.eye, s.yaw, s.pitch, target)
+            _, dyaw = point_delta(view.eye, s.yaw, s.pitch, (point[0], view.eye[1], point[1]))
+            return dpitch, dyaw, math.hypot(point[0] - s.position[0], point[1] - s.position[2])
+        if plan == 'face':
+            dpitch, dyaw = point_delta(view.eye, s.yaw, s.pitch, point)
+            return dpitch, dyaw, math.dist(view.eye, point)
+    dpitch, dyaw = aim_delta(view.eye, s.yaw, s.pitch, target)
+    return dpitch, dyaw, math.dist(view.eye, tuple(c + .5 for c in target))
+
+
+def aim_features(s, view, wanted, geometry):
+    """AIM_FEATURES of aim_view, scaled like mining_features; zeros where mining_features gives zeros."""
+    zeros = [0.] * len(AIM_FEATURES)
+    if s is None or view is None or not s.valid or s.gui_open or view.stage == 'gui': return zeros
+    aim = aim_view(s, view, wanted, geometry)
+    return zeros if aim is None else _direction_features(*aim)
+
+
+def feature_values(names, s, view, wanted, geometry=None):
+    """The values of a head's feature list: MINING_FEATURES (v2, block centre) or AIM_FEATURES (v3, teacher aim)."""
+    names = tuple(names)
+    if names == MINING_FEATURES: return mining_features(s, view, wanted)
+    if names == AIM_FEATURES: return aim_features(s, view, wanted, geometry)
+    raise ValueError('unknown mining feature list: %s' % (names,))
 
 
 AIM_MODES = ('centre', 'hold', 'approach', 'press', 'sight')
