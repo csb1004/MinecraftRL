@@ -998,7 +998,7 @@ class LoaderTests(unittest.TestCase):
         from minecraftrl.place_task import generate_target, place_fixture
         block = dict(checkpoint=None, use_stage=True, record_latents=True, stages='place')
         self.assertEqual(reacquire_spec({'p': dict(reacquire=block)}, Path('f.json'))[0], 'p')
-        with self.assertRaises(ValueError): reacquire_spec({'p': dict(reacquire=dict(block, stages='build'))}, Path('f.json'))
+        with self.assertRaises(ValueError): reacquire_spec({'p': dict(reacquire=dict(block, stages='tower'))}, Path('f.json'))
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / 'f.json'
             path.write_text(json.dumps(place_fixture(generate_target(3))), encoding='utf-8')
@@ -1006,6 +1006,20 @@ class LoaderTests(unittest.TestCase):
             path.write_text(json.dumps(dict(schema='iron_demo_fixture_v1', blocks=[])), encoding='utf-8')
             self.assertIsNone(place_of(path))
         self.assertIsNone(place_of(None))
+
+    def test_build_skills_and_a_build_fixture_are_found(self):
+        # Building (design 2026-11-14).
+        from minecraftrl.build_task import build_fixture, generate_build
+        from minecraftrl.pipeline.cli import build_of, reacquire_spec
+        block = dict(checkpoint=None, use_stage=True, record_latents=True, stages='build')
+        self.assertEqual(reacquire_spec({'c': dict(reacquire=block)}, Path('f.json'))[0], 'c')
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / 'f.json'
+            path.write_text(json.dumps(build_fixture(generate_build(3))), encoding='utf-8')
+            self.assertEqual(build_of(path)['build']['seed'], 3)
+            path.write_text(json.dumps(dict(schema='iron_demo_fixture_v1', blocks=[])), encoding='utf-8')
+            self.assertIsNone(build_of(path))
+        self.assertIsNone(build_of(None))
 
     def test_bridge_skills_and_a_bridge_fixture_are_found(self):
         # Bridging (design 2026-11-14).
@@ -1262,6 +1276,61 @@ class BridgeSessionTests(unittest.TestCase):
         self.assertEqual((env.actions[1]['back'], env.actions[1]['sneak']), (0, 1))      # facing the gap: turn first
         self.assertEqual((env.actions[2]['back'], env.actions[2]['sneak']), (1, 1))      # facing the start: walk back
         self.assertEqual((env.actions[3]['use'], env.actions[3]['sneak']), (1, 1))       # the edge face under the crosshair
+
+
+
+class BuildSessionTests(unittest.TestCase):
+    """Building (design 2026-11-14): success when the server placement record covers the blueprint, wrong placements
+    counted, and the preparation-only teacher check."""
+    TASK = dict(schema='build_task_v1', seed=0, shape='pillar2', cells=[[0, 0, 3], [0, 1, 3]], block='cobblestone')
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(); self.out = Path(self.temp.name); self.gate = StopGate()
+        from minecraftrl.build_task import build_fixture
+        self.fixture = build_fixture(self.TASK)
+
+    def tearDown(self):
+        self.recorder.close(); self.temp.cleanup()
+
+    def run_build(self, script, step):
+        self.recorder = Recorder(self.out / 'run')
+        env = FakeEnv(script)
+        session = DemoSession(env, FakePolicy(), None, self.recorder, self.gate, self.out / 'STOP', limit_s=60.,
+                              skills=SKILLS, clock=Clock(), rule_controller=FakeController, settle_steps=0, build=self.fixture)
+        return env, session.run([step])
+
+    @staticmethod
+    def at(count, last, *, hit=None, pitch=40.):
+        # The start block is (0, 64, 0) facing south: the blueprint cells are (0, 64, 3) and (0, 65, 3).
+        value = located(info(x=0.5, y=64., z=0.5, pitch=pitch, demo_fixture_origin_y=64,
+                             demo_hit_block='air' if hit is None else 'grass_block'))
+        value['workshop'].update(client_x=0.5, client_y=64., client_z=0.5, client_on_ground=1,
+                                 hit_x=0 if hit is None else hit[0], hit_y=0 if hit is None else hit[1],
+                                 hit_z=0 if hit is None else hit[2], hit_face=1)
+        value['place'] = dict(place_available=1, place_count=count, place_last_x=last[0], place_last_y=last[1],
+                              place_last_z=last[2], place_last_tick=1, place_last_block='cobblestone')
+        return value
+
+    def test_the_blueprint_completes_with_wrong_placements_counted(self):
+        none = (-999, -999, -999)
+        script = {1: self.at(0, none), 2: self.at(1, (1, 64, 3)), 3: self.at(2, (0, 64, 3)), 4: self.at(3, (0, 65, 3))}
+        _, report = self.run_build(lambda n, a: script.get(n, script[4]),
+                                   Step('build', 'dig', 'policy', 'build_done', 1, params={'until': 'build'}))
+        stage = report['stage_results'][0]
+        self.assertEqual((stage['status'], stage['completion'], stage['filled'], stage['wrong']),
+                         ('completed', 'server_build_done', 2, 1))
+        self.assertTrue(report['all_steps_completed'])
+
+    def test_teacher_check_uses_on_the_floor_under_the_first_cell(self):
+        none = (-999, -999, -999)
+        aimed = self.at(0, none, hit=(0, 63, 3))
+        script = {1: self.at(0, none), 2: aimed, 3: aimed, 4: self.at(1, (0, 64, 3), hit=(0, 64, 3)),
+                  5: self.at(2, (0, 65, 3), hit=(0, 64, 3))}
+        env, report = self.run_build(lambda n, a: script.get(n, script[5]),
+                                     Step('check', 'build', 'scripted', 'build_done', 1, params={'driver': 'build_teacher'}))
+        stage = report['stage_results'][0]
+        self.assertEqual((stage['status'], stage['controller'], stage['completion']), ('completed', 'scripted_probe', 'server_build_done'))
+        self.assertEqual(env.actions[2]['use'], 1)                         # the floor top under the first cell
 
 
 if __name__ == '__main__':

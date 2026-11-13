@@ -78,7 +78,7 @@ def lock_tool(action, hit_block=None):
 class DemoSession:
     def __init__(self, env, policy, catalog, recorder, gate, stop_file, *, limit_s, skills, clock=time.monotonic,
                  rule_controller=None, fixture_sha52=None, settle_steps=20, prepare_limit=400, tool_lock=False, oversight=None,
-                 reacquire=None, course=None, place=None, bridge=None):
+                 reacquire=None, course=None, place=None, bridge=None, build=None):
         if not 0 < limit_s <= 900: raise ValueError('limit_s must be in (0, 900]')
         if rule_controller is None:
             from ..workshop import WorkshopController as rule_controller
@@ -113,6 +113,12 @@ class DemoSession:
             from ..bridge_task import BridgeFeed
             bridge = BridgeFeed(bridge)
         self.bridge = bridge
+        # Building (design 2026-11-14): its feed ends `until='build'` steps when the server placement record covers the
+        # blueprint and drives the preparation-only teacher check.
+        if build is not None:
+            from ..build_task import BuildFeed
+            build = BuildFeed(build)
+        self.build = build
         self.steps = 0; self.obs = None; self.info = {}; self.started = None
 
     # Workshop controller adapter: it reads .gui, .env.raw.action_space and .steps.
@@ -154,6 +160,7 @@ class DemoSession:
         if self.course is not None: self.course.observe(row)
         if self.place is not None: self.place.observe(row)
         if self.bridge is not None: self.bridge.observe(row)
+        if self.build is not None: self.build.observe(row)
         if done: self.gate.stop('environment_done')
         return True
 
@@ -286,6 +293,7 @@ class DemoSession:
         if until == 'course' and self.course is None: raise ValueError("until='course' needs a course fixture")
         if until == 'place' and self.place is None: raise ValueError("until='place' needs a place fixture")
         if until == 'bridge' and self.bridge is None: raise ValueError("until='bridge' needs a bridge fixture")
+        if until == 'build' and self.build is None: raise ValueError("until='build' needs a build fixture")
 
         oversight = self.oversight; attack_masks = 0
         if oversight:
@@ -302,6 +310,8 @@ class DemoSession:
             if until == 'place': extra['wrong'] = self.place.wrong()
             if until == 'bridge':
                 extra.update(filled=self.bridge.filled(), wrong=self.bridge.wrong(), unknown_placements=self.bridge.unknown)
+            if until == 'build':
+                extra.update(filled=self.build.filled(), wrong=self.build.wrong(), unknown_placements=self.build.unknown)
             return status, dict(extra, tool_masked=masked_steps) if self.tool_lock else extra
 
         while True:
@@ -356,6 +366,8 @@ class DemoSession:
                 view = self.bridge.server_view()       # success and falls on the server state only
                 if view is not None and view.stage == 'goal': return finish('completed', completion='server_bridge_goal')
                 if view is not None and view.stage == 'fallen': return finish('bridge_fell')
+            if until == 'build' and self.build.done():       # success on the server placement record only
+                return finish('completed', completion='server_build_done')
             if column is not None and int(self.demo().get('demo_destroys', 0)) > seen:
                 seen = int(self.demo()['demo_destroys'])
                 x, y, z = (int(self.demo()['demo_last_destroy_' + a]) for a in 'xyz')
@@ -478,6 +490,7 @@ class DemoSession:
         if step.params.get('driver') == 'course_teacher': return self.run_course_teacher(step)
         if step.params.get('driver') == 'place_teacher': return self.run_place_teacher(step)
         if step.params.get('driver') == 'bridge_teacher': return self.run_bridge_teacher(step)
+        if step.params.get('driver') == 'build_teacher': return self.run_build_teacher(step)
         attack = self.noop(); attack['attack'] = 1
         destroys = int(self.demo().get('demo_destroys', 0)); mining_start = None
         for _ in range(int(step.params.get('limit_steps', 600))):
@@ -537,6 +550,21 @@ class DemoSession:
             if server is not None and server.stage == 'fallen': return 'bridge_fell', extra()
             view = self.bridge.decision_view(); action = self.noop()
             label = None if view is None else self.bridge.label(self.bridge.last_row, view)
+            for k, v in (label or {}).items():
+                if k in action: action[k] = np.asarray(v, dtype=np.float32) if k == 'camera' else v
+            if not self.dispatch(action, 'scripted_probe'): return self.gate.reason, extra()
+        return 'scripted_limit', extra()
+
+    def run_build_teacher(self, step):
+        """Preparation-only check of the building teacher (design 2026-11-14 §4): the privileged teacher drives until the
+        server placement record covers the blueprint or the step limit. Recorded as scripted_probe; never a policy result."""
+        if self.build is None: raise ValueError('the build teacher needs a build fixture')
+
+        def extra(): return dict(filled=self.build.filled(), wrong=self.build.wrong(), unknown_placements=self.build.unknown)
+        for _ in range(int(step.params.get('limit_steps', 1200))):
+            if self.build.done(): return 'completed', dict(completion='server_build_done', **extra())
+            view = self.build.decision_view(); action = self.noop()
+            label = None if view is None else self.build.label(self.build.last_row, view)
             for k, v in (label or {}).items():
                 if k in action: action[k] = np.asarray(v, dtype=np.float32) if k == 'camera' else v
             if not self.dispatch(action, 'scripted_probe'): return self.gate.reason, extra()

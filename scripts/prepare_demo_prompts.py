@@ -25,9 +25,11 @@ JUMP_PROMPTS = {'jump_course': 'jump across the platforms to the gold block'}
 PLACE_PROMPTS = {'place_block': 'place a block'}
 # Bridging (design 2026-11-14 §5): the prompt of configs/bridge-v1.json.
 BRIDGE_PROMPTS = {'bridge': 'build a bridge'}
+# Building (design 2026-11-14 §4): the prompt of configs/build-v1.json.
+BUILD_PROMPTS = {'build': 'build a small structure'}
 SETS = {'iron': PROMPTS, 'escape': ESCAPE_PROMPTS, 'ceiling': CEILING_PROMPTS, 'alone': ALONE_PROMPTS, 'blocks': BLOCK_PROMPTS,
         'eval': EVAL_PROMPTS, 'jump': JUMP_PROMPTS, 'place': PLACE_PROMPTS,
-        'bridge': BRIDGE_PROMPTS}
+        'bridge': BRIDGE_PROMPTS, 'build': BUILD_PROMPTS}
 SEED = 31031
 
 
