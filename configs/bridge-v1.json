@@ -3,7 +3,7 @@
   "description": "Bridging skill (design docs/specs/2026-11-14-bridge-design.md). Task ids are generator seeds of minecraftrl.bridge_task.generate_bridge; train, dev and final ids never overlap (their gap and goal shift can repeat; the world seeds differ). The embedding is the official STEVE-1 prior output for the prompt (made with scripts/prepare_demo_prompts.py --set bridge); sha256 null = not made yet, and only the teacher check may run.",
   "prompt": "build a bridge",
   "embedding": "results/bridge-prompts/bridge.npy",
-  "sha256": null,
+  "sha256": "5190a6d732d758e6b66704baf5e5f577adf5810618a2d7edc8294eb5c06cf53b",
   "cond_scale": 6.0,
   "tasks": {
     "train": [
