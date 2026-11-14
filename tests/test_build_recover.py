@@ -139,6 +139,57 @@ class OccludedTest(unittest.TestCase):
         self.assertEqual(seen.stage, 'aim')
 
 
+class CarefulTest(unittest.TestCase):
+    """Round 4 (design 2026-11-15 careful place): place only when the straight crosshair ray meets the face well inside."""
+
+    def trackers(self):
+        w = br.world_build2(task([(0, 0, 3)]), ORIGIN, 0.)                # the cell is world (0, 64, 3)
+        return br.RecoverTracker(w), br.CarefulTracker(w)
+
+    @staticmethod
+    def pitch_to(z):                         # from feet (.5, 64, .5), the pitch whose ray meets the floor top at z
+        return math.degrees(math.atan2(EYE, z - .5))
+
+    def test_look_follows_the_yaw_and_the_pitch(self):
+        for (yaw, pitch), want in (((0., 0.), (0., 0., 1.)), ((90., 0.), (-1., 0., 0.)), ((0., 90.), (0., -1., 0.))):
+            for a, b in zip(br.look(yaw, pitch), want): self.assertAlmostEqual(a, b, places=6)
+
+    def test_a_crosshair_near_the_face_edge_is_aim_for_the_careful_teacher_only(self):
+        recover, careful = self.trackers()
+        edge = self.pitch_to(3.05)                                       # 0.05 inside the floor face's near edge
+        self.assertEqual(recover.update(.5, 64., .5, 0., edge, (0, 63, 3), 1).stage, 'place')
+        self.assertEqual(careful.update(.5, 64., .5, 0., edge, (0, 63, 3), 1).stage, 'aim')
+        centre = self.pitch_to(3.5)
+        self.assertEqual(careful.update(.5, 64., .5, 0., centre, (0, 63, 3), 1).stage, 'place')
+
+    def test_the_careful_place_needs_the_straight_ray_to_land_in_the_cell(self):
+        _, careful = self.trackers()
+        short = self.pitch_to(2.9)                                       # the ray meets the floor of the cell before
+        self.assertEqual(careful.update(.5, 64., .5, 0., short, (0, 63, 3), 1).stage, 'aim')
+        self.assertFalse(br.inner_hit((.5, 64 + EYE, .5), br.look(0., short), careful.solids, (0, 64, 3)))
+        self.assertTrue(br.inner_hit((.5, 64 + EYE, .5), br.look(0., self.pitch_to(3.5)), careful.solids, (0, 64, 3)))
+
+    def test_the_fixture_names_the_careful_teacher_and_picks_its_feed(self):
+        t = ct.generate_build(101)
+        fixture = br.build2_fixture(t, teacher='careful')
+        self.assertEqual(fixture['build']['teacher'], 'careful')
+        self.assertIsInstance(br.feed_for(fixture), br.CarefulFeed); self.assertEqual(br.stages_for(fixture), br.BUILD2_STAGES)
+        self.assertEqual(br.build2_fixture(t), br.build2_fixture(t, teacher='recover'))
+        self.assertNotIsInstance(br.feed_for(br.build2_fixture(t)), br.CarefulFeed)
+        with self.assertRaises(ValueError): br.build2_fixture(t, teacher='other')
+
+    def test_the_careful_teacher_fills_every_blueprint_in_the_simulator(self):
+        path = Path(__file__).resolve().parents[1] / 'scripts/simulate_build_recover.py'
+        spec = importlib.util.spec_from_file_location('simulate_build_recover', path)
+        sim = importlib.util.module_from_spec(spec); spec.loader.exec_module(sim)
+        for seed in (101, 106, 110, 201, 401, 504):
+            for yaw in (0., 90., 180., 270.):
+                for clutter in (False, True):
+                    with self.subTest(seed=seed, yaw=yaw, clutter=clutter):
+                        r = sim.run(seed, yaw, version=3, clutter=clutter)
+                        self.assertTrue(r['ok'], r); self.assertEqual(r['wrong'], 0)
+
+
 class SimulationTest(unittest.TestCase):
     def sim(self):
         path = Path(__file__).resolve().parents[1] / 'scripts/simulate_build_recover.py'

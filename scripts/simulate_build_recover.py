@@ -3,7 +3,8 @@
 Same model as simulate_build_teacher.py: one decision per tick, camera turns as labelled, walking at 0.216 blocks a
 tick (forward or back along the yaw) and stopped by placed blocks at the feet or head, a voxel crosshair from the eye
 (4.5 reach), a placement when `use` lands a block in a free cell outside the player (4 ticks apart).
-version 1 is the round 1-2 teacher (build_task), version 2 the recovering teacher (build_recover).
+version 1 is the round 1-2 teacher (build_task), version 2 the recovering teacher (build_recover), version 3 the
+recovering teacher with careful place (round 4).
 clutter: a placed block in front of the first cell before the start (the round 1-2 failure state).
 stray: probability of an extra `use` press on a decision whose label has none (a student's stray press), seeded.
 noise: standard deviation (degrees) added to each camera axis, and the same share of decisions (noise / 20) that do
@@ -47,8 +48,9 @@ def clutter_cell(task):
 def run(seed, start_yaw=0., limit=1200, version=2, clutter=False, stray=0., rng_seed=0, noise=0.):
     task = ct.generate_build(seed); origin = (0, 64, 0)
     w = br.world_build2(task, origin, start_yaw)
-    tr = br.RecoverTracker(w) if version == 2 else ct.BuildTracker(ct.world_build(task, origin, start_yaw))
-    teacher = br.teacher_action if version == 2 else ct.teacher_action
+    tr = (br.CarefulTracker(w) if version == 3 else br.RecoverTracker(w) if version == 2
+          else ct.BuildTracker(ct.world_build(task, origin, start_yaw)))
+    teacher = br.teacher_action if version in (2, 3) else ct.teacher_action
     solids = set(w['solids'])
     rng = random.Random(rng_seed * 100003 + seed * 7 + int(start_yaw))
     if clutter:

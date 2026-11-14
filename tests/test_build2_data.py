@@ -62,6 +62,25 @@ class Build2ExamplesTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.examples(as_recovering(make_build_run(Path(self.tmp.name) / 'e/r1'), features=wrong))
 
+    def test_a_run_recorded_with_the_recovering_teacher_is_relabelled_by_the_careful_one(self):
+        # Round 4 (design 2026-11-15 careful place): runs of another teacher are relabelled, not compared.
+        from minecraftrl.build2_data import build2_run_examples
+        for name, recorded in (('g/r1', ('aim', 'place')), ('h/r1', ('aim', 'aim'))):
+            run = as_recovering(make_build_run(Path(self.tmp.name) / name), recorded=recorded)
+            ex = build2_run_examples(run, self.mapper, self.transformer, root=Path(self.tmp.name), teacher='careful')
+            self.assertTrue(ex['relabelled']); self.assertEqual(ex['features'].shape, (2, len(BUILD2_FEATURES)))
+        with self.assertRaises(ValueError):
+            build2_run_examples(run, self.mapper, self.transformer, root=Path(self.tmp.name), teacher='other')
+
+    def test_a_careful_dataset_names_its_teacher(self):
+        import torch
+        from minecraftrl.build2_data import build2_dataset
+        runs = [make_build_run(Path(self.tmp.name) / 'i' / name) for name in ('r1', 'r2')]
+        out = Path(self.tmp.name) / 'careful.pt'
+        summary = build2_dataset(runs, out, holdout='r2', mapper=self.mapper, transformer=self.transformer,
+                                 root=Path(self.tmp.name), teacher='careful')
+        self.assertEqual((torch.load(out)['teacher'], summary['teacher']), ('build_careful', 'build_careful'))
+
     def test_dataset_names_the_recovering_lists_and_the_use_combinations(self):
         import torch
         from minecraftrl.build2_data import build2_dataset

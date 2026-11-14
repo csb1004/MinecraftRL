@@ -1,6 +1,6 @@
 {
   "schema": "build_config_v1",
-  "description": "Building skill (design docs/specs/2026-11-14-build-design.md). Task ids are generator seeds of minecraftrl.build_task.generate_build; train, dev and final ids never overlap (their blueprints can repeat; the world seeds differ). The embedding is the official STEVE-1 prior output for the prompt (made with scripts/prepare_demo_prompts.py --set build); sha256 null = not made yet, and only the teacher check may run. occluded: the occlusion check tasks (docs/specs/2026-11-15-build-occluded-check-design.md), each with a block in front of its first cell (build_recover.occluded_build), on world seed 707106.",
+  "description": "Building skill (design docs/specs/2026-11-14-build-design.md). Task ids are generator seeds of minecraftrl.build_task.generate_build; train, dev and final ids never overlap (their blueprints can repeat; the world seeds differ). The embedding is the official STEVE-1 prior output for the prompt (made with scripts/prepare_demo_prompts.py --set build); sha256 null = not made yet, and only the teacher check may run. occluded: the occlusion check tasks (docs/specs/2026-11-15-build-occluded-check-design.md), each with a block in front of its first cell (build_recover.occluded_build), on world seed 707106. Round 4 (docs/specs/2026-11-15-build-careful-design.md): occluded_train on the training seeds, dev4 and dev4_occluded on 302585, final4 and final4_occluded on 866025; the occluded lists are the first 8 ids from 501, 701 and 901 with a free cell in front of the first cell and a blueprint and block not already picked.",
   "prompt": "build a small structure",
   "embedding": "results/build-prompts/build.npy",
   "sha256": "d036570bac6dee46fe2d5bceb6e44735667dca4ff78b270cfa46dffb6c66a08f",
@@ -45,6 +45,56 @@
       418,
       425,
       431
+    ],
+    "occluded_train": [
+      504,
+      506,
+      507,
+      514,
+      518,
+      527,
+      533,
+      538
+    ],
+    "dev4": [
+      601,
+      602,
+      603,
+      604,
+      605,
+      606,
+      607,
+      608
+    ],
+    "dev4_occluded": [
+      705,
+      710,
+      712,
+      718,
+      726,
+      735,
+      736,
+      742
+    ],
+    "final4": [
+      801,
+      802,
+      803,
+      804,
+      805,
+      806,
+      807,
+      808
+    ],
+    "final4_occluded": [
+      901,
+      902,
+      911,
+      921,
+      923,
+      928,
+      934,
+      945
     ]
   }
 }
