@@ -71,6 +71,25 @@ class BuildBatchTest(unittest.TestCase):
         self.assertEqual(frozen['teacher'], 'recover')
         with self.assertRaises(ValueError): self.m.prepare(self.batch, 'official', ROOT, 103, None, True, teacher='other')
 
+    def test_the_occluded_mode_has_its_own_seed_and_tasks_and_sets_the_block(self):
+        # Occlusion check (design 2026-11-15): recovering teacher only, a block in front of the first cell.
+        from minecraftrl.build_recover import build2_fixture, occluded_build
+        t = self.registry['tasks']
+        self.assertFalse(set(t['occluded']) & (set(t['train']) | set(t['dev']) | set(t['final'])))
+        self.assertTrue(all(occluded_build(k) is not None for k in t['occluded']))
+        self.m.check('occluded', [401], [707106], self.registry)
+        for mode, task, seed in (('occluded', 401, 130363), ('occluded', 301, 707106), ('dev', 401, 130363)):
+            with self.subTest(mode=mode, task=task, seed=seed), self.assertRaises(ValueError):
+                self.m.check(mode, [task], [seed], self.registry)
+        _, fixture, _ = self.m.prepare(self.batch, 'official', ROOT, 401, None, True, teacher='recover', occluded=True)
+        self.assertEqual(json.loads(fixture.read_text()), build2_fixture(occluded_build(401)))
+        with self.assertRaises(ValueError): self.m.prepare(self.batch, 'official', ROOT, 401, None, True, occluded=True)
+        with self.assertRaises(ValueError): self.collect(mode='occluded', tasks=[401], seeds=[707106])
+        self.assertEqual(self.collect(mode='occluded', tasks=[401], seeds=[707106], teacher='recover'), 0)
+        written = json.loads((self.batch / 'fixtures' / 'task-401.json').read_text())
+        self.assertEqual(written['blocks'], [dict(dx=-2, dy=0, dz=3, block='cobblestone')])
+        self.assertEqual(json.loads((self.batch / 'frozen-teacher-c401.json').read_text())['mode'], 'occluded')
+
     def test_teacher_check_has_no_head_and_a_scripted_step(self):
         config, _, plan = self.m.prepare(self.batch, 'teacher', ROOT, 101, None, True, teacher_check=True)
         value = json.loads(config.read_text())

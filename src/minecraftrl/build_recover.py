@@ -12,7 +12,7 @@ Success and filled cells stay those of build_task (the server placement record c
 import math
 from dataclasses import dataclass
 
-from .build_task import BUILD_STAGES, LEFT_SCALE, BuildFeed, build_fixture
+from .build_task import BUILD_STAGES, LEFT_SCALE, BuildFeed, build_fixture, generate_build
 from .place_task import (ARENA, EYE, FACE_NORMALS, FEATURE_DIST, FEATURE_PITCH, FRONT, PLACE_FEATURES, REACH, TOO_CLOSE,
                          _at, _centre, _client, _hit, _turn)
 from .pipeline.stage_replay import fixture_origin
@@ -79,13 +79,25 @@ def path_clear(start, end, solids):
 
 
 def world_build2(task, origin, yaw):
-    """build_task.world_build plus the arena floor-level cells a player can stand in."""
+    """build_task.world_build plus the arena floor-level cells a player can stand in; the task's `clutter` blocks (set
+    by the fixture, occlusion check) are solid."""
     cells = [_at(origin, yaw, *c) for c in task['cells']]
     solids, stand = set(), []
     for dx in range(ARENA['x'][0], ARENA['x'][1] + 1):
         for dz in range(ARENA['z'][0], ARENA['z'][1] + 1):
             solids.add(_at(origin, yaw, dx, -1, dz)); stand.append(_at(origin, yaw, dx, 0, dz))
+    for c in task.get('clutter', ()): solids.add(_at(origin, yaw, *c))
     return dict(cells=cells, solids=solids, stand=sorted(stand))
+
+
+def occluded_build(seed):
+    """Occlusion check (design 2026-11-15): generate_build(seed) with one block of the task's kind right in front of the
+    first cell (toward the start), the state rounds 1-2 failed in; None when that cell is a blueprint cell or the start.
+    The block comes from the fixture, so the server placement record does not count it."""
+    task = generate_build(seed); dx, _, dz = task['cells'][0]
+    cell = [dx, 0, dz - 1]
+    if cell in task['cells'] or (dx, dz - 1) == (0, 0): return None
+    return dict(task, clutter=[cell])
 
 
 @dataclass(frozen=True)
@@ -254,10 +266,13 @@ class RecoverFeed(BuildFeed):
 
 
 def build2_fixture(task):
-    """build_task.build_fixture with the recovering teacher named in the task."""
+    """build_task.build_fixture with the recovering teacher named in the task, and the task's `clutter` blocks set."""
     fixture = build_fixture(task)
     fixture['build'] = dict(task, teacher=TEACHER)
     fixture['description'] += ' Recovering teacher (design 2026-11-15).'
+    if task.get('clutter'):
+        fixture['blocks'] = [dict(dx=c[0], dy=c[1], dz=c[2], block=task['block']) for c in task['clutter']]
+        fixture['description'] += ' Occlusion check: a %s block stands in front of the first cell.' % task['block']
     return fixture
 
 
