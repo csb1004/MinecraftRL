@@ -21,6 +21,7 @@ moves the two target blocks one row down (the bottom row of the wall); the defau
 
 Mixed layouts (design 2026-11-13): --layout high / floor / pillar put the targets on the top row of the wall, in the floor
 or on two stone pillars; train mode refuses low, which stays for evaluation. final5 = 223606.
+Mining aim point (design 2026-11-14): final6 = 264575.
 """
 import argparse
 import hashlib
@@ -39,7 +40,8 @@ MODES = {'train': tuple(TRAIN_SEEDS), 'dev': (130363,), 'final': (577215,),
          'final2': (662607,),   # design 2026-11-09 §5: final seed fixed by the multi-block design (spent 2026-11-09)
          'final3': (299792,),   # design 2026-11-10 §5: final seed of the press round (spent 2026-11-10)
          'eval4': (141421, 173205),   # design 2026-11-11 §3: seeds of the harder evaluation, fixed before any result
-         'final5': (223606,)}         # design 2026-11-13 §5: final seed of the mixed-layout round
+         'final5': (223606,),         # design 2026-11-13 §5: final seed of the mixed-layout round (spent 2026-11-14)
+         'final6': (264575,)}         # mining aim point design 2026-11-14 §3: final seed of the aim point round
 EVAL_MODES = ('eval4',)
 SKILL = 'mine_iron_reacquire'
 IRON = 'iron_ore'

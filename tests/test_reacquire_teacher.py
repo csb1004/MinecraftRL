@@ -311,6 +311,76 @@ class SightTeacherTest(unittest.TestCase):
                            teacher_env_action(s, view, 'iron_ore', aim='press'))
 
 
+class AimFeatureTest(unittest.TestCase):
+    """Mining aim point design 2026-11-14 §1: the direction to where the sight teacher turns the view."""
+
+    def near(self, eye, yaw, geometry=None):
+        s, view = near_state(eye, yaw)
+        return s, view, wall() if geometry is None else geometry
+
+    def test_names(self):
+        from minecraftrl.reacquire_teacher import AIM_FEATURES
+        self.assertEqual(AIM_FEATURES, ('aim_sin_yaw', 'aim_cos_yaw', 'aim_pitch', 'aim_dist'))
+
+    def test_near_teacher_camera_is_the_aim_direction_clipped(self):
+        from minecraftrl.reacquire_teacher import MAX_TURN, aim_view
+        cases = [(FRONT_EYE, 20., None), (SLANTED, -70., None), (WALL_END, -100., None), (WALL_END, 90., None),
+                 (WALL_END, -60., wall({(0, 0, 1): 'stone'}, barrier=False))]
+        for eye, yaw, geometry in cases:
+            with self.subTest(eye=eye, yaw=yaw):
+                s, view, g = self.near(eye, yaw, geometry)
+                dpitch, dyaw, _ = aim_view(s, view, 'iron_ore', g)
+                label = teacher_env_action(s, view, 'iron_ore', aim='sight', geometry=g)['camera']
+                clip = lambda v: max(-MAX_TURN, min(MAX_TURN, v))   # noqa: E731
+                self.assertAlmostEqual(float(label[0]), clip(dpitch), places=6)
+                self.assertAlmostEqual(float(label[1]), clip(dyaw), places=6)
+
+    def test_hidden_centre_points_at_the_visible_face_not_the_centre(self):
+        import math
+        from minecraftrl.reacquire_teacher import aim_features, mining_features
+        s, view, g = self.near(SLANTED, -70.)
+        aim, centre = aim_features(s, view, 'iron_ore', g), mining_features(s, view, 'iron_ore')
+        self.assertAlmostEqual(math.degrees(math.atan2(aim[0], aim[1])), -5.8, delta=.3)    # the face, to the right
+        self.assertGreater(math.degrees(math.atan2(centre[0], centre[1])), 10.)            # the hidden centre, left
+
+    def test_walk_plan_points_the_yaw_at_the_spot_and_measures_the_walk(self):
+        import math
+        from minecraftrl.reacquire_teacher import aim_features
+        s, view, g = self.near(WALL_END, -100.)
+        f = aim_features(s, view, 'iron_ore', g)
+        self.assertAlmostEqual(math.degrees(math.atan2(f[0], f[1])), -35., delta=1.)        # the spot (0.5, 1.5)
+        self.assertAlmostEqual(f[2], aim_delta(WALL_END, -100., 0., TARGET)[0] / 60., places=6)
+        self.assertAlmostEqual(f[3], math.hypot(.5 - WALL_END[0], 1.5 - WALL_END[2]) / 9., places=6)
+
+    def test_visible_centre_other_stages_and_no_geometry_keep_the_centre_features(self):
+        from minecraftrl.reacquire_teacher import aim_features, mining_features
+        s, view, g = self.near(FRONT_EYE, 20.)
+        self.assertEqual(aim_features(s, view, 'iron_ore', g), mining_features(s, view, 'iron_ore'))
+        s, view, _ = self.near(SLANTED, -70.)
+        self.assertEqual(aim_features(s, view, 'iron_ore', None), mining_features(s, view, 'iron_ore'))
+        cases = [(sample(hit='iron_ore', hit_pos=TARGET, eye=FRONT_EYE), StageView('aimed', 3., TARGET, FRONT_EYE)),
+                 (sample(hit='stone', hit_pos=(-1, 1, 3), mining='iron_ore', mining_pos=TARGET, eye=WALL_END),
+                  StageView('mining', 2., TARGET, WALL_END)),
+                 (sample(destroyed='iron_ore', destroyed_pos=TARGET, eye=WALL_END), StageView('collect', 4., (4, 1, 3), WALL_END))]
+        for s, view in cases:
+            with self.subTest(stage=view.stage):
+                self.assertEqual(aim_features(s, view, 'iron_ore', wall()), mining_features(s, view, 'iron_ore'))
+
+    def test_missing_inputs_are_zero(self):
+        from minecraftrl.reacquire_teacher import aim_features
+        self.assertEqual(aim_features(sample(), StageView('far', None, None, EYE), 'iron_ore', wall()), [0.] * 4)
+        self.assertEqual(aim_features(sample(gui=True), StageView('gui', 3., (0, 1, 3), EYE), 'iron_ore', wall()), [0.] * 4)
+        self.assertEqual(aim_features(sample(), None, 'iron_ore', wall()), [0.] * 4)
+        self.assertEqual(aim_features(None, StageView('near', 3., (0, 1, 3), EYE), 'iron_ore', wall()), [0.] * 4)
+
+    def test_feature_values_picks_the_set_by_name(self):
+        from minecraftrl.reacquire_teacher import AIM_FEATURES, MINING_FEATURES, aim_features, feature_values, mining_features
+        s, view, g = self.near(SLANTED, -70.)
+        self.assertEqual(feature_values(MINING_FEATURES, s, view, 'iron_ore', g), mining_features(s, view, 'iron_ore'))
+        self.assertEqual(feature_values(list(AIM_FEATURES), s, view, 'iron_ore', g), aim_features(s, view, 'iron_ore', g))
+        with self.assertRaises(ValueError): feature_values(('a', 'b'), s, view, 'iron_ore', g)
+
+
 @unittest.skipUnless(STEVE1, 'isolated WSL Torch/STEVE-1 environment required')
 class OfficialLabelTest(unittest.TestCase):
     def test_button_list_matches_vpt(self):

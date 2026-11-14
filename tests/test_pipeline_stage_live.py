@@ -61,6 +61,30 @@ class LiveStageFeedTest(unittest.TestCase):
         for r in walk_rows()[:3]: feed.observe(r)
         self.assertEqual(feed.features(), mining_features(feed.last_sample, feed.decision_view(), 'iron_ore'))
 
+    def test_aim_feature_list_uses_the_aim_features_on_the_tracker_geometry(self):
+        # Mining aim point design 2026-11-14 §1: a head trained on AIM_FEATURES gets them in the game too.
+        from minecraftrl.reacquire_teacher import AIM_FEATURES, MINING_FEATURES, aim_features
+        feed = LiveStageFeed(FIXTURE, 'iron_ore', 'iron_ore', feature_names=AIM_FEATURES)
+        self.assertEqual(feed.features(), [0.] * 4)
+        feed.observe(row(1, controller='prepare')); feed.start_step(START_T)
+        for r in walk_rows()[:4]: feed.observe(r)
+        view = feed.decision_view()
+        self.assertEqual(feed.features(), aim_features(feed.last_sample, view, 'iron_ore', feed.tracker.geometry))
+        self.assertEqual(LiveStageFeed(FIXTURE, 'iron_ore', 'iron_ore').feature_names, MINING_FEATURES)
+        with self.assertRaises(ValueError): LiveStageFeed(FIXTURE, 'iron_ore', 'iron_ore', feature_names=('a',))
+
+    def test_hook_hands_the_head_feature_names_to_its_own_feed(self):
+        from types import SimpleNamespace
+        from minecraftrl.pipeline.stage_live import ReacquireHook
+        from minecraftrl.reacquire_teacher import AIM_FEATURES, MINING_FEATURES
+        for names in (AIM_FEATURES, MINING_FEATURES):
+            with self.subTest(names=names):
+                head = SimpleNamespace(width=4, features=names, stage=None, feature=None, active=False)
+                hook = ReacquireHook(head, FIXTURE, 'iron_ore', 'iron_ore', None, cond_scale=6., meta={})
+                self.assertEqual(hook.feed.feature_names, names)
+        plain = ReacquireHook(SimpleNamespace(width=4), FIXTURE, 'iron_ore', 'iron_ore', None, cond_scale=6., meta={})
+        self.assertEqual(plain.feed.feature_names, MINING_FEATURES)
+
     def test_breaks_before_the_step_are_applied_without_a_collect(self):
         iron = (0, 65, 8)
         rows = [row(1, controller='prepare'),

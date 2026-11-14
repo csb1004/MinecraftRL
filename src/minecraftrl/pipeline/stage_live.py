@@ -17,7 +17,13 @@ LATENT_SCHEMA = 'reacquire_latents_v1'
 
 
 class LiveStageFeed:
-    def __init__(self, fixture, wanted, target_item):
+    def __init__(self, fixture, wanted, target_item, feature_names=None):
+        """`feature_names`: the head's mining feature list, MINING_FEATURES (default) or AIM_FEATURES (mining aim point
+        design 2026-11-14)."""
+        from ..reacquire_teacher import AIM_FEATURES, MINING_FEATURES
+        self.feature_names = tuple(feature_names) if feature_names else MINING_FEATURES
+        if self.feature_names not in (MINING_FEATURES, AIM_FEATURES):
+            raise ValueError('unknown mining feature list: %s' % (self.feature_names,))
         self.fixture = fixture; self.wanted = wanted; self.target_item = target_item
         self.base = None           # fixture geometry once the first applied row gives the origin
         self.events = []           # (t, position, block) of every break since the run started
@@ -68,9 +74,12 @@ class LiveStageFeed:
         return self.tracker.peek(self.last_sample)
 
     def features(self):
-        """Privileged direction features of the decision view (mining direction input design 2026-11-14 §1)."""
-        from ..reacquire_teacher import mining_features
-        return mining_features(self.last_sample, self.decision_view(), self.wanted)
+        """Privileged direction features of the decision view (mining direction input design 2026-11-14 §1; aim point
+        design §1 for AIM_FEATURES, on the tracker's geometry of the moment)."""
+        from ..reacquire_teacher import feature_values
+        view = self.decision_view()
+        geometry = self.tracker.geometry if self.tracker is not None else None
+        return feature_values(self.feature_names, self.last_sample, view, self.wanted, geometry)
 
 
 class LatentLog:
@@ -124,7 +133,8 @@ class ReacquireHook:
         self.stages = tuple(getattr(head, 'stages', STAGES))
         # A head with privileged features (jump direction input, design 2026-11-14) gets them from the feed each decision.
         self.features = tuple(getattr(head, 'features', ()))
-        self.feed = feed if feed is not None else LiveStageFeed(fixture, wanted, target_item)
+        self.feed = feed if feed is not None else LiveStageFeed(fixture, wanted, target_item,
+                                                                feature_names=self.features or None)
         self.log = None if folder is None else LatentLog(folder, width=head.width, cond_scale=cond_scale, meta=meta,
                                                           chunk=chunk, stages=self.stages, features=self.features)
 

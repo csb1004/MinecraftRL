@@ -193,6 +193,14 @@ class BatchTest(unittest.TestCase):
         for mode, seed in (('final5', 299792), ('final5', 130363), ('train', 223606), ('dev', 223606), ('eval4', 223606)):
             with self.subTest(mode=mode, seed=seed), self.assertRaises(ValueError): self.m.check_seeds(mode, [seed])
 
+    # Mining aim point design 2026-11-14 §3: a new final seed, used by no earlier round.
+    def test_final6_mode_allows_only_its_preset_seed(self):
+        self.m.check_seeds('final6', [264575])
+        used = [s for seeds in self.m.MODES.values() for s in seeds if s != 264575]
+        self.assertNotIn(264575, used)
+        for mode, seed in (('final6', 223606), ('final6', 130363), ('train', 264575), ('dev', 264575), ('final5', 264575)):
+            with self.subTest(mode=mode, seed=seed), self.assertRaises(ValueError): self.m.check_seeds(mode, [seed])
+
     def test_training_layouts_move_only_the_targets(self):
         base = json.loads((ROOT / 'configs/iron-demo-fixture-v2.json').read_text())
         others = [b for b in base['blocks'] if b['block'] != 'iron_ore']
