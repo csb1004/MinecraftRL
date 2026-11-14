@@ -1,0 +1,283 @@
+{
+ "results/execution-contract-e2-20261103": {
+  "folder": "results/execution-contract-e2-20261103",
+  "total_mb": 9891.6,
+  "runs": 29,
+  "kept_mb": 29.2,
+  "kept_files": 1122,
+  "removed_mb": 9862.3,
+  "removed_files": 14572,
+  "by_suffix_mb": {
+   ".pt": [
+    3479.3,
+    30
+   ],
+   ".jsonl": [
+    3296.4,
+    55
+   ],
+   ".png": [
+    2008.3,
+    14451
+   ],
+   ".json": [
+    1081.4,
+    658
+   ],
+   ".log": [
+    12.2,
+    137
+   ],
+   ".zip": [
+    11.8,
+    4
+   ],
+   ".py": [
+    2.0,
+    326
+   ],
+   ".ps1": [
+    0.1,
+    22
+   ],
+   ".java": [
+    0.0,
+    3
+   ],
+   ".npy": [
+    0.0,
+    5
+   ],
+   ".md": [
+    0.0,
+    1
+   ],
+   ".sh": [
+    0.0,
+    1
+   ]
+  },
+  "deleted": true,
+  "delete_failures": 0
+ },
+ "results/execution-contract-e2-20261103-retention-check": {
+  "folder": "results/execution-contract-e2-20261103-retention-check",
+  "total_mb": 1719.7,
+  "runs": 8,
+  "kept_mb": 6.1,
+  "kept_files": 210,
+  "removed_mb": 1713.6,
+  "removed_files": 2263,
+  "by_suffix_mb": {
+   ".pt": [
+    832.9,
+    8
+   ],
+   ".jsonl": [
+    507.2,
+    16
+   ],
+   ".png": [
+    213.6,
+    2232
+   ],
+   ".json": [
+    164.5,
+    179
+   ],
+   ".log": [
+    1.6,
+    36
+   ],
+   ".ps1": [
+    0.0,
+    1
+   ],
+   ".txt": [
+    0.0,
+    1
+   ]
+  },
+  "deleted": true,
+  "delete_failures": 0
+ },
+ "results/common-recovery-r1-20261101": {
+  "folder": "results/common-recovery-r1-20261101",
+  "total_mb": 7648.5,
+  "runs": 56,
+  "kept_mb": 44.9,
+  "kept_files": 1722,
+  "removed_mb": 7603.5,
+  "removed_files": 10763,
+  "by_suffix_mb": {
+   ".pt": [
+    4012.5,
+    54
+   ],
+   ".jsonl": [
+    2183.2,
+    50
+   ],
+   ".png": [
+    1322.0,
+    10612
+   ],
+   ".zip": [
+    69.5,
+    26
+   ],
+   ".json": [
+    50.9,
+    1171
+   ],
+   ".log": [
+    8.3,
+    237
+   ],
+   ".py": [
+    1.9,
+    301
+   ],
+   ".ps1": [
+    0.1,
+    18
+   ],
+   ".java": [
+    0.0,
+    3
+   ],
+   ".md": [
+    0.0,
+    3
+   ],
+   ".npy": [
+    0.0,
+    5
+   ],
+   ".csv": [
+    0.0,
+    1
+   ]
+  },
+  "deleted": true,
+  "delete_failures": 0
+ },
+ "results/effect-skill-e1-20261102": {
+  "folder": "results/effect-skill-e1-20261102",
+  "total_mb": 3353.1,
+  "runs": 15,
+  "kept_mb": 15.2,
+  "kept_files": 774,
+  "removed_mb": 3337.9,
+  "removed_files": 5999,
+  "by_suffix_mb": {
+   ".pt": [
+    1238.5,
+    16
+   ],
+   ".jsonl": [
+    1229.6,
+    30
+   ],
+   ".png": [
+    836.0,
+    5948
+   ],
+   ".json": [
+    41.6,
+    355
+   ],
+   ".log": [
+    4.8,
+    70
+   ],
+   ".py": [
+    2.0,
+    320
+   ],
+   ".md": [
+    0.4,
+    3
+   ],
+   ".ps1": [
+    0.1,
+    20
+   ],
+   ".java": [
+    0.0,
+    3
+   ],
+   ".npy": [
+    0.0,
+    5
+   ],
+   ".sh": [
+    0.0,
+    1
+   ],
+   ".csv": [
+    0.0,
+    1
+   ]
+  },
+  "deleted": true,
+  "delete_failures": 0
+ },
+ "results/effect-skill-e1-20261103-resource-check": {
+  "folder": "results/effect-skill-e1-20261103-resource-check",
+  "total_mb": 565.3,
+  "runs": 2,
+  "kept_mb": 1.7,
+  "kept_files": 86,
+  "removed_mb": 563.6,
+  "removed_files": 1088,
+  "by_suffix_mb": {
+   ".jsonl": [
+    223.0,
+    4
+   ],
+   ".png": [
+    174.6,
+    1077
+   ],
+   ".pt": [
+    160.2,
+    2
+   ],
+   ".json": [
+    6.9,
+    66
+   ],
+   ".log": [
+    0.7,
+    12
+   ],
+   ".npy": [
+    0.0,
+    5
+   ],
+   ".py": [
+    0.0,
+    2
+   ],
+   ".ps1": [
+    0.0,
+    1
+   ],
+   ".md": [
+    0.0,
+    1
+   ],
+   ".csv": [
+    0.0,
+    1
+   ],
+   ".txt": [
+    0.0,
+    3
+   ]
+  },
+  "deleted": true,
+  "delete_failures": 0
+ }
+}

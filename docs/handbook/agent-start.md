@@ -49,6 +49,8 @@ Get-Content -LiteralPath .\docs\progress.md -TotalCount 85
 
 - 본 E2: `results/execution-contract-e2-20261103`.
 - 회수 보충 비교: `results/execution-contract-e2-20261103-retention-check`.
+- 2026-11-14 D: 공간 부족으로 두 폴더의 체크포인트·큰 텔레메트리·화면 프레임을 지웠다. 작은 json·로그·`source-at-game/`은 남았다.
+  [정리 보고](../archive/results-cleanup-2026-11-14.md).
 - 각 배치의 `driver-completion.json`, `work.json`, `analysis.json`, `*-command.json`이 종료/소스/결과/명령의 근거다.
 - `source-at-game/`은 당시 코드다. 현재 소스를 고친 뒤 과거 해시를 새 값으로 갱신하지 않는다.
 - 독립 학습 산출물은 `checkpoint.pt`, `training.json`. `promoted=false` 후보를 자동으로 기본 정책에 연결하지 않는다.

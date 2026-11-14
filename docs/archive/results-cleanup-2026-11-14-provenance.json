@@ -1,0 +1,790 @@
+{
+ "datasets": [
+  {
+   "path": "results/multi-block-20261108/data/r0.pt",
+   "mb": 251,
+   "written": "2026-11-08 15:07",
+   "sha256": "f262c2102586a70450ec5b7f4d126c48936be989bb2cbb1e7dd344196b98933f",
+   "rows": 31992,
+   "teacher": "hold",
+   "runs": 18,
+   "summary": "results/multi-block-20261108/data/r0.summary.json"
+  },
+  {
+   "path": "results/multi-block-20261108/data/r0-1.pt",
+   "mb": 530,
+   "written": "2026-11-09 04:50",
+   "sha256": "dafe7ab73cade21b1167d804813662eda367acac10e943d5094bf3a856322bf3",
+   "rows": 67405,
+   "teacher": "hold",
+   "runs": 36,
+   "summary": "results/multi-block-20261108/data/r0-1.summary.json"
+  },
+  {
+   "path": "results/multi-block-20261108/data/r0-2.pt",
+   "mb": 773,
+   "written": "2026-11-09 06:47",
+   "sha256": "d1728cb384d33de1cb7f3fc1c1f65786694d005201be8e7524d5183b1718f37b",
+   "rows": 98338,
+   "teacher": "hold",
+   "runs": 54,
+   "summary": "results/multi-block-20261108/data/r0-2.summary.json"
+  },
+  {
+   "path": "results/multi-block-20261108/data/a-r0-2.pt",
+   "mb": 773,
+   "written": "2026-11-09 10:41",
+   "sha256": "1ff4253b449b073d264d3669d74c2d9fb1064e31daa0cd423d63e594533b9d15",
+   "rows": 98338,
+   "teacher": "approach",
+   "runs": 54,
+   "summary": "results/multi-block-20261108/data/a-r0-2.summary.json"
+  },
+  {
+   "path": "results/multi-block-20261108/data/a-r0-3.pt",
+   "mb": 984,
+   "written": "2026-11-09 13:08",
+   "sha256": "ccd894e97e3cf98d5a28ebc0926d0baff6d9340952e3e5d2874ee6ec677111c4",
+   "rows": 125224,
+   "teacher": "approach",
+   "runs": 72,
+   "summary": "results/multi-block-20261108/data/a-r0-3.summary.json"
+  },
+  {
+   "path": "results/multi-block-20261108/data/a-r0-4.pt",
+   "mb": 1150,
+   "written": "2026-11-09 14:47",
+   "sha256": "d26d34bd5e72ae0f099338d334226179e49e4b07dbbbe3de00a512111098a1a7",
+   "rows": 146330,
+   "teacher": "approach",
+   "runs": 90,
+   "summary": "results/multi-block-20261108/data/a-r0-4.summary.json"
+  },
+  {
+   "path": "results/multi-block-20261108/data/p-r0-4.pt",
+   "mb": 1150,
+   "written": "2026-11-10 12:28",
+   "sha256": "3c7796151a1a08c2e7a1517dbd73830a5f54b72cd39efbcdb50f29c28cf625ff",
+   "rows": 146330,
+   "teacher": "press",
+   "runs": 90,
+   "summary": "results/multi-block-20261108/data/p-r0-4.summary.json"
+  },
+  {
+   "path": "results/multi-block-20261108/data/p-r0-5.pt",
+   "mb": 1233,
+   "written": "2026-11-10 13:39",
+   "sha256": "0f657aa5b21089e51f5b81cc3193a1dde56e9029fcf4e5cd3903b7a6796eda79",
+   "rows": 156855,
+   "teacher": "press",
+   "runs": 108,
+   "summary": "results/multi-block-20261108/data/p-r0-5.summary.json"
+  },
+  {
+   "path": "results/multi-block-20261108/data/s-r0-5.pt",
+   "mb": 1233,
+   "written": "2026-11-10 15:25",
+   "sha256": "e993d88de154f908f5e5cc5254f7407ea108641670e27c2e543d13f14e7a012c",
+   "rows": 156855,
+   "teacher": "sight",
+   "runs": 108,
+   "summary": "results/multi-block-20261108/data/s-r0-5.summary.json"
+  },
+  {
+   "path": "results/multi-block-20261108/data/s-r0-6.pt",
+   "mb": 1326,
+   "written": "2026-11-10 16:36",
+   "sha256": "d522c22b3c3e3937922b3d45dba9eb77310fe7088e417a5b5b2cad6c8ff2b2db",
+   "rows": 168717,
+   "teacher": "sight",
+   "runs": 126,
+   "summary": "results/multi-block-20261108/data/s-r0-6.summary.json"
+  },
+  {
+   "path": "results/multi-block-20261108/data/l-r0-7.pt",
+   "mb": 1496,
+   "written": "2026-11-13 03:54",
+   "sha256": "079c52fc2d718c3ac376f492c7f01e32f94140cfc77f5375085fa3124bb1953b",
+   "rows": 190312,
+   "teacher": "sight",
+   "runs": 144,
+   "summary": "results/multi-block-20261108/data/l-r0-7.summary.json"
+  },
+  {
+   "path": "results/multi-block-20261108/data/l-r0-8.pt",
+   "mb": 1667,
+   "written": "2026-11-13 05:42",
+   "sha256": "4764d825acf78b26811e80080808df0e0851db61f17d8a05ca54f99cf42bb5fd",
+   "rows": 212119,
+   "teacher": "sight",
+   "runs": 162,
+   "summary": "results/multi-block-20261108/data/l-r0-8.summary.json"
+  },
+  {
+   "path": "results/multi-block-20261108/data/l-r0-9.pt",
+   "mb": 1816,
+   "written": "2026-11-13 08:14",
+   "sha256": "b626b725dc8ea8468fed3db6fdb92a3406a2ea9850130e5039e23545cb45590b",
+   "rows": 231079,
+   "teacher": "sight",
+   "runs": 180,
+   "summary": "results/multi-block-20261108/data/l-r0-9.summary.json"
+  },
+  {
+   "path": "results/multi-block-20261108/data/l-r0-9g.pt",
+   "mb": 1816,
+   "written": "2026-11-13 08:16",
+   "sha256": "52b8e4f7784fc26ee467ede68c5d7bce02d52d81ecf5499f15e5ddf172a9fef7",
+   "rows": null,
+   "teacher": null,
+   "runs": 0,
+   "summary": "results/multi-block-20261108/data/l-r0-9g.summary.json"
+  },
+  {
+   "path": "results/multi-block-20261108/data/m-r0-9.pt",
+   "mb": 1819,
+   "written": "2026-11-14 04:42",
+   "sha256": "c1594973961c7cf1172709361690d4b4cf9914f55c47cc14b17e3936ad8380f4",
+   "rows": 231079,
+   "teacher": "sight",
+   "runs": 180,
+   "summary": "results/multi-block-20261108/data/m-r0-9.summary.json"
+  },
+  {
+   "path": "results/multi-block-20261108/data/m-r0-9g.pt",
+   "mb": 1819,
+   "written": "2026-11-14 04:44",
+   "sha256": "de47a4a24afee2a14ef88328756d7203070bce187c17051dfa85edbd0899ede3",
+   "rows": null,
+   "teacher": null,
+   "runs": 0,
+   "summary": "results/multi-block-20261108/data/m-r0-9g.summary.json"
+  }
+ ],
+ "jars": [
+  {
+   "path": ".runtime/world-save/080c65e0078602abcf19392acb76bfb40cfcca278b2590057413f848a7e13c50.jar",
+   "patch_hash": "080c65e0078602abcf19392acb76bfb40cfcca278b2590057413f848a7e13c50",
+   "mb": 444,
+   "built": "2026-10-16 11:34",
+   "receipt": {
+    "artifact": "080c65e0078602abcf19392acb76bfb40cfcca278b2590057413f848a7e13c50.jar",
+    "sha256": "55d15ab9418768ec5a54c9a3149bebc0a881fcf07fb10140b51d997808507f3e",
+    "upstream_sha256": "f7a1e0aa8bee8a0ff9479856e807be6d8aa30373db8934d5b093342690ae9a48",
+    "source_sha256": "0f79577ba048eb88f8fbb886cd698b3beacac2fdfa9a6c8db309597ea35cc72e",
+    "patched_source_sha256": "080c65e0078602abcf19392acb76bfb40cfcca278b2590057413f848a7e13c50",
+    "replaced_classes": [
+     "com/minerl/multiagent/env/EnvServer$1.class",
+     "com/minerl/multiagent/env/EnvServer.class",
+     "com/minerl/multiagent/recorder/PlayRecorder.class",
+     "net/minecraft/client/ReplaySender$Mode.class",
+     "net/minecraft/client/ReplaySender.class",
+     "net/minecraft/client/gui/screen/DeathScreen.class",
+     "net/minecraft/client/gui/screen/inventory/CraftGuiObservation.class",
+     "net/minecraft/client/gui/screen/inventory/WorkshopObservation$1.class",
+     "net/minecraft/client/gui/screen/inventory/WorkshopObservation$WoodTracker.class",
+     "net/minecraft/client/gui/screen/inventory/WorkshopObservation.class",
+     "net/minecraft/server/management/PlayerInteractionManager.class"
+    ],
+    "scope": "save barrier + fresh world storage identity + read-only craft GUI monitor + read-only workshop telemetry + opt-in terminal death handshake"
+   }
+  },
+  {
+   "path": ".runtime/world-save/1ec1b7b7d7397ed98bad61b335e6734db06604ad88c3e62004a731a422a6e504.jar",
+   "patch_hash": "1ec1b7b7d7397ed98bad61b335e6734db06604ad88c3e62004a731a422a6e504",
+   "mb": 444,
+   "built": "2026-10-04 15:56",
+   "receipt": {
+    "artifact": "1ec1b7b7d7397ed98bad61b335e6734db06604ad88c3e62004a731a422a6e504.jar",
+    "sha256": "0145c7d72c4111fbc10ff6f88bf42cec6cede11effb32d4e1d23b9f2ab7a4ef1",
+    "upstream_sha256": "f7a1e0aa8bee8a0ff9479856e807be6d8aa30373db8934d5b093342690ae9a48",
+    "source_sha256": "0f79577ba048eb88f8fbb886cd698b3beacac2fdfa9a6c8db309597ea35cc72e",
+    "patched_source_sha256": "1ec1b7b7d7397ed98bad61b335e6734db06604ad88c3e62004a731a422a6e504",
+    "replaced_classes": [
+     "com/minerl/multiagent/env/EnvServer$1.class",
+     "com/minerl/multiagent/env/EnvServer.class",
+     "net/minecraft/client/ReplaySender$Mode.class",
+     "net/minecraft/client/ReplaySender.class",
+     "net/minecraft/client/gui/screen/inventory/CraftGuiObservation.class"
+    ],
+    "scope": "save barrier + read-only craft GUI monitor"
+   }
+  },
+  {
+   "path": ".runtime/world-save/314b21ea523a46d61cb3723e8dd4630c24dafd7d42262d2ab34d523e02c4592b.jar",
+   "patch_hash": "314b21ea523a46d61cb3723e8dd4630c24dafd7d42262d2ab34d523e02c4592b",
+   "mb": 444,
+   "built": "2026-10-05 12:40",
+   "receipt": {
+    "artifact": "314b21ea523a46d61cb3723e8dd4630c24dafd7d42262d2ab34d523e02c4592b.jar",
+    "sha256": "32e3e9af62a3e564221291a82e46736d4aa54cf5527af3cf13274bbc89f57eb2",
+    "upstream_sha256": "f7a1e0aa8bee8a0ff9479856e807be6d8aa30373db8934d5b093342690ae9a48",
+    "source_sha256": "0f79577ba048eb88f8fbb886cd698b3beacac2fdfa9a6c8db309597ea35cc72e",
+    "patched_source_sha256": "314b21ea523a46d61cb3723e8dd4630c24dafd7d42262d2ab34d523e02c4592b",
+    "replaced_classes": [
+     "com/minerl/multiagent/env/EnvServer$1.class",
+     "com/minerl/multiagent/env/EnvServer.class",
+     "com/minerl/multiagent/recorder/PlayRecorder.class",
+     "net/minecraft/client/ReplaySender$Mode.class",
+     "net/minecraft/client/ReplaySender.class",
+     "net/minecraft/client/gui/screen/inventory/CraftGuiObservation.class",
+     "net/minecraft/client/gui/screen/inventory/WorkshopObservation.class"
+    ],
+    "scope": "save barrier + read-only craft GUI monitor"
+   }
+  },
+  {
+   "path": ".runtime/world-save/44ffcab2a4a20a61c3cbb7015e6a0782c89a674cb6298f38f56031cf57154361.jar",
+   "patch_hash": "44ffcab2a4a20a61c3cbb7015e6a0782c89a674cb6298f38f56031cf57154361",
+   "mb": 444,
+   "built": "2026-10-05 10:44",
+   "receipt": {
+    "artifact": "44ffcab2a4a20a61c3cbb7015e6a0782c89a674cb6298f38f56031cf57154361.jar",
+    "sha256": "f1fc9ad8c5e46144f75eb38dada555897d340e63be58828cdf6fd0cd8ac5e401",
+    "upstream_sha256": "f7a1e0aa8bee8a0ff9479856e807be6d8aa30373db8934d5b093342690ae9a48",
+    "source_sha256": "0f79577ba048eb88f8fbb886cd698b3beacac2fdfa9a6c8db309597ea35cc72e",
+    "patched_source_sha256": "44ffcab2a4a20a61c3cbb7015e6a0782c89a674cb6298f38f56031cf57154361",
+    "replaced_classes": [
+     "com/minerl/multiagent/env/EnvServer$1.class",
+     "com/minerl/multiagent/env/EnvServer.class",
+     "com/minerl/multiagent/recorder/PlayRecorder.class",
+     "net/minecraft/client/ReplaySender$Mode.class",
+     "net/minecraft/client/ReplaySender.class",
+     "net/minecraft/client/gui/screen/inventory/CraftGuiObservation.class",
+     "net/minecraft/client/gui/screen/inventory/WorkshopObservation.class"
+    ],
+    "scope": "save barrier + read-only craft GUI monitor"
+   }
+  },
+  {
+   "path": ".runtime/world-save/5378bd256926aca57f5a697f8dedb3f190834ef75c14cbb2d6e621ed58e4445f.jar",
+   "patch_hash": "5378bd256926aca57f5a697f8dedb3f190834ef75c14cbb2d6e621ed58e4445f",
+   "mb": 444,
+   "built": "2026-10-05 01:26",
+   "receipt": {
+    "artifact": "5378bd256926aca57f5a697f8dedb3f190834ef75c14cbb2d6e621ed58e4445f.jar",
+    "sha256": "636af5b3c17be1eae4b23cc7b26921075499df7ede47cd5d3117db666603fb7f",
+    "upstream_sha256": "f7a1e0aa8bee8a0ff9479856e807be6d8aa30373db8934d5b093342690ae9a48",
+    "source_sha256": "0f79577ba048eb88f8fbb886cd698b3beacac2fdfa9a6c8db309597ea35cc72e",
+    "patched_source_sha256": "5378bd256926aca57f5a697f8dedb3f190834ef75c14cbb2d6e621ed58e4445f",
+    "replaced_classes": [
+     "com/minerl/multiagent/env/EnvServer$1.class",
+     "com/minerl/multiagent/env/EnvServer.class",
+     "net/minecraft/client/ReplaySender$Mode.class",
+     "net/minecraft/client/ReplaySender.class",
+     "net/minecraft/client/gui/screen/inventory/CraftGuiObservation.class"
+    ],
+    "scope": "save barrier + read-only craft GUI monitor"
+   }
+  },
+  {
+   "path": ".runtime/world-save/57e3ed9e461f0f89f2c957db14587206f24eaa1957047b5e9209fdd3ba67a507.jar",
+   "patch_hash": "57e3ed9e461f0f89f2c957db14587206f24eaa1957047b5e9209fdd3ba67a507",
+   "mb": 444,
+   "built": "2026-10-17 09:29",
+   "receipt": {
+    "artifact": "57e3ed9e461f0f89f2c957db14587206f24eaa1957047b5e9209fdd3ba67a507.jar",
+    "sha256": "8ddaf8b896625e73c8cc678309b2f7a65c7eefcb178b52a432ae2e50a0bcae0d",
+    "upstream_sha256": "f7a1e0aa8bee8a0ff9479856e807be6d8aa30373db8934d5b093342690ae9a48",
+    "source_sha256": "0f79577ba048eb88f8fbb886cd698b3beacac2fdfa9a6c8db309597ea35cc72e",
+    "patched_source_sha256": "57e3ed9e461f0f89f2c957db14587206f24eaa1957047b5e9209fdd3ba67a507",
+    "replaced_classes": [
+     "com/minerl/multiagent/env/EnvServer$1.class",
+     "com/minerl/multiagent/env/EnvServer.class",
+     "com/minerl/multiagent/recorder/PlayRecorder.class",
+     "net/minecraft/client/ReplaySender$Mode.class",
+     "net/minecraft/client/ReplaySender.class",
+     "net/minecraft/client/gui/screen/DeathScreen.class",
+     "net/minecraft/client/gui/screen/inventory/CraftGuiObservation.class",
+     "net/minecraft/client/gui/screen/inventory/WorkshopObservation$1.class",
+     "net/minecraft/client/gui/screen/inventory/WorkshopObservation$WoodTracker.class",
+     "net/minecraft/client/gui/screen/inventory/WorkshopObservation.class",
+     "net/minecraft/server/management/PlayerInteractionManager.class"
+    ],
+    "scope": "save barrier + fresh world storage identity + read-only craft GUI monitor + read-only workshop telemetry + opt-in terminal death handshake"
+   }
+  },
+  {
+   "path": ".runtime/world-save/58b912b13fbd74933c510c70ba14f9bc911266ce97eb8bc02196422f96e2fc49.jar",
+   "patch_hash": "58b912b13fbd74933c510c70ba14f9bc911266ce97eb8bc02196422f96e2fc49",
+   "mb": 444,
+   "built": "2026-10-07 15:31",
+   "receipt": {
+    "artifact": "58b912b13fbd74933c510c70ba14f9bc911266ce97eb8bc02196422f96e2fc49.jar",
+    "sha256": "afeb88a9dd572bad19f25cf8d0a7346c08ef17ab5993e9de5b9da1ebee40688c",
+    "upstream_sha256": "f7a1e0aa8bee8a0ff9479856e807be6d8aa30373db8934d5b093342690ae9a48",
+    "source_sha256": "0f79577ba048eb88f8fbb886cd698b3beacac2fdfa9a6c8db309597ea35cc72e",
+    "patched_source_sha256": "58b912b13fbd74933c510c70ba14f9bc911266ce97eb8bc02196422f96e2fc49",
+    "replaced_classes": [
+     "com/minerl/multiagent/env/EnvServer$1.class",
+     "com/minerl/multiagent/env/EnvServer.class",
+     "com/minerl/multiagent/recorder/PlayRecorder.class",
+     "net/minecraft/client/ReplaySender$Mode.class",
+     "net/minecraft/client/ReplaySender.class",
+     "net/minecraft/client/gui/screen/DeathScreen.class",
+     "net/minecraft/client/gui/screen/inventory/CraftGuiObservation.class",
+     "net/minecraft/client/gui/screen/inventory/WorkshopObservation$1.class",
+     "net/minecraft/client/gui/screen/inventory/WorkshopObservation$WoodTracker.class",
+     "net/minecraft/client/gui/screen/inventory/WorkshopObservation.class",
+     "net/minecraft/server/management/PlayerInteractionManager.class"
+    ],
+    "scope": "save barrier + fresh world storage identity + read-only craft GUI monitor + read-only workshop telemetry + opt-in terminal death handshake"
+   }
+  },
+  {
+   "path": ".runtime/world-save/5b91a482a097b5791ce18750a71c793fe99fe0e9c806a90d2c5a0cdeca0a7e98.jar",
+   "patch_hash": "5b91a482a097b5791ce18750a71c793fe99fe0e9c806a90d2c5a0cdeca0a7e98",
+   "mb": 444,
+   "built": "2026-10-05 12:55",
+   "receipt": {
+    "artifact": "5b91a482a097b5791ce18750a71c793fe99fe0e9c806a90d2c5a0cdeca0a7e98.jar",
+    "sha256": "56be819264d67df8d73eb75ca88362d89a5d81ccfa035008b32bdee85da984c8",
+    "upstream_sha256": "f7a1e0aa8bee8a0ff9479856e807be6d8aa30373db8934d5b093342690ae9a48",
+    "source_sha256": "0f79577ba048eb88f8fbb886cd698b3beacac2fdfa9a6c8db309597ea35cc72e",
+    "patched_source_sha256": "5b91a482a097b5791ce18750a71c793fe99fe0e9c806a90d2c5a0cdeca0a7e98",
+    "replaced_classes": [
+     "com/minerl/multiagent/env/EnvServer$1.class",
+     "com/minerl/multiagent/env/EnvServer.class",
+     "com/minerl/multiagent/recorder/PlayRecorder.class",
+     "net/minecraft/client/ReplaySender$Mode.class",
+     "net/minecraft/client/ReplaySender.class",
+     "net/minecraft/client/gui/screen/inventory/CraftGuiObservation.class",
+     "net/minecraft/client/gui/screen/inventory/WorkshopObservation.class"
+    ],
+    "scope": "save barrier + read-only craft GUI monitor"
+   }
+  },
+  {
+   "path": ".runtime/world-save/614905d499c6ebb4266c762115630ef428cde52e3b4e944cc8c8e4286ba5fd9c.jar",
+   "patch_hash": "614905d499c6ebb4266c762115630ef428cde52e3b4e944cc8c8e4286ba5fd9c",
+   "mb": 444,
+   "built": "2026-10-04 16:09",
+   "receipt": {
+    "artifact": "614905d499c6ebb4266c762115630ef428cde52e3b4e944cc8c8e4286ba5fd9c.jar",
+    "sha256": "7631b1f43a7d12ceeea37fb80ffdd0be23a136ded78fb9ccf207047f99216c00",
+    "upstream_sha256": "f7a1e0aa8bee8a0ff9479856e807be6d8aa30373db8934d5b093342690ae9a48",
+    "source_sha256": "0f79577ba048eb88f8fbb886cd698b3beacac2fdfa9a6c8db309597ea35cc72e",
+    "patched_source_sha256": "614905d499c6ebb4266c762115630ef428cde52e3b4e944cc8c8e4286ba5fd9c",
+    "replaced_classes": [
+     "com/minerl/multiagent/env/EnvServer$1.class",
+     "com/minerl/multiagent/env/EnvServer.class",
+     "net/minecraft/client/ReplaySender$Mode.class",
+     "net/minecraft/client/ReplaySender.class",
+     "net/minecraft/client/gui/screen/inventory/CraftGuiObservation.class"
+    ],
+    "scope": "save barrier + read-only craft GUI monitor"
+   }
+  },
+  {
+   "path": ".runtime/world-save/6a5e2756cf7971b1dcbb767019068bdea0a4a562bd681dfd5977019f659472fc.jar",
+   "patch_hash": "6a5e2756cf7971b1dcbb767019068bdea0a4a562bd681dfd5977019f659472fc",
+   "mb": 444,
+   "built": "2026-10-17 01:48",
+   "receipt": {
+    "artifact": "6a5e2756cf7971b1dcbb767019068bdea0a4a562bd681dfd5977019f659472fc.jar",
+    "sha256": "ba58e951a4d06bc65524a45d14e949b5480b8b27d36b72de2ad359e2e6426d82",
+    "upstream_sha256": "f7a1e0aa8bee8a0ff9479856e807be6d8aa30373db8934d5b093342690ae9a48",
+    "source_sha256": "0f79577ba048eb88f8fbb886cd698b3beacac2fdfa9a6c8db309597ea35cc72e",
+    "patched_source_sha256": "6a5e2756cf7971b1dcbb767019068bdea0a4a562bd681dfd5977019f659472fc",
+    "replaced_classes": [
+     "com/minerl/multiagent/env/EnvServer$1.class",
+     "com/minerl/multiagent/env/EnvServer.class",
+     "com/minerl/multiagent/recorder/PlayRecorder.class",
+     "net/minecraft/client/ReplaySender$Mode.class",
+     "net/minecraft/client/ReplaySender.class",
+     "net/minecraft/client/gui/screen/DeathScreen.class",
+     "net/minecraft/client/gui/screen/inventory/CraftGuiObservation.class",
+     "net/minecraft/client/gui/screen/inventory/WorkshopObservation$1.class",
+     "net/minecraft/client/gui/screen/inventory/WorkshopObservation$WoodTracker.class",
+     "net/minecraft/client/gui/screen/inventory/WorkshopObservation.class",
+     "net/minecraft/server/management/PlayerInteractionManager.class"
+    ],
+    "scope": "save barrier + fresh world storage identity + read-only craft GUI monitor + read-only workshop telemetry + opt-in terminal death handshake"
+   }
+  },
+  {
+   "path": ".runtime/world-save/71cc8c85a107f8a85bbdfd65b20521a51cce993cf07162dd1c19afe768d78db9.jar",
+   "patch_hash": "71cc8c85a107f8a85bbdfd65b20521a51cce993cf07162dd1c19afe768d78db9",
+   "mb": 444,
+   "built": "2026-10-07 12:38",
+   "receipt": {
+    "artifact": "71cc8c85a107f8a85bbdfd65b20521a51cce993cf07162dd1c19afe768d78db9.jar",
+    "sha256": "7055b595f897f72a815e6d0ccc30a01e2fcb51c7aaa6e7d5f2dc48f4ad153454",
+    "upstream_sha256": "f7a1e0aa8bee8a0ff9479856e807be6d8aa30373db8934d5b093342690ae9a48",
+    "source_sha256": "0f79577ba048eb88f8fbb886cd698b3beacac2fdfa9a6c8db309597ea35cc72e",
+    "patched_source_sha256": "71cc8c85a107f8a85bbdfd65b20521a51cce993cf07162dd1c19afe768d78db9",
+    "replaced_classes": [
+     "com/minerl/multiagent/env/EnvServer$1.class",
+     "com/minerl/multiagent/env/EnvServer.class",
+     "com/minerl/multiagent/recorder/PlayRecorder.class",
+     "net/minecraft/client/ReplaySender$Mode.class",
+     "net/minecraft/client/ReplaySender.class",
+     "net/minecraft/client/gui/screen/inventory/CraftGuiObservation.class",
+     "net/minecraft/client/gui/screen/inventory/WorkshopObservation.class"
+    ],
+    "scope": "save barrier + fresh world storage identity + read-only craft GUI monitor"
+   }
+  },
+  {
+   "path": ".runtime/world-save/922ba6cc2772b3f574bc846f68ff02ac5f33e0799387a579f4b85bc7e0bc9183.jar",
+   "patch_hash": "922ba6cc2772b3f574bc846f68ff02ac5f33e0799387a579f4b85bc7e0bc9183",
+   "mb": 444,
+   "built": "2026-10-05 09:23",
+   "receipt": {
+    "artifact": "922ba6cc2772b3f574bc846f68ff02ac5f33e0799387a579f4b85bc7e0bc9183.jar",
+    "sha256": "8555e8bd1a09686e10618521891a5b1d9778bd1713addf87a35503beb4c4e51d",
+    "upstream_sha256": "f7a1e0aa8bee8a0ff9479856e807be6d8aa30373db8934d5b093342690ae9a48",
+    "source_sha256": "0f79577ba048eb88f8fbb886cd698b3beacac2fdfa9a6c8db309597ea35cc72e",
+    "patched_source_sha256": "922ba6cc2772b3f574bc846f68ff02ac5f33e0799387a579f4b85bc7e0bc9183",
+    "replaced_classes": [
+     "com/minerl/multiagent/env/EnvServer$1.class",
+     "com/minerl/multiagent/env/EnvServer.class",
+     "net/minecraft/client/ReplaySender$Mode.class",
+     "net/minecraft/client/ReplaySender.class",
+     "net/minecraft/client/gui/screen/inventory/CraftGuiObservation.class"
+    ],
+    "scope": "save barrier + read-only craft GUI monitor"
+   }
+  },
+  {
+   "path": ".runtime/world-save/a022bcdaf9a90379921d0cdc6fe383f6545d627f73c1f714164a0dc4b3ae74eb.jar",
+   "patch_hash": "a022bcdaf9a90379921d0cdc6fe383f6545d627f73c1f714164a0dc4b3ae74eb",
+   "mb": 444,
+   "built": "2026-10-16 06:24",
+   "receipt": {
+    "artifact": "a022bcdaf9a90379921d0cdc6fe383f6545d627f73c1f714164a0dc4b3ae74eb.jar",
+    "sha256": "01f78d12a1b8a33c2ca4e8e93c88b6151cb2843e7fed128e1b217c0827c370af",
+    "upstream_sha256": "f7a1e0aa8bee8a0ff9479856e807be6d8aa30373db8934d5b093342690ae9a48",
+    "source_sha256": "0f79577ba048eb88f8fbb886cd698b3beacac2fdfa9a6c8db309597ea35cc72e",
+    "patched_source_sha256": "a022bcdaf9a90379921d0cdc6fe383f6545d627f73c1f714164a0dc4b3ae74eb",
+    "replaced_classes": [
+     "com/minerl/multiagent/env/EnvServer$1.class",
+     "com/minerl/multiagent/env/EnvServer.class",
+     "com/minerl/multiagent/recorder/PlayRecorder.class",
+     "net/minecraft/client/ReplaySender$Mode.class",
+     "net/minecraft/client/ReplaySender.class",
+     "net/minecraft/client/gui/screen/DeathScreen.class",
+     "net/minecraft/client/gui/screen/inventory/CraftGuiObservation.class",
+     "net/minecraft/client/gui/screen/inventory/WorkshopObservation$1.class",
+     "net/minecraft/client/gui/screen/inventory/WorkshopObservation$WoodTracker.class",
+     "net/minecraft/client/gui/screen/inventory/WorkshopObservation.class",
+     "net/minecraft/server/management/PlayerInteractionManager.class"
+    ],
+    "scope": "save barrier + fresh world storage identity + read-only craft GUI monitor + read-only workshop telemetry + opt-in terminal death handshake"
+   }
+  },
+  {
+   "path": ".runtime/world-save/b6eb82e44190c3931243745f5aefc656134980e29f9e6ea1b6e61dc781966d32.jar",
+   "patch_hash": "b6eb82e44190c3931243745f5aefc656134980e29f9e6ea1b6e61dc781966d32",
+   "mb": 444,
+   "built": "2026-10-07 08:38",
+   "receipt": {
+    "artifact": "b6eb82e44190c3931243745f5aefc656134980e29f9e6ea1b6e61dc781966d32.jar",
+    "sha256": "20b8fbe33500ba7932d5787782d66a81c98db6fd3e61ab67e0623e225d37f2b5",
+    "upstream_sha256": "f7a1e0aa8bee8a0ff9479856e807be6d8aa30373db8934d5b093342690ae9a48",
+    "source_sha256": "0f79577ba048eb88f8fbb886cd698b3beacac2fdfa9a6c8db309597ea35cc72e",
+    "patched_source_sha256": "b6eb82e44190c3931243745f5aefc656134980e29f9e6ea1b6e61dc781966d32",
+    "replaced_classes": [
+     "com/minerl/multiagent/env/EnvServer$1.class",
+     "com/minerl/multiagent/env/EnvServer.class",
+     "com/minerl/multiagent/recorder/PlayRecorder.class",
+     "net/minecraft/client/ReplaySender$Mode.class",
+     "net/minecraft/client/ReplaySender.class",
+     "net/minecraft/client/gui/screen/inventory/CraftGuiObservation.class",
+     "net/minecraft/client/gui/screen/inventory/WorkshopObservation.class"
+    ],
+    "scope": "save barrier + fresh world storage identity + read-only craft GUI monitor"
+   }
+  },
+  {
+   "path": ".runtime/world-save/ce3fa394acd66bb494f82b66aa4ff3cd65a58a43516be041794cbcb78a03e5aa.jar",
+   "patch_hash": "ce3fa394acd66bb494f82b66aa4ff3cd65a58a43516be041794cbcb78a03e5aa",
+   "mb": 444,
+   "built": "2026-10-16 06:05",
+   "receipt": {
+    "artifact": "ce3fa394acd66bb494f82b66aa4ff3cd65a58a43516be041794cbcb78a03e5aa.jar",
+    "sha256": "0049d8f2689613ac21c6d15c02821fc0534a1bfc96d58e349183745a7e5981d5",
+    "upstream_sha256": "f7a1e0aa8bee8a0ff9479856e807be6d8aa30373db8934d5b093342690ae9a48",
+    "source_sha256": "0f79577ba048eb88f8fbb886cd698b3beacac2fdfa9a6c8db309597ea35cc72e",
+    "patched_source_sha256": "ce3fa394acd66bb494f82b66aa4ff3cd65a58a43516be041794cbcb78a03e5aa",
+    "replaced_classes": [
+     "com/minerl/multiagent/env/EnvServer$1.class",
+     "com/minerl/multiagent/env/EnvServer.class",
+     "com/minerl/multiagent/recorder/PlayRecorder.class",
+     "net/minecraft/client/ReplaySender$Mode.class",
+     "net/minecraft/client/ReplaySender.class",
+     "net/minecraft/client/gui/screen/DeathScreen.class",
+     "net/minecraft/client/gui/screen/inventory/CraftGuiObservation.class",
+     "net/minecraft/client/gui/screen/inventory/WorkshopObservation$1.class",
+     "net/minecraft/client/gui/screen/inventory/WorkshopObservation$WoodTracker.class",
+     "net/minecraft/client/gui/screen/inventory/WorkshopObservation.class",
+     "net/minecraft/server/management/PlayerInteractionManager.class"
+    ],
+    "scope": "save barrier + fresh world storage identity + read-only craft GUI monitor + read-only workshop telemetry + opt-in terminal death handshake"
+   }
+  },
+  {
+   "path": ".runtime/world-save/d0d80798b76a5ccfe6d4350dbf33bea7efb93a9504e55394a7ce9b5b5166b917.jar",
+   "patch_hash": "d0d80798b76a5ccfe6d4350dbf33bea7efb93a9504e55394a7ce9b5b5166b917",
+   "mb": 444,
+   "built": "2026-10-05 10:31",
+   "receipt": {
+    "artifact": "d0d80798b76a5ccfe6d4350dbf33bea7efb93a9504e55394a7ce9b5b5166b917.jar",
+    "sha256": "eefe99fd8cfcacb434fc1accab7d86398f1a68670de12d8ab19240bdf0a83a61",
+    "upstream_sha256": "f7a1e0aa8bee8a0ff9479856e807be6d8aa30373db8934d5b093342690ae9a48",
+    "source_sha256": "0f79577ba048eb88f8fbb886cd698b3beacac2fdfa9a6c8db309597ea35cc72e",
+    "patched_source_sha256": "d0d80798b76a5ccfe6d4350dbf33bea7efb93a9504e55394a7ce9b5b5166b917",
+    "replaced_classes": [
+     "com/minerl/multiagent/env/EnvServer$1.class",
+     "com/minerl/multiagent/env/EnvServer.class",
+     "net/minecraft/client/ReplaySender$Mode.class",
+     "net/minecraft/client/ReplaySender.class",
+     "net/minecraft/client/gui/screen/inventory/CraftGuiObservation.class",
+     "net/minecraft/client/gui/screen/inventory/WorkshopObservation.class"
+    ],
+    "scope": "save barrier + read-only craft GUI monitor"
+   }
+  },
+  {
+   "path": ".runtime/world-save/d5052572e5ff5946ee0d37e241f2b63b81b8ffb79437256d5cb52af0e30e0a99.jar",
+   "patch_hash": "d5052572e5ff5946ee0d37e241f2b63b81b8ffb79437256d5cb52af0e30e0a99",
+   "mb": 444,
+   "built": "2026-10-07 14:44",
+   "receipt": {
+    "artifact": "d5052572e5ff5946ee0d37e241f2b63b81b8ffb79437256d5cb52af0e30e0a99.jar",
+    "sha256": "2de8cff9236d41fc3abcf12ee1788210016bc45a10bd83eff7af6734bc9a9677",
+    "upstream_sha256": "f7a1e0aa8bee8a0ff9479856e807be6d8aa30373db8934d5b093342690ae9a48",
+    "source_sha256": "0f79577ba048eb88f8fbb886cd698b3beacac2fdfa9a6c8db309597ea35cc72e",
+    "patched_source_sha256": "d5052572e5ff5946ee0d37e241f2b63b81b8ffb79437256d5cb52af0e30e0a99",
+    "replaced_classes": [
+     "com/minerl/multiagent/env/EnvServer$1.class",
+     "com/minerl/multiagent/env/EnvServer.class",
+     "com/minerl/multiagent/recorder/PlayRecorder.class",
+     "net/minecraft/client/ReplaySender$Mode.class",
+     "net/minecraft/client/ReplaySender.class",
+     "net/minecraft/client/gui/screen/DeathScreen.class",
+     "net/minecraft/client/gui/screen/inventory/CraftGuiObservation.class",
+     "net/minecraft/client/gui/screen/inventory/WorkshopObservation.class"
+    ],
+    "scope": "save barrier + fresh world storage identity + read-only craft GUI monitor + read-only workshop telemetry + opt-in terminal death handshake"
+   }
+  },
+  {
+   "path": ".runtime/world-save/d6706c3e39e4c0bb1a3f2e5f8b2f6d893a1a0f6c6d43ba69282ce29e501fb0fa.jar",
+   "patch_hash": "d6706c3e39e4c0bb1a3f2e5f8b2f6d893a1a0f6c6d43ba69282ce29e501fb0fa",
+   "mb": 444,
+   "built": "2026-10-05 02:47",
+   "receipt": {
+    "artifact": "d6706c3e39e4c0bb1a3f2e5f8b2f6d893a1a0f6c6d43ba69282ce29e501fb0fa.jar",
+    "sha256": "4746dc8614a8d91dc4fdba256133e7181c0f68bc3944e4353e5e2959c42db647",
+    "upstream_sha256": "f7a1e0aa8bee8a0ff9479856e807be6d8aa30373db8934d5b093342690ae9a48",
+    "source_sha256": "0f79577ba048eb88f8fbb886cd698b3beacac2fdfa9a6c8db309597ea35cc72e",
+    "patched_source_sha256": "d6706c3e39e4c0bb1a3f2e5f8b2f6d893a1a0f6c6d43ba69282ce29e501fb0fa",
+    "replaced_classes": [
+     "com/minerl/multiagent/env/EnvServer$1.class",
+     "com/minerl/multiagent/env/EnvServer.class",
+     "net/minecraft/client/ReplaySender$Mode.class",
+     "net/minecraft/client/ReplaySender.class",
+     "net/minecraft/client/gui/screen/inventory/CraftGuiObservation.class"
+    ],
+    "scope": "save barrier + read-only craft GUI monitor"
+   }
+  },
+  {
+   "path": ".runtime/world-save/d93b2aa7ecce411966aba36a06b71ff8416307f67207bda36ecd93aef7f7ccbb.jar",
+   "patch_hash": "d93b2aa7ecce411966aba36a06b71ff8416307f67207bda36ecd93aef7f7ccbb",
+   "mb": 444,
+   "built": "2026-10-16 11:23",
+   "receipt": {
+    "artifact": "d93b2aa7ecce411966aba36a06b71ff8416307f67207bda36ecd93aef7f7ccbb.jar",
+    "sha256": "e7149e2ae78c68ff4bd523f9b74c661351a7a0b3345a6791a4eb173a30418877",
+    "upstream_sha256": "f7a1e0aa8bee8a0ff9479856e807be6d8aa30373db8934d5b093342690ae9a48",
+    "source_sha256": "0f79577ba048eb88f8fbb886cd698b3beacac2fdfa9a6c8db309597ea35cc72e",
+    "patched_source_sha256": "d93b2aa7ecce411966aba36a06b71ff8416307f67207bda36ecd93aef7f7ccbb",
+    "replaced_classes": [
+     "com/minerl/multiagent/env/EnvServer$1.class",
+     "com/minerl/multiagent/env/EnvServer.class",
+     "com/minerl/multiagent/recorder/PlayRecorder.class",
+     "net/minecraft/client/ReplaySender$Mode.class",
+     "net/minecraft/client/ReplaySender.class",
+     "net/minecraft/client/gui/screen/DeathScreen.class",
+     "net/minecraft/client/gui/screen/inventory/CraftGuiObservation.class",
+     "net/minecraft/client/gui/screen/inventory/WorkshopObservation$1.class",
+     "net/minecraft/client/gui/screen/inventory/WorkshopObservation$WoodTracker.class",
+     "net/minecraft/client/gui/screen/inventory/WorkshopObservation.class",
+     "net/minecraft/server/management/PlayerInteractionManager.class"
+    ],
+    "scope": "save barrier + fresh world storage identity + read-only craft GUI monitor + read-only workshop telemetry + opt-in terminal death handshake"
+   }
+  },
+  {
+   "path": ".runtime/world-save/da2e0163e88cb4942aea66f334d5c4e1cd49d028bf1429b9811d073b55a36fbc.jar",
+   "patch_hash": "da2e0163e88cb4942aea66f334d5c4e1cd49d028bf1429b9811d073b55a36fbc",
+   "mb": 444,
+   "built": "2026-10-19 10:24",
+   "receipt": {
+    "artifact": "da2e0163e88cb4942aea66f334d5c4e1cd49d028bf1429b9811d073b55a36fbc.jar",
+    "sha256": "aa9a25709aaf158df6d111fedf30fc609061015d250c04c15d70f2ffebca6af0",
+    "upstream_sha256": "f7a1e0aa8bee8a0ff9479856e807be6d8aa30373db8934d5b093342690ae9a48",
+    "source_sha256": "0f79577ba048eb88f8fbb886cd698b3beacac2fdfa9a6c8db309597ea35cc72e",
+    "patched_source_sha256": "da2e0163e88cb4942aea66f334d5c4e1cd49d028bf1429b9811d073b55a36fbc",
+    "replaced_classes": [
+     "com/minerl/multiagent/env/EnvServer$1.class",
+     "com/minerl/multiagent/env/EnvServer.class",
+     "com/minerl/multiagent/recorder/PlayRecorder.class",
+     "net/minecraft/client/ReplaySender$Mode.class",
+     "net/minecraft/client/ReplaySender.class",
+     "net/minecraft/client/gui/screen/DeathScreen.class",
+     "net/minecraft/client/gui/screen/inventory/CraftGuiObservation.class",
+     "net/minecraft/client/gui/screen/inventory/StartupRandomTicks.class",
+     "net/minecraft/client/gui/screen/inventory/WorkshopObservation$1.class",
+     "net/minecraft/client/gui/screen/inventory/WorkshopObservation$WoodTracker.class",
+     "net/minecraft/client/gui/screen/inventory/WorkshopObservation.class",
+     "net/minecraft/server/management/PlayerInteractionManager.class"
+    ],
+    "scope": "save barrier + fresh world storage identity + read-only craft GUI monitor + read-only workshop telemetry + opt-in terminal death handshake + opt-in startup random block tick restoration"
+   }
+  },
+  {
+   "path": ".runtime/world-save/de21ca79663e579a19b1a9f0ea0cf13c7c244c7a7d8182f9c1b618439bc3fd44.jar",
+   "patch_hash": "de21ca79663e579a19b1a9f0ea0cf13c7c244c7a7d8182f9c1b618439bc3fd44",
+   "mb": 444,
+   "built": "2026-10-16 01:16",
+   "receipt": {
+    "artifact": "de21ca79663e579a19b1a9f0ea0cf13c7c244c7a7d8182f9c1b618439bc3fd44.jar",
+    "sha256": "57ed0da0cd0cef5ead7392632a00376072e2a235249eba24504309990a26126f",
+    "upstream_sha256": "f7a1e0aa8bee8a0ff9479856e807be6d8aa30373db8934d5b093342690ae9a48",
+    "source_sha256": "0f79577ba048eb88f8fbb886cd698b3beacac2fdfa9a6c8db309597ea35cc72e",
+    "patched_source_sha256": "de21ca79663e579a19b1a9f0ea0cf13c7c244c7a7d8182f9c1b618439bc3fd44",
+    "replaced_classes": [
+     "com/minerl/multiagent/env/EnvServer$1.class",
+     "com/minerl/multiagent/env/EnvServer.class",
+     "net/minecraft/client/ReplaySender$Mode.class",
+     "net/minecraft/client/ReplaySender.class"
+    ],
+    "scope": "save barrier + fresh world storage identity"
+   }
+  },
+  {
+   "path": ".runtime/world-save/df018cefa323df997b1a5b105b9f5e34113abf6494c6600fbf7ce5d62f2374ec.jar",
+   "patch_hash": "df018cefa323df997b1a5b105b9f5e34113abf6494c6600fbf7ce5d62f2374ec",
+   "mb": 444,
+   "built": "2026-10-04 09:26",
+   "receipt": {
+    "artifact": "df018cefa323df997b1a5b105b9f5e34113abf6494c6600fbf7ce5d62f2374ec.jar",
+    "sha256": "984f6336b9e0e851a3c9f586c6d3f13dffbcba277485601a025233d2d36599a6",
+    "upstream_sha256": "f7a1e0aa8bee8a0ff9479856e807be6d8aa30373db8934d5b093342690ae9a48",
+    "source_sha256": "0f79577ba048eb88f8fbb886cd698b3beacac2fdfa9a6c8db309597ea35cc72e",
+    "patched_source_sha256": "df018cefa323df997b1a5b105b9f5e34113abf6494c6600fbf7ce5d62f2374ec",
+    "replaced_classes": [
+     "net/minecraft/client/ReplaySender$Mode.class",
+     "net/minecraft/client/ReplaySender.class"
+    ],
+    "scope": "session save barrier only"
+   }
+  },
+  {
+   "path": ".runtime/world-save/e33e2866d12aa5661b889b1b167ec9330003ad3f1eb91937b2009eaed7d4f7a4.jar",
+   "patch_hash": "e33e2866d12aa5661b889b1b167ec9330003ad3f1eb91937b2009eaed7d4f7a4",
+   "mb": 444,
+   "built": "2026-10-05 10:40",
+   "receipt": {
+    "artifact": "e33e2866d12aa5661b889b1b167ec9330003ad3f1eb91937b2009eaed7d4f7a4.jar",
+    "sha256": "ece55d1cf1f7d9acce64577a69ab530c506350e696ce50a2666c629ce864d1e2",
+    "upstream_sha256": "f7a1e0aa8bee8a0ff9479856e807be6d8aa30373db8934d5b093342690ae9a48",
+    "source_sha256": "0f79577ba048eb88f8fbb886cd698b3beacac2fdfa9a6c8db309597ea35cc72e",
+    "patched_source_sha256": "e33e2866d12aa5661b889b1b167ec9330003ad3f1eb91937b2009eaed7d4f7a4",
+    "replaced_classes": [
+     "com/minerl/multiagent/env/EnvServer$1.class",
+     "com/minerl/multiagent/env/EnvServer.class",
+     "net/minecraft/client/ReplaySender$Mode.class",
+     "net/minecraft/client/ReplaySender.class",
+     "net/minecraft/client/gui/screen/inventory/CraftGuiObservation.class",
+     "net/minecraft/client/gui/screen/inventory/WorkshopObservation.class"
+    ],
+    "scope": "save barrier + read-only craft GUI monitor"
+   }
+  },
+  {
+   "path": ".runtime/world-save/e97e73654cfb005d55d6da599a2974fccdd1a87f0722f6d846c419a29e945892.jar",
+   "patch_hash": "e97e73654cfb005d55d6da599a2974fccdd1a87f0722f6d846c419a29e945892",
+   "mb": 444,
+   "built": "2026-10-16 05:06",
+   "receipt": {
+    "artifact": "e97e73654cfb005d55d6da599a2974fccdd1a87f0722f6d846c419a29e945892.jar",
+    "sha256": "66e96a8c6427e3efabb2a48b67a2e6a365be6954d67d47d2d6362e18b37cca44",
+    "upstream_sha256": "f7a1e0aa8bee8a0ff9479856e807be6d8aa30373db8934d5b093342690ae9a48",
+    "source_sha256": "0f79577ba048eb88f8fbb886cd698b3beacac2fdfa9a6c8db309597ea35cc72e",
+    "patched_source_sha256": "e97e73654cfb005d55d6da599a2974fccdd1a87f0722f6d846c419a29e945892",
+    "replaced_classes": [
+     "com/minerl/multiagent/env/EnvServer$1.class",
+     "com/minerl/multiagent/env/EnvServer.class",
+     "com/minerl/multiagent/recorder/PlayRecorder.class",
+     "net/minecraft/client/ReplaySender$Mode.class",
+     "net/minecraft/client/ReplaySender.class",
+     "net/minecraft/client/gui/screen/DeathScreen.class",
+     "net/minecraft/client/gui/screen/inventory/CraftGuiObservation.class",
+     "net/minecraft/client/gui/screen/inventory/WorkshopObservation$1.class",
+     "net/minecraft/client/gui/screen/inventory/WorkshopObservation$WoodTracker.class",
+     "net/minecraft/client/gui/screen/inventory/WorkshopObservation.class",
+     "net/minecraft/server/management/PlayerInteractionManager.class"
+    ],
+    "scope": "save barrier + fresh world storage identity + read-only craft GUI monitor + read-only workshop telemetry + opt-in terminal death handshake"
+   }
+  },
+  {
+   "path": ".runtime/world-save/ef94002d611118a561c31a11e22213ad32ae09abe8012d3b18b479124fd0f042.jar",
+   "patch_hash": "ef94002d611118a561c31a11e22213ad32ae09abe8012d3b18b479124fd0f042",
+   "mb": 444,
+   "built": "2026-10-17 14:25",
+   "receipt": {
+    "artifact": "ef94002d611118a561c31a11e22213ad32ae09abe8012d3b18b479124fd0f042.jar",
+    "sha256": "dac9a1c9cb6b0a7d848559cd7f55d88f7d5bd89db4bad4d5ed35cf8fe9a530a2",
+    "upstream_sha256": "f7a1e0aa8bee8a0ff9479856e807be6d8aa30373db8934d5b093342690ae9a48",
+    "source_sha256": "0f79577ba048eb88f8fbb886cd698b3beacac2fdfa9a6c8db309597ea35cc72e",
+    "patched_source_sha256": "ef94002d611118a561c31a11e22213ad32ae09abe8012d3b18b479124fd0f042",
+    "replaced_classes": [
+     "com/minerl/multiagent/env/EnvServer$1.class",
+     "com/minerl/multiagent/env/EnvServer.class",
+     "com/minerl/multiagent/recorder/PlayRecorder.class",
+     "net/minecraft/client/ReplaySender$Mode.class",
+     "net/minecraft/client/ReplaySender.class",
+     "net/minecraft/client/gui/screen/DeathScreen.class",
+     "net/minecraft/client/gui/screen/inventory/CraftGuiObservation.class",
+     "net/minecraft/client/gui/screen/inventory/WorkshopObservation$1.class",
+     "net/minecraft/client/gui/screen/inventory/WorkshopObservation$WoodTracker.class",
+     "net/minecraft/client/gui/screen/inventory/WorkshopObservation.class",
+     "net/minecraft/server/management/PlayerInteractionManager.class"
+    ],
+    "scope": "save barrier + fresh world storage identity + read-only craft GUI monitor + read-only workshop telemetry + opt-in terminal death handshake"
+   }
+  },
+  {
+   "path": ".runtime/world-save/f049980e562d0b23768df7e9617b540bce8eb6d93342e2b8abdb74cf9b49716d.jar",
+   "patch_hash": "f049980e562d0b23768df7e9617b540bce8eb6d93342e2b8abdb74cf9b49716d",
+   "mb": 444,
+   "built": "2026-10-16 11:25",
+   "receipt": {
+    "artifact": "f049980e562d0b23768df7e9617b540bce8eb6d93342e2b8abdb74cf9b49716d.jar",
+    "sha256": "9c242b68312b034d01b7055a00bb46517c0c1f1ce21bef02639d32bfda909030",
+    "upstream_sha256": "f7a1e0aa8bee8a0ff9479856e807be6d8aa30373db8934d5b093342690ae9a48",
+    "source_sha256": "0f79577ba048eb88f8fbb886cd698b3beacac2fdfa9a6c8db309597ea35cc72e",
+    "patched_source_sha256": "f049980e562d0b23768df7e9617b540bce8eb6d93342e2b8abdb74cf9b49716d",
+    "replaced_classes": [
+     "com/minerl/multiagent/env/EnvServer$1.class",
+     "com/minerl/multiagent/env/EnvServer.class",
+     "com/minerl/multiagent/recorder/PlayRecorder.class",
+     "net/minecraft/client/ReplaySender$Mode.class",
+     "net/minecraft/client/ReplaySender.class",
+     "net/minecraft/client/gui/screen/DeathScreen.class",
+     "net/minecraft/client/gui/screen/inventory/CraftGuiObservation.class",
+     "net/minecraft/client/gui/screen/inventory/WorkshopObservation$1.class",
+     "net/minecraft/client/gui/screen/inventory/WorkshopObservation$WoodTracker.class",
+     "net/minecraft/client/gui/screen/inventory/WorkshopObservation.class",
+     "net/minecraft/server/management/PlayerInteractionManager.class"
+    ],
+    "scope": "save barrier + fresh world storage identity + read-only craft GUI monitor + read-only workshop telemetry + opt-in terminal death handshake"
+   }
+  }
+ ]
+}

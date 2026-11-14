@@ -8,10 +8,14 @@
 **15:23 사슬 멈춤: D 드라이브가 가득 참(남은 공간 약 20MB).** WSL 디스크(`D:\WSL\Ubuntu-24.04\ext4.vhdx`, 117.8GB)가 더 커지지 못해 WSL 파일 시스템이 읽기 전용이 됐다.
 - 건축: 교사 점검 12/12(유효), R0 공식 c101–c104(유효) 뒤 c105 실행이 환경 시작 전에 실패했다(무효, `r0/excluded/official/`로 옮겨짐). 재시도 2번은 `/tmp` 읽기 전용으로 바로 끝났고, 스크립트가 "incomplete"로 멈췄다.
 - 채굴 v3: `aim.sh`는 git 실행 오류(Input/output error)로 브랜치 확인에서 멈췄다. `mining-aim` 병합과 게임은 하지 않았다(HEAD 18dfefd 그대로).
-- 다시 시작하려면 D:에 공간이 필요하다. 그 뒤 WSL을 다시 시작하고 파일 시스템을 점검한 다음, 건축을 끝난 실행은 건너뛰도록 이어서 실행하고 채굴 v3를 순서대로 띄운다.
-  `build.log`에 이미 "DETACHED SCRIPT ENDED"가 있으므로, 채굴 v3는 새 건축 로그를 기다리게 바꿔서 띄운다(두 게임 동시 실행 방지).
+- 정리(사용자 지시 "옛날꺼… 정리만 해서 보고서형태로 남기고 지워도 좋아"): 54.4GB를 지웠다. 옛 채굴 중간 데이터셋 16개, 10월 게임 jar 26개,
+  11-01–03 실험 폴더 5개의 무거운 파일이다. D: 남은 공간은 98.2GB다. [정리 보고](archive/results-cleanup-2026-11-14.md).
+- WSL은 다시 시작하면서 저널을 복구했다(고아 inode 16개). 읽기·쓰기 정상이고, 안에서 쓰는 공간은 9.2GB다.
+- 바탕화면의 작업 폴더 4개(`MinecraftRL-place/-bridge/-build/-mining3`)를 `git worktree move`로 `.worktrees/` 안으로 옮겼다(사용자 지시).
+- 재개: 건축은 같은 스크립트를 새 로그 `build-resume.log`로 다시 띄운다. 끝난 실행은 건너뛴다.
+  채굴 v3 `aim.sh`는 `build.log` 대신 `build-resume.log`의 끝을 기다리게 바꿨고, 로그는 `aim-resume.log`다(두 게임 동시 실행 방지).
 
-| 순서 | 배치(로그) | 코드 | 상태(15:35) |
+| 순서 | 배치(로그) | 코드 | 상태(재개 전) |
 |---|---|---|---|
 | 1 | 채굴 v2 방향 입력 `results/multi-block-20261108/launch/direction.log` | `jump-map` dccbc3c | 끝남(08:26). 아래 "완료: 채굴 v2" |
 | 2 | 블록 놓기 `results/place-20261114/launch/place.log` | `jump-map` 594d0ed | 끝남(11:39). 아래 "완료: 블록 놓기" |
