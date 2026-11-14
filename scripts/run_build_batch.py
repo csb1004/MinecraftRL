@@ -10,6 +10,8 @@ skipped; <batch>/STOP halts; inputs are hashed into <batch>/frozen-<arm>-c<task>
 launch is moved to <batch>/excluded/ and halts the batch. Runs are <arm>/c<task>-s<seed>-n<n>.
 --teacher recover (design docs/specs/2026-11-15-build-recover-design.md) names the recovering teacher in the fixture
 (same task and world): the game then uses its stages, feed and teacher check, and its module is in the input record.
+Mode occluded (occlusion check, docs/specs/2026-11-15-build-occluded-check-design.md): occluded tasks on 707106, the
+recovering teacher only; the fixture sets a block right in front of the first cell (build_recover.occluded_build).
 """
 import argparse
 import json
@@ -21,11 +23,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'src'))
 sys.path.insert(0, str(ROOT / 'scripts'))
-from minecraftrl.build_recover import build2_fixture  # noqa: E402
+from minecraftrl.build_recover import build2_fixture, occluded_build  # noqa: E402
 from minecraftrl.build_task import build_fixture, generate_build  # noqa: E402
 from run_reacquire_batch import POLICY_DEVICE_MIB, frozen_ok, input_hashes, nvidia_free_mib, run_game, write  # noqa: E402
 
-MODES = {'train': (271828, 314159, 161803), 'dev': (130363,), 'final': (662607,)}
+MODES = {'train': (271828, 314159, 161803), 'dev': (130363,), 'final': (662607,), 'occluded': (707106,)}
 REGISTRY = 'configs/build-v1.json'
 BASE = 'configs/reacquire-v1.json'
 SKILL = 'build'
@@ -59,12 +61,15 @@ def build_config(base, registry, checkpoint, use_stage, teacher_check=False):
     return config
 
 
-def prepare(batch, arm, root, task, checkpoint, use_stage, teacher_check=False, teacher='round1'):
+def prepare(batch, arm, root, task, checkpoint, use_stage, teacher_check=False, teacher='round1', occluded=False):
     if teacher not in TEACHERS: raise ValueError('teacher must be one of %s' % sorted(TEACHERS))
+    if occluded and teacher != 'recover': raise ValueError('the occlusion check needs the recovering teacher')
+    blueprint = occluded_build(task) if occluded else generate_build(task)
+    if blueprint is None: raise ValueError('task %d has no free cell in front of its first cell' % task)
     registry = load_registry(root)
     base = json.loads((Path(root) / BASE).read_text(encoding='utf-8'))
     config = write(batch / 'configs' / (arm + '.json'), build_config(base, registry, checkpoint, use_stage, teacher_check))
-    fixture = write(batch / 'fixtures' / ('task-%d.json' % task), TEACHERS[teacher](generate_build(task)))
+    fixture = write(batch / 'fixtures' / ('task-%d.json' % task), TEACHERS[teacher](blueprint))
     step = (dict(id='check', skill='build_teacher', kind='scripted', target='build_done', count=1,
                  params=dict(driver='build_teacher', limit_steps=LIMIT_S * 20)) if teacher_check
             else dict(id='build', skill=SKILL, kind='policy', target='build_done', count=1, params=dict(until='build')))
@@ -82,6 +87,7 @@ def collect(*, batch, arm, checkpoint, use_stage, mode, tasks, seeds, sampling, 
     check(mode, tasks, seeds, registry)
     if not batch.is_relative_to(root / 'results'): raise ValueError('batch must be under results/')
     if teacher_check and checkpoint is not None: raise ValueError('the teacher check has no head')
+    if mode == 'occluded' and teacher != 'recover': raise ValueError('the occlusion check needs the recovering teacher')
     if not teacher_check and not registry['sha256']: raise ValueError('the build prompt embedding is not made yet (%s)' % REGISTRY)
     if checkpoint is not None and not Path(checkpoint).exists(): raise ValueError('no checkpoint: %s' % checkpoint)
     meta = dict(arm=arm, checkpoint=None if checkpoint is None else str(Path(checkpoint).resolve()), use_stage=bool(use_stage),
@@ -89,7 +95,8 @@ def collect(*, batch, arm, checkpoint, use_stage, mode, tasks, seeds, sampling, 
                 scope='building; no API; success = the server placement record covers the blueprint')
     if teacher != 'round1': meta['teacher'] = teacher          # round 1 records stay as they were
     for task in tasks:
-        config, fixture, plan = prepare(batch, arm, root, task, meta['checkpoint'], use_stage, teacher_check, teacher)
+        config, fixture, plan = prepare(batch, arm, root, task, meta['checkpoint'], use_stage, teacher_check, teacher,
+                                        occluded=mode == 'occluded')
         files = [config, fixture, plan, root / REGISTRY, root / 'src/minecraftrl/build_task.py',
                  root / 'src/minecraftrl/place_task.py',
                  root / 'src/minecraftrl/PlaceObservation.java', root / 'src/minecraftrl/world_save_patch.py']

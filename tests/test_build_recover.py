@@ -6,7 +6,7 @@ from pathlib import Path
 
 from minecraftrl import build_recover as br
 from minecraftrl import build_task as ct
-from minecraftrl.place_task import EYE
+from minecraftrl.place_task import EYE, _at
 
 ORIGIN = (0, 64, 0)        # start block; yaw 0 faces +z and task dx is world -x
 
@@ -113,6 +113,30 @@ class FeedTest(unittest.TestCase):
         self.assertEqual(fixture['build']['teacher'], 'recover')
         self.assertIsInstance(br.feed_for(fixture), br.RecoverFeed)
         self.assertEqual(br.stages_for(fixture), br.BUILD2_STAGES); self.assertEqual(br.stages_for(ct.build_fixture(t)), ct.BUILD_STAGES)
+
+
+class OccludedTest(unittest.TestCase):
+    """Occlusion check (design 2026-11-15): a block of the task's kind stands right in front of the first cell."""
+
+    def test_an_occluded_task_puts_a_block_in_front_of_the_first_cell_when_that_cell_is_free(self):
+        t = br.occluded_build(401)
+        self.assertEqual(t['cells'], ct.generate_build(401)['cells'])
+        self.assertEqual(t['clutter'], [[-2, 0, 3]])
+        self.assertIsNone(br.occluded_build(403))                  # line3: the cell in front is a blueprint cell
+
+    def test_the_block_is_solid_in_the_world_and_set_by_the_fixture(self):
+        t = br.occluded_build(401)
+        self.assertIn(_at(ORIGIN, 0., -2, 0, 3), br.world_build2(t, ORIGIN, 0.)['solids'])
+        self.assertEqual(br.build2_fixture(t)['blocks'], [dict(dx=-2, dy=0, dz=3, block='cobblestone')])
+        plain = br.build2_fixture(ct.generate_build(401))
+        self.assertEqual(plain['blocks'], []); self.assertNotIn('clutter', plain['build'])
+
+    def test_behind_the_block_the_cell_is_hidden_and_the_stage_is_move(self):
+        cell = _at(ORIGIN, 0., -2, 0, 1); feet = (cell[0] + .5, 64., cell[2] + .5)
+        hidden = br.RecoverTracker(br.world_build2(br.occluded_build(401), ORIGIN, 0.)).update(*feet, 0., 30., None, None)
+        self.assertEqual(hidden.stage, 'move'); self.assertIsNotNone(hidden.stand)
+        seen = br.RecoverTracker(br.world_build2(ct.generate_build(401), ORIGIN, 0.)).update(*feet, 0., 30., None, None)
+        self.assertEqual(seen.stage, 'aim')
 
 
 class SimulationTest(unittest.TestCase):
