@@ -15,13 +15,25 @@
 - 재개: 건축은 같은 스크립트를 새 로그 `build-resume.log`로 다시 띄운다. 끝난 실행은 건너뛴다.
   채굴 v3 `aim.sh`는 `build.log` 대신 `build-resume.log`의 끝을 기다리게 바꿨고, 로그는 `aim-resume.log`다(두 게임 동시 실행 방지).
 
-| 순서 | 배치(로그) | 코드 | 상태(재개 전) |
+**17:58 건축이 다시 멈춤: GPU 메모리 부족.** 사용자 쪽 프로그램이 GPU를 쓰고 있어 남은 메모리가 765–812MiB였다.
+정책 게임에 필요한 2150MiB(`POLICY_DEVICE_MIB`)보다 적어서, R1 c106은 게임을 시작하지 않고 멈췄다(10분 대기씩 3번). 게임 실행 기록은 없다.
+- 18:29에 `build.sh`가 "incomplete"로 끝났고, 이를 기다리던 `aim.sh`(채굴 v3)가 먼저 시작했다. `mining-aim`을 `jump-map`에 로컬 병합(7894579)한 뒤, 데이터셋·헤드·관문 같은 오프라인 단계를 진행 중이다.
+- 18:31 `results/build-20261114/launch/resume2.sh`(로그 `resume2.log`)를 띄웠다.
+  - 채굴 v3가 GPU 부족으로 멈추면, GPU가 10분 연속 2150MiB 이상 비었을 때 `aim.sh`를 다시 띄운다(`aim-resume2-<k>.log`).
+  - 채굴이 끝나면 건축을 같은 방식으로 이어간다(`build-resume2-<k>.log`).
+  - 끝난 단계는 각 스크립트가 건너뛴다. `results/STOP`이 있으면 다시 띄우지 않는다.
+- 건축 c106의 입력 기록(`r1/frozen-c-r1-c106.json`)은 GPU 확인 전에 쓰였고, 병합 전 `pipeline/stage_live.py` 해시를 담고 있었다.
+  게임이 없었으므로 `launch/unused-frozen-c-r1-c106.json`으로 옮겼다. 다음 c106 실행이 병합 뒤 해시로 새 기록을 쓴다.
+  병합에서 바뀐 부분은 채굴 쪽 `LiveStageFeed`뿐이다. 건축은 `BuildFeed`를 쓰므로 건축 게임에는 닿지 않는다.
+  그래도 건축 R1 c101–c105는 병합 전 코드(6810f10), c106부터는 병합 뒤 코드(7894579)에서 돈다.
+
+| 순서 | 배치(로그) | 코드 | 상태(18:35) |
 |---|---|---|---|
 | 1 | 채굴 v2 방향 입력 `results/multi-block-20261108/launch/direction.log` | `jump-map` dccbc3c | 끝남(08:26). 아래 "완료: 채굴 v2" |
 | 2 | 블록 놓기 `results/place-20261114/launch/place.log` | `jump-map` 594d0ed | 끝남(11:39). 아래 "완료: 블록 놓기" |
 | 3 | 다리 잇기 `results/bridge-20261114/launch/bridge.log` | `jump-map` 99b4b35 | 끝남(14:47). 아래 "완료: 다리 잇기" |
-| 4 | 건축 `results/build-20261114/launch/build.log` | `jump-map` 215b083 | 15:23 멈춤(D: 가득 참). R0 4/12판까지 |
-| 5 | 채굴 v3 조준점 입력 `results/multi-block-20261108/launch/aim.log` | `mining-aim`(건축이 끝나면 스크립트가 `jump-map`에 로컬 병합) | 15:23 브랜치 확인에서 멈춤. 병합·게임 없음 |
+| 4 | 건축 `results/build-20261114/launch/build-resume.log` | `jump-map` 6810f10, c106부터 7894579 | 교사 점검 12/12, R0 공식 0/12, R1 c-r1 5판 중 3판 성공. 17:58 GPU 부족으로 c106 전에 멈춤. 채굴 v3 뒤에 `resume2.sh`가 이어감 |
+| 5 | 채굴 v3 조준점 입력 `results/multi-block-20261108/launch/aim-resume.log` | `jump-map` 7894579(`mining-aim` 로컬 병합) | 18:29 시작. 오프라인 단계 진행 중 |
 
 - 채굴 v3: 채굴 v2 실패 원인(가려진 블록 중심과 교사 조준점의 차이)을 고치려고 헤드 입력을 sight 교사의 조준점 방향으로 바꾼다.
   설계는 `mining-aim` 브랜치의 `docs/specs/2026-11-14-mining-aim-point-design.md`. 판정은 공식 대비(성공 수 ≥ 공식 등),
