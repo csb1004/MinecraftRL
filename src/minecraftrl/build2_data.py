@@ -7,6 +7,8 @@ row before it), but stages, features and labels always come from the recovering 
 - a run recorded with the recovering feed must match the replay, as in build_data.
 The dataset also names, per official button combination, whether it presses `use` (`use_combos`), for the optional
 use loss of reacquire_training.
+teacher='careful' (round 4, careful place) uses build_recover.CarefulFeed instead: runs recorded with that teacher are
+checked against the replay, runs of any other teacher are relabelled.
 """
 import json
 from pathlib import Path
@@ -14,7 +16,7 @@ from pathlib import Path
 import numpy as np
 
 from .build_data import FEATURE_TOLERANCE, GROUP
-from .build_recover import BUILD2_FEATURES, BUILD2_STAGES, RecoverFeed
+from .build_recover import BUILD2_FEATURES, BUILD2_STAGES, CAREFUL, TEACHER, CarefulFeed, RecoverFeed
 from .build_task import BUILD_STAGES
 from .pipeline.monitor_replay import load_run
 from .reacquire_data import _checked_request, load_latents, sha256
@@ -30,12 +32,17 @@ def use_combos(mapper):
     return np.array([isinstance(combos[i], tuple) and 'use' in combos[i] for i in range(len(combos))], bool)
 
 
-def build2_run_examples(run_dir, mapper, transformer, *, root):
+FEEDS = {TEACHER: RecoverFeed, CAREFUL: CarefulFeed}
+NAMES = {TEACHER: 'build_recover', CAREFUL: 'build_careful'}
+
+
+def build2_run_examples(run_dir, mapper, transformer, *, root, teacher=TEACHER):
+    if teacher not in FEEDS: raise ValueError('teacher must be one of %s' % sorted(FEEDS))
     run_dir = Path(run_dir)
     request, fixture = _checked_request(run_dir, root)
     if not fixture.get('build'): raise ValueError('not a building run: %s' % run_dir)
     recorded = json.loads((run_dir / 'reacquire' / 'manifest.json').read_text(encoding='utf-8')).get('stages')
-    if recorded == list(BUILD2_STAGES): own = True
+    if recorded == list(BUILD2_STAGES): own = fixture['build'].get('teacher') == teacher
     elif recorded == list(BUILD_STAGES): own = False
     else: raise ValueError('latent record uses another stage list: %s' % run_dir)
     manifest, lat = load_latents(run_dir / 'reacquire', tuple(recorded))
@@ -44,7 +51,7 @@ def build2_run_examples(run_dir, mapper, transformer, *, root):
     run = load_run(run_dir)
     steps = [s for s in run.steps if s.skill == manifest['meta']['skill']]
     if len(steps) != 1: raise ValueError('expected one %s step, found %d' % (manifest['meta']['skill'], len(steps)))
-    step = steps[0]; feed = RecoverFeed(fixture); decisions = []; feats = []
+    step = steps[0]; feed = FEEDS[teacher](fixture); decisions = []; feats = []
     for r in run.rows:
         inside = r['step'] >= step.start_step and (step.end_step is None or r['step'] <= step.end_step)
         if inside and r['t'] >= step.start_t and r.get('controller') == 'policy':
@@ -83,7 +90,7 @@ def build2_run_examples(run_dir, mapper, transformer, *, root):
     return out
 
 
-def build2_dataset(run_dirs, out_path, *, holdout, mapper, transformer, root):
+def build2_dataset(run_dirs, out_path, *, holdout, mapper, transformer, root, teacher=TEACHER):
     """Concatenate the runs' examples; `holdout` (run folder names) is kept for validation. One block group, so the
     balanced loss weighs the stages."""
     import torch
@@ -95,7 +102,7 @@ def build2_dataset(run_dirs, out_path, *, holdout, mapper, transformer, root):
         if len(matches) != 1: raise ValueError('holdout must name exactly one run folder: %s' % name)
         held.append(matches[0])
     if not held or len(set(held)) != len(held): raise ValueError('holdout runs must be distinct and not empty')
-    parts = [build2_run_examples(d, mapper, transformer, root=root) for d in run_dirs]
+    parts = [build2_run_examples(d, mapper, transformer, root=root, teacher=teacher) for d in run_dirs]
     scales = {p['cond_scale'] for p in parts}
     if len(scales) != 1: raise ValueError('runs use different guidance scales: %s' % sorted(scales))
     keys = ('cond', 'uncond', 'stage', 'labelled', 'label_buttons', 'label_camera', 'camera_on', 'in_view',
@@ -105,12 +112,12 @@ def build2_dataset(run_dirs, out_path, *, holdout, mapper, transformer, root):
                 block=torch.from_numpy(np.concatenate([np.zeros(len(p['step']), np.int64) for p in parts])),
                 runs=names, blocks=[GROUP], holdout=held[0] if isinstance(holdout, str) else held,
                 cond_scale=scales.pop(), width=int(parts[0]['cond'].shape[1]), stages=list(BUILD2_STAGES),
-                teacher='build_recover', feature_names=list(BUILD2_FEATURES),
+                teacher=NAMES[teacher], feature_names=list(BUILD2_FEATURES),
                 use_combos=torch.from_numpy(use_combos(mapper)))
     out_path = Path(out_path); out_path.parent.mkdir(parents=True, exist_ok=True)
     torch.save(data, out_path)
     labelled = data['labelled'].numpy(); stage = data['stage'].numpy()
-    summary = dict(dataset=str(out_path), dataset_sha256=sha256(out_path), teacher='build_recover', holdout=holdout, runs=[],
+    summary = dict(dataset=str(out_path), dataset_sha256=sha256(out_path), teacher=NAMES[teacher], holdout=holdout, runs=[],
                    rows=int(len(labelled)), labelled=int(labelled.sum()), features=list(BUILD2_FEATURES),
                    labelled_by_stage={s: int((labelled & (stage == i)).sum()) for i, s in enumerate(BUILD2_STAGES)},
                    privileged=('teacher labels, stages and features use the blueprint, the client pose, the client crosshair and '

@@ -90,6 +90,31 @@ class BuildBatchTest(unittest.TestCase):
         self.assertEqual(written['blocks'], [dict(dx=-2, dy=0, dz=3, block='cobblestone')])
         self.assertEqual(json.loads((self.batch / 'frozen-teacher-c401.json').read_text())['mode'], 'occluded')
 
+    def test_round_4_modes_have_their_own_seeds_and_tasks_and_the_careful_teacher(self):
+        # Round 4 (design 2026-11-15 careful place): occluded training tasks, dev4 and final4 with occluded halves.
+        from minecraftrl.build_recover import build2_fixture, occluded_build
+        from minecraftrl.build_task import generate_build
+        t = self.registry['tasks']
+        ids = [i for k in t for i in t[k]]
+        self.assertEqual(len(ids), len(set(ids)))                                   # no task id in two modes
+        for mode in self.m.OCCLUDED_MODES:
+            self.assertTrue(all(occluded_build(k) is not None for k in t[mode]), mode)
+        for mode, task, seed in (('occluded_train', 504, 271828), ('dev4', 601, 302585), ('dev4_occluded', 705, 302585),
+                                 ('final4', 801, 866025), ('final4_occluded', 901, 866025)):
+            self.m.check(mode, [task], [seed], self.registry)
+        for mode, task, seed in (('occluded_train', 504, 130363), ('dev4', 601, 866025), ('final4_occluded', 705, 866025),
+                                 ('train', 601, 271828)):
+            with self.subTest(mode=mode, task=task, seed=seed), self.assertRaises(ValueError):
+                self.m.check(mode, [task], [seed], self.registry)
+        _, fixture, _ = self.m.prepare(self.batch, 'official', ROOT, 103, None, True, teacher='careful')
+        self.assertEqual(json.loads(fixture.read_text()), build2_fixture(generate_build(103), teacher='careful'))
+        self.assertEqual(self.collect(mode='dev4_occluded', tasks=[705], seeds=[302585], teacher='careful'), 0)
+        written = json.loads((self.batch / 'fixtures' / 'task-705.json').read_text())
+        self.assertEqual((written['build']['teacher'], len(written['blocks'])), ('careful', 1))
+        self.assertEqual(self.collect(mode='dev4', tasks=[601], seeds=[302585], teacher='careful'), 0)
+        self.assertEqual(json.loads((self.batch / 'fixtures' / 'task-601.json').read_text())['blocks'], [])
+        with self.assertRaises(ValueError): self.collect(mode='occluded_train', tasks=[504], seeds=[271828])
+
     def test_teacher_check_has_no_head_and_a_scripted_step(self):
         config, _, plan = self.m.prepare(self.batch, 'teacher', ROOT, 101, None, True, teacher_check=True)
         value = json.loads(config.read_text())

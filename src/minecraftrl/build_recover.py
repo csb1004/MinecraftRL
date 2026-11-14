@@ -19,6 +19,8 @@ from .pipeline.stage_replay import fixture_origin
 from .reacquire_teacher import BUTTONS, point_delta
 
 TEACHER = 'recover'
+CAREFUL = 'careful'    # round 4: the recovering teacher with careful place
+INNER = .2             # blocks: careful place needs the crosshair this far inside the face's edges
 BUILD2_STAGES = ('reach', 'move', 'aim', 'place', 'done')
 LABELLED = ('reach', 'move', 'aim', 'place')
 BUILD2_FEATURES = PLACE_FEATURES + ('left', 'm_sin', 'm_cos', 'm_dist')
@@ -165,6 +167,10 @@ class RecoverTracker:
                 if n not in prev and n in stand and free(n): prev[n] = c; order.append(n)
         return None, None
 
+    def _places(self, eye, yaw, pitch, target):
+        """Whether a click with the crosshair on a face of `target` counts as place (the careful teacher narrows it)."""
+        return True
+
     def update(self, x, y, z, yaw, pitch, hit, face):
         target = self.current(); filled = len(self.filled_cells); left = len(self.cells) - filled
         if target is None: return RecoverView('done', None, None, 0., filled, 0, None, None)
@@ -172,13 +178,43 @@ class RecoverTracker:
         distance = math.dist(eye, _centre(target))
         if distance <= REACH and hit is not None and face is not None and 0 <= int(face) < 6:
             n = FACE_NORMALS[int(face)]
-            if tuple(h + k for h, k in zip(hit, n)) == target:
+            if tuple(h + k for h, k in zip(hit, n)) == target and self._places(eye, yaw, pitch, target):
                 seen = dict(block=tuple(hit), normal=tuple(n), centre=tuple(c - .5 * k for c, k in zip(_centre(target), n)))
                 return RecoverView('place', target, seen, distance, filled, left, None, None)
         seen = visible_face(eye, target, self.solids)
         if distance <= REACH and seen is not None: return RecoverView('aim', target, seen, distance, filled, left, None, None)
         stand, way = self.standpoint(x, y, z, target)
         return RecoverView('reach' if distance > REACH else 'move', target, seen, distance, filled, left, stand, way)
+
+
+def look(yaw, pitch):
+    """Minecraft view direction for a yaw and pitch in degrees (yaw 0 faces +z, pitch 90 looks down)."""
+    y, p = math.radians(yaw), math.radians(pitch)
+    return (-math.sin(y) * math.cos(p), -math.sin(p), math.cos(y) * math.cos(p))
+
+
+def inner_hit(eye, direction, solids, target, margin=INNER, reach=REACH + 1.):
+    """The straight ray from the eye first meets a solid face whose placement lands in `target`, at least `margin`
+    inside that face's edges (careful place, design 2026-11-15 round 4)."""
+    cell, face = raycast(eye, direction, solids, reach=reach)
+    if cell is None: return False
+    n = FACE_NORMALS[face]
+    if tuple(c + k for c, k in zip(cell, n)) != tuple(target): return False
+    axis = next(i for i in range(3) if n[i])
+    plane = cell[axis] + (1 if n[axis] > 0 else 0)
+    if not direction[axis]: return False
+    t = (plane - eye[axis]) / direction[axis]
+    point = [e + t * d for e, d in zip(eye, direction)]
+    return all(margin <= point[i] - cell[i] <= 1 - margin for i in range(3) if i != axis)
+
+
+class CarefulTracker(RecoverTracker):
+    """Round 4 (design 2026-11-15 careful place): place also needs the straight crosshair ray, from the client eye, yaw
+    and pitch through the tracked blocks, to meet the face of the target well inside its edges (inner_hit). A crosshair
+    on the face's rim, or a reported hit that the straight ray does not confirm, stays aim: turn toward the face centre."""
+
+    def _places(self, eye, yaw, pitch, target):
+        return inner_hit(eye, look(yaw, pitch), self.solids, target)
 
 
 def teacher_action(x, y, z, yaw, pitch, view):
@@ -234,13 +270,14 @@ def build2_features(x, y, z, yaw, pitch, view):
 
 class RecoverFeed(BuildFeed):
     """BuildFeed with the recovering tracker, teacher and features (same server-record rules)."""
+    TRACKER = RecoverTracker
 
     def observe(self, row):
         self.last_row = row; self.last_view = None
         if self.tracker is None:
             start = fixture_origin([row])
             if start is None: return
-            self.tracker = RecoverTracker(world_build2(self.task, *start))
+            self.tracker = self.TRACKER(world_build2(self.task, *start))
         d = row.get('demo') or {}; p = row.get('place') or {}
         if not (row.get('server_available') == 1 and d.get('demo_available') == 1): return
         if p.get('place_available') == 1:
@@ -265,21 +302,31 @@ class RecoverFeed(BuildFeed):
         return build2_features(*pose, self.last_view)
 
 
-def build2_fixture(task):
-    """build_task.build_fixture with the recovering teacher named in the task, and the task's `clutter` blocks set."""
+class CarefulFeed(RecoverFeed):
+    """RecoverFeed with careful place (round 4): same stages, features and teacher, a narrower place stage."""
+    TRACKER = CarefulTracker
+
+
+def build2_fixture(task, teacher=TEACHER):
+    """build_task.build_fixture with the recovering teacher (or its careful variant) named in the task, and the task's
+    `clutter` blocks set."""
+    if teacher not in (TEACHER, CAREFUL): raise ValueError('teacher must be %r or %r' % (TEACHER, CAREFUL))
     fixture = build_fixture(task)
-    fixture['build'] = dict(task, teacher=TEACHER)
+    fixture['build'] = dict(task, teacher=teacher)
     fixture['description'] += ' Recovering teacher (design 2026-11-15).'
+    if teacher == CAREFUL: fixture['description'] += ' Careful place (round 4).'
     if task.get('clutter'):
         fixture['blocks'] = [dict(dx=c[0], dy=c[1], dz=c[2], block=task['block']) for c in task['clutter']]
         fixture['description'] += ' Occlusion check: a %s block stands in front of the first cell.' % task['block']
     return fixture
 
 
-def recovering(fixture): return (fixture.get('build') or {}).get('teacher') == TEACHER
+def recovering(fixture): return (fixture.get('build') or {}).get('teacher') in (TEACHER, CAREFUL)
 
 
-def feed_for(fixture): return RecoverFeed(fixture) if recovering(fixture) else BuildFeed(fixture)
+def feed_for(fixture):
+    teacher = (fixture.get('build') or {}).get('teacher')
+    return CarefulFeed(fixture) if teacher == CAREFUL else RecoverFeed(fixture) if teacher == TEACHER else BuildFeed(fixture)
 
 
 def stages_for(fixture): return BUILD2_STAGES if recovering(fixture) else BUILD_STAGES
