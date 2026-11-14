@@ -5,13 +5,19 @@
 사용자 지시(11/13 "밤동안 계속해서 이것들 학습해줘", 11/14 "계속해줘. 중간에 멈추지 말고 네 판단에 필요하다고 판단되면 해").
 한 번에 게임 하나. 각 배치는 앞 배치의 로그 끝(`DETACHED SCRIPT ENDED`)을 기다린 뒤 시작한다. push·main 병합 없음.
 
-| 순서 | 배치(로그) | 코드 | 상태(15:00) |
+**15:23 사슬 멈춤: D 드라이브가 가득 참(남은 공간 약 20MB).** WSL 디스크(`D:\WSL\Ubuntu-24.04\ext4.vhdx`, 117.8GB)가 더 커지지 못해 WSL 파일 시스템이 읽기 전용이 됐다.
+- 건축: 교사 점검 12/12(유효), R0 공식 c101–c104(유효) 뒤 c105 실행이 환경 시작 전에 실패했다(무효, `r0/excluded/official/`로 옮겨짐). 재시도 2번은 `/tmp` 읽기 전용으로 바로 끝났고, 스크립트가 "incomplete"로 멈췄다.
+- 채굴 v3: `aim.sh`는 git 실행 오류(Input/output error)로 브랜치 확인에서 멈췄다. `mining-aim` 병합과 게임은 하지 않았다(HEAD 18dfefd 그대로).
+- 다시 시작하려면 D:에 공간이 필요하다. 그 뒤 WSL을 다시 시작하고 파일 시스템을 점검한 다음, 건축을 끝난 실행은 건너뛰도록 이어서 실행하고 채굴 v3를 순서대로 띄운다.
+  `build.log`에 이미 "DETACHED SCRIPT ENDED"가 있으므로, 채굴 v3는 새 건축 로그를 기다리게 바꿔서 띄운다(두 게임 동시 실행 방지).
+
+| 순서 | 배치(로그) | 코드 | 상태(15:35) |
 |---|---|---|---|
 | 1 | 채굴 v2 방향 입력 `results/multi-block-20261108/launch/direction.log` | `jump-map` dccbc3c | 끝남(08:26). 아래 "완료: 채굴 v2" |
 | 2 | 블록 놓기 `results/place-20261114/launch/place.log` | `jump-map` 594d0ed | 끝남(11:39). 아래 "완료: 블록 놓기" |
 | 3 | 다리 잇기 `results/bridge-20261114/launch/bridge.log` | `jump-map` 99b4b35 | 끝남(14:47). 아래 "완료: 다리 잇기" |
-| 4 | 건축 `results/build-20261114/launch/build.log` | `jump-map` 215b083 | 14:48 시작 |
-| 5 | 채굴 v3 조준점 입력 `results/multi-block-20261108/launch/aim.log` | `mining-aim`(건축이 끝나면 스크립트가 `jump-map`에 로컬 병합) | 대기 |
+| 4 | 건축 `results/build-20261114/launch/build.log` | `jump-map` 215b083 | 15:23 멈춤(D: 가득 참). R0 4/12판까지 |
+| 5 | 채굴 v3 조준점 입력 `results/multi-block-20261108/launch/aim.log` | `mining-aim`(건축이 끝나면 스크립트가 `jump-map`에 로컬 병합) | 15:23 브랜치 확인에서 멈춤. 병합·게임 없음 |
 
 - 채굴 v3: 채굴 v2 실패 원인(가려진 블록 중심과 교사 조준점의 차이)을 고치려고 헤드 입력을 sight 교사의 조준점 방향으로 바꾼다.
   설계는 `mining-aim` 브랜치의 `docs/specs/2026-11-14-mining-aim-point-design.md`. 판정은 공식 대비(성공 수 ≥ 공식 등),
