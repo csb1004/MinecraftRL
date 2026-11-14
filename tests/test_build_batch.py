@@ -59,6 +59,18 @@ class BuildBatchTest(unittest.TestCase):
         self.assertEqual(json.loads(plan.read_text()), [dict(id='build', skill='build', kind='policy', target='build_done',
                                                               count=1, params=dict(until='build'))])
 
+    def test_the_recovering_teacher_is_named_in_the_fixture_and_its_module_hashed(self):
+        # Design 2026-11-15: the same task and world, with the teacher named for the feed.
+        from minecraftrl.build_recover import build2_fixture
+        from minecraftrl.build_task import generate_build
+        _, fixture, _ = self.m.prepare(self.batch, 'official', ROOT, 103, None, True, teacher='recover')
+        self.assertEqual(json.loads(fixture.read_text()), build2_fixture(generate_build(103)))
+        self.assertEqual(self.collect(teacher='recover'), 0)
+        frozen = json.loads((self.batch / 'frozen-teacher-c101.json').read_text())
+        self.assertTrue(any(k.replace('\\', '/').endswith('src/minecraftrl/build_recover.py') for k in frozen['hashes']))
+        self.assertEqual(frozen['teacher'], 'recover')
+        with self.assertRaises(ValueError): self.m.prepare(self.batch, 'official', ROOT, 103, None, True, teacher='other')
+
     def test_teacher_check_has_no_head_and_a_scripted_step(self):
         config, _, plan = self.m.prepare(self.batch, 'teacher', ROOT, 101, None, True, teacher_check=True)
         value = json.loads(config.read_text())

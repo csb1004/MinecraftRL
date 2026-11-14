@@ -240,9 +240,10 @@ def worker(args):
                 head = install(policy, use_stage=block['use_stage'], checkpoint=checkpoint, stages=BRIDGE_STAGES)
                 feed = BridgeFeed(fixture_config)
             elif block.get('stages') == 'build':  # building (design 2026-11-14): its own stages and feed
-                from ..build_task import BUILD_STAGES, BuildFeed
-                head = install(policy, use_stage=block['use_stage'], checkpoint=checkpoint, stages=BUILD_STAGES)
-                feed = BuildFeed(fixture_config)
+                # The fixture may name the recovering teacher (design 2026-11-15): its stages and feed.
+                from ..build_recover import feed_for, stages_for
+                head = install(policy, use_stage=block['use_stage'], checkpoint=checkpoint, stages=stages_for(fixture_config))
+                feed = feed_for(fixture_config)
             else: head = install(policy, use_stage=block['use_stage'], checkpoint=checkpoint)
             meta = dict(skill=name, use_stage=block['use_stage'], checkpoint=None if checkpoint is None else str(checkpoint),
                         checkpoint_sha256=None if checkpoint is None else sha256_file(checkpoint),

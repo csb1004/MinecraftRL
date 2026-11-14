@@ -8,6 +8,8 @@ a policy result, no head). Task ids and world seeds are checked against the mode
 training tasks on the training seeds, dev = dev tasks on 130363, final = final tasks on 662607. Finished runs are
 skipped; <batch>/STOP halts; inputs are hashed into <batch>/frozen-<arm>-c<task>.json and must not change; an invalid
 launch is moved to <batch>/excluded/ and halts the batch. Runs are <arm>/c<task>-s<seed>-n<n>.
+--teacher recover (design docs/specs/2026-11-15-build-recover-design.md) names the recovering teacher in the fixture
+(same task and world): the game then uses its stages, feed and teacher check, and its module is in the input record.
 """
 import argparse
 import json
@@ -19,6 +21,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'src'))
 sys.path.insert(0, str(ROOT / 'scripts'))
+from minecraftrl.build_recover import build2_fixture  # noqa: E402
 from minecraftrl.build_task import build_fixture, generate_build  # noqa: E402
 from run_reacquire_batch import POLICY_DEVICE_MIB, frozen_ok, input_hashes, nvidia_free_mib, run_game, write  # noqa: E402
 
@@ -27,6 +30,7 @@ REGISTRY = 'configs/build-v1.json'
 BASE = 'configs/reacquire-v1.json'
 SKILL = 'build'
 LIMIT_S, FRAME_EVERY = 60, 2
+TEACHERS = {'round1': build_fixture, 'recover': build2_fixture}
 
 
 def load_registry(root): return json.loads((Path(root) / REGISTRY).read_text(encoding='utf-8'))
@@ -55,11 +59,12 @@ def build_config(base, registry, checkpoint, use_stage, teacher_check=False):
     return config
 
 
-def prepare(batch, arm, root, task, checkpoint, use_stage, teacher_check=False):
+def prepare(batch, arm, root, task, checkpoint, use_stage, teacher_check=False, teacher='round1'):
+    if teacher not in TEACHERS: raise ValueError('teacher must be one of %s' % sorted(TEACHERS))
     registry = load_registry(root)
     base = json.loads((Path(root) / BASE).read_text(encoding='utf-8'))
     config = write(batch / 'configs' / (arm + '.json'), build_config(base, registry, checkpoint, use_stage, teacher_check))
-    fixture = write(batch / 'fixtures' / ('task-%d.json' % task), build_fixture(generate_build(task)))
+    fixture = write(batch / 'fixtures' / ('task-%d.json' % task), TEACHERS[teacher](generate_build(task)))
     step = (dict(id='check', skill='build_teacher', kind='scripted', target='build_done', count=1,
                  params=dict(driver='build_teacher', limit_steps=LIMIT_S * 20)) if teacher_check
             else dict(id='build', skill=SKILL, kind='policy', target='build_done', count=1, params=dict(until='build')))
@@ -71,7 +76,7 @@ def run_name(task, seed, n): return 'c%d-s%d-n%d' % (task, seed, n)
 
 
 def collect(*, batch, arm, checkpoint, use_stage, mode, tasks, seeds, sampling, teacher_check=False, root=ROOT,
-            launch=run_game, gpu_free=nvidia_free_mib, gpu_wait=(40, 15.)):
+            launch=run_game, gpu_free=nvidia_free_mib, gpu_wait=(40, 15.), teacher='round1'):
     """0 done, 1 STOP, 3 GPU busy, 4 invalid launch excluded, 5 inputs changed."""
     root = Path(root).resolve(); batch = Path(batch).resolve(); registry = load_registry(root)
     check(mode, tasks, seeds, registry)
@@ -82,11 +87,13 @@ def collect(*, batch, arm, checkpoint, use_stage, mode, tasks, seeds, sampling, 
     meta = dict(arm=arm, checkpoint=None if checkpoint is None else str(Path(checkpoint).resolve()), use_stage=bool(use_stage),
                 mode=mode, limit_s=LIMIT_S, frame_every=FRAME_EVERY, teacher_check=bool(teacher_check),
                 scope='building; no API; success = the server placement record covers the blueprint')
+    if teacher != 'round1': meta['teacher'] = teacher          # round 1 records stay as they were
     for task in tasks:
-        config, fixture, plan = prepare(batch, arm, root, task, meta['checkpoint'], use_stage, teacher_check)
+        config, fixture, plan = prepare(batch, arm, root, task, meta['checkpoint'], use_stage, teacher_check, teacher)
         files = [config, fixture, plan, root / REGISTRY, root / 'src/minecraftrl/build_task.py',
                  root / 'src/minecraftrl/place_task.py',
                  root / 'src/minecraftrl/PlaceObservation.java', root / 'src/minecraftrl/world_save_patch.py']
+        if teacher != 'round1': files.append(root / 'src/minecraftrl/build_recover.py')
         if not teacher_check: files.append(root / registry['embedding'])
         if checkpoint: files.append(Path(checkpoint))
         frozen = batch / ('frozen-%s-c%d.json' % (arm, task))
@@ -138,11 +145,13 @@ def main(argv=None):
     p.add_argument('--seeds', type=int, nargs='+', required=True)
     p.add_argument('--sampling', type=int, nargs='+', required=True)
     p.add_argument('--teacher-check', action='store_true', help='preparation-only teacher run (design §5), no policy')
+    p.add_argument('--teacher', choices=tuple(TEACHERS), default='round1', help='the teacher named in the fixture')
     args = p.parse_args(argv)
     if not args.teacher_check and args.checkpoint is None: p.error('--checkpoint is required for a policy arm')
     checkpoint = None if args.checkpoint in (None, 'official') else Path(args.checkpoint)
     return collect(batch=args.batch, arm=args.arm, checkpoint=checkpoint, use_stage=args.use_stage == 'on', mode=args.mode,
-                   tasks=args.tasks, seeds=args.seeds, sampling=args.sampling, teacher_check=args.teacher_check)
+                   tasks=args.tasks, seeds=args.seeds, sampling=args.sampling, teacher_check=args.teacher_check,
+                   teacher=args.teacher)
 
 
 if __name__ == '__main__':

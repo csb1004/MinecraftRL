@@ -1332,6 +1332,21 @@ class BuildSessionTests(unittest.TestCase):
         self.assertEqual((stage['status'], stage['controller'], stage['completion']), ('completed', 'scripted_probe', 'server_build_done'))
         self.assertEqual(env.actions[2]['use'], 1)                         # the floor top under the first cell
 
+    def test_a_fixture_naming_the_recovering_teacher_walks_around_a_hiding_block(self):
+        # Design 2026-11-15: a wrong block right in front of the first cell hides its floor face; the round 1 teacher
+        # only re-aims (no yaw turn), the recovering one turns toward a standpoint.
+        from minecraftrl.build_recover import build2_fixture
+        none = (-999, -999, -999)
+        script = {1: self.at(0, none), 2: self.at(1, (0, 64, 2)), 3: self.at(2, (0, 64, 3)), 4: self.at(3, (0, 65, 3))}
+        step = Step('check', 'build', 'scripted', 'build_done', 1, params={'driver': 'build_teacher'})
+        env, report = self.run_build(lambda n, a: script.get(n, script[4]), step)
+        self.assertEqual(float(env.actions[2]['camera'][1]), 0.)
+        self.recorder.close(); self.out = self.out / 'recover'; self.fixture = build2_fixture(self.TASK)
+        self.gate = StopGate()                                           # the first session closed its gate
+        env, report = self.run_build(lambda n, a: script.get(n, script[4]), step)
+        self.assertNotEqual(float(env.actions[2]['camera'][1]), 0.)
+        self.assertEqual(report['stage_results'][0]['status'], 'completed')
+
 
 if __name__ == '__main__':
     unittest.main()

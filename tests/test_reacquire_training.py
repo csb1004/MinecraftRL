@@ -196,6 +196,35 @@ class TrainTest(unittest.TestCase):
         self.assertEqual(report['features'], ['s', 'z'])
         self.assertLess(report['final']['holdout_nll'], report['initial']['holdout_nll'] - .3)
 
+    def use_dataset(self):
+        """Toy set where far rows (stage 0) are labelled button 0 (no use) and near rows button 1 (use); combos 1 and 4
+        press use."""
+        path = toy_dataset(self.root / 'toy.pt', rows_per_run=256); data = torch.load(path)
+        data['labelled'] = torch.ones(len(data['stage']), dtype=torch.bool)
+        data['label_buttons'] = torch.where(data['stage'] == 2, torch.tensor(1), torch.tensor(0)).long()
+        data['label_camera'] = torch.full((len(data['stage']),), 2).long(); data['camera_on'] = data['labelled'].clone()
+        data['use_combos'] = torch.tensor([False, True, False, False, True])
+        torch.save(data, path)
+        return path
+
+    def test_the_use_loss_lowers_use_where_the_label_has_none_and_reports_use_rates(self):
+        # Building design 2026-11-15 §5: a factored loss on whether `use` is pressed.
+        path = self.use_dataset()
+        common = dict(use_stage=True, epochs=4, lr=1e-2, kl_limit=1e9, head_factory=fake_factory, device='cpu')
+        plain = self.train(path, out_dir=self.root / 'plain', **common)
+        used = self.train(path, out_dir=self.root / 'used', use_coef=5., **common)
+        self.assertEqual((plain['hyper']['use_coef'], used['hyper']['use_coef']), (0., 5.))
+        for r in (plain, used):
+            self.assertEqual(set(r['final']['holdout_use']), {'label_no_use', 'label_use'})
+        u, q = used['final']['holdout_use'], plain['final']['holdout_use']
+        self.assertLess(u['label_no_use'], q['label_no_use'])
+        self.assertGreater(u['label_use'] - u['label_no_use'], q['label_use'] - q['label_no_use'])
+
+    def test_the_use_loss_needs_the_use_combinations(self):
+        with self.assertRaises(ValueError):
+            self.train(toy_dataset(self.root / 'toy.pt'), use_stage=True, out_dir=self.root / 'out', epochs=1,
+                       head_factory=fake_factory, device='cpu', use_coef=1.)
+
     def test_a_list_of_holdout_runs_is_read(self):
         path = toy_dataset(self.root / 'toy.pt'); data = torch.load(path); data['holdout'] = [1]; torch.save(data, path)
         report = self.train(path, use_stage=True, out_dir=self.root / 'out', epochs=2, lr=1e-2, head_factory=fake_factory,

@@ -116,8 +116,8 @@ class DemoSession:
         # Building (design 2026-11-14): its feed ends `until='build'` steps when the server placement record covers the
         # blueprint and drives the preparation-only teacher check.
         if build is not None:
-            from ..build_task import BuildFeed
-            build = BuildFeed(build)
+            from ..build_recover import feed_for    # the recovering teacher when the fixture names it (design 2026-11-15)
+            build = feed_for(build)
         self.build = build
         self.steps = 0; self.obs = None; self.info = {}; self.started = None
 

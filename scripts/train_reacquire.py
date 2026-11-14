@@ -27,13 +27,16 @@ def main(argv=None):
                    help='stop after this many epochs without a new holdout NLL low and keep the best epoch')
     p.add_argument('--feature-gain', type=float, default=1.,
                    help='multiplier of the feature input for a dataset with features (jump direction input design 2026-11-14)')
+    p.add_argument('--use-coef', type=float, default=0.,
+                   help='weight of the use loss; needs a dataset with use_combos (building design 2026-11-15)')
     args = p.parse_args(argv)
     root = args.root.resolve(); out = args.out.resolve()
     if not out.is_relative_to(root / 'results'): raise SystemExit('output must be under results/')
     from minecraftrl.reacquire_training import train
     report = train(args.dataset.resolve(), use_stage=args.use_stage == 'on', out_dir=out, lr=args.lr, batch=args.batch,
                    epochs=args.epochs, kl_coef=args.kl_coef, kl_limit=args.kl_limit, seed=args.seed, root=root,
-                   balance=args.balance == 'on', patience=args.patience, feature_gain=args.feature_gain)
+                   balance=args.balance == 'on', patience=args.patience, feature_gain=args.feature_gain,
+                   use_coef=args.use_coef)
     keep = ('candidate', 'checkpoint', 'rows', 'initial', 'final', 'rolled_back_epochs', 'updates_kept', 'seconds',
             'reload_max_abs_diff', 'torch_peak_allocated_mib', 'best_epoch', 'stopped_early')
     print(json.dumps({k: report[k] for k in keep}, indent=1))

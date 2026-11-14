@@ -4,6 +4,9 @@ Only ReacquireHead.adapter learns; the official STEVE-1 head and everything befo
 mean NLL of the labels under the guided distribution the game samples, (1 + s) * conditional - s * unconditional,
 renormalized, plus kl_coef times the mean KL to the official guided distribution on unlabelled rows. An epoch whose
 mean KL on the training rows exceeds kl_limit is rolled back and ends training. The holdout run is only measured.
+With use_coef > 0 (building design 2026-11-15 §5) the loss adds use_coef times the binary cross-entropy of whether the
+sampled button combination presses `use` (the dataset's `use_combos`) against the label's; a dataset with use_combos
+also reports the holdout mean probability of `use` on rows whose label has none and on rows whose label has it.
 """
 import copy
 import hashlib
@@ -77,6 +80,22 @@ def group_weights(labelled, stage, block, rows):
     return weight
 
 
+def use_probability(logp_buttons, use_combos):
+    """[N] probability that the sampled button combination presses `use`."""
+    return logp_buttons[:, use_combos.to(logp_buttons.device)].exp().sum(-1)
+
+
+def use_bce(logp_buttons, label_buttons, use_combos, weight=None):
+    """(Weighted) mean binary cross-entropy of pressing `use` against the label's combination."""
+    combos = use_combos.to(logp_buttons.device)
+    p = use_probability(logp_buttons, combos).clamp(1e-6, 1 - 1e-6)
+    y = combos[label_buttons.long().to(combos.device)].float()
+    per_row = -(y * p.log() + (1 - y) * (1 - p).log())
+    if weight is None: return per_row.mean()
+    weight = weight.to(per_row.device).float()
+    return (per_row * weight).sum() / weight.sum().clamp(min=1e-12)
+
+
 def kl_to_official(logp_student, logp_official):
     """Per-row KL(student || official), summed over the action keys."""
     return sum((s.exp() * (s - logp_official[k])).sum(-1) for k, s in logp_student.items())
@@ -119,10 +138,11 @@ def official_factory(root):
 
 
 def train(dataset_path, *, use_stage, out_dir, lr=1e-4, batch=32, epochs=16, kl_coef=.01, kl_limit=3., clip=1., seed=17,
-          head_factory=None, root=None, device=None, balance=False, patience=None, feature_gain=1.):
+          head_factory=None, root=None, device=None, balance=False, patience=None, feature_gain=1., use_coef=0.):
     """`balance`: BC weighted by group_weights over the training rows (the holdout NLL uses its own rows' weights).
     `patience`: stop when the holdout NLL has not reached a new low for that many epochs and restore the best state
-    (the untrained head counts as epoch 0). `feature_gain`: multiplier of the feature input for a dataset with features."""
+    (the untrained head counts as epoch 0). `feature_gain`: multiplier of the feature input for a dataset with features.
+    `use_coef`: weight of the use loss (needs the dataset's `use_combos`)."""
     started = time.time(); out_dir = Path(out_dir)
     if out_dir.exists() and any(out_dir.iterdir()): raise FileExistsError('refusing to overwrite %s' % out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -152,6 +172,9 @@ def train(dataset_path, *, use_stage, out_dir, lr=1e-4, batch=32, epochs=16, kl_
     label_buttons, label_camera, camera_on = data['label_buttons'].to(device), data['label_camera'].to(device), data['camera_on'].to(device)
     holdout = data['holdout']
     held_ids = [int(h) for h in holdout] if isinstance(holdout, (list, tuple)) else [int(holdout)]
+    combos = data.get('use_combos')
+    if use_coef and combos is None: raise ValueError('the use loss needs use_combos in the dataset')
+    combos = None if combos is None else torch.as_tensor(combos, dtype=torch.bool).to(device)
     held = torch.isin(data['run'], torch.tensor(held_ids, dtype=data['run'].dtype)).to(device)
     train_rows, hold_rows = (~held).nonzero().squeeze(1), held.nonzero().squeeze(1)
     if not len(train_rows): raise ValueError('no training rows: every row belongs to the holdout run')
@@ -181,6 +204,22 @@ def train(dataset_path, *, use_stage, out_dir, lr=1e-4, batch=32, epochs=16, kl_
         nan = float('nan')
         return (nll_sum / nll_n if nll_n else nan), (kl_sum / len(rows) if len(rows) else nan), (free_sum / free_n if free_n else nan)
 
+    def use_rates(rows):
+        """Mean probability of `use` on labelled rows whose label has none / has it (None without use_combos)."""
+        if combos is None: return None
+        sums = {False: [0., 0], True: [0., 0]}
+        with torch.no_grad():
+            for b in range(0, len(rows), EVAL_BATCH):
+                idx = rows[b:b + EVAL_BATCH]; idx = idx[labelled[idx]]
+                if not len(idx): continue
+                p = use_probability(guided_logp(head, cond[idx], uncond[idx], stage[idx], scale, features=fv(idx))['buttons'],
+                                    combos)
+                y = combos[label_buttons[idx].long()]
+                for key in (False, True):
+                    m = y == key; sums[key][0] += float(p[m].sum()); sums[key][1] += int(m.sum())
+        return dict(label_no_use=sums[False][0] / sums[False][1] if sums[False][1] else float('nan'),
+                    label_use=sums[True][0] / sums[True][1] if sums[True][1] else float('nan'))
+
     initial_nll, initial_hold_kl, _ = measure(hold_rows, hold_w); _, initial_kl, _ = measure(train_rows)
     if initial_kl != 0.: raise RuntimeError('the untrained head differs from the official policy (KL %r)' % initial_kl)
     optimizer = torch.optim.AdamW(head.adapter.parameters(), lr=lr)
@@ -199,6 +238,9 @@ def train(dataset_path, *, use_stage, out_dir, lr=1e-4, batch=32, epochs=16, kl_
             if lab.any():
                 loss = loss + bc_nll({k: v[lab] for k, v in logp.items()}, label_buttons[idx][lab], label_camera[idx][lab],
                                      camera_on[idx][lab], weight=None if train_w is None else train_w[idx][lab])
+                if use_coef:
+                    loss = loss + use_coef * use_bce(logp['buttons'][lab], label_buttons[idx][lab], combos,
+                                                     weight=None if train_w is None else train_w[idx][lab])
             if (~lab).any():
                 with torch.no_grad(): official = guided_logp(head, cond[idx], uncond[idx], stage[idx], scale, official=True)
                 loss = loss + kl_coef * kl_to_official({k: v[~lab] for k, v in logp.items()},
@@ -226,6 +268,7 @@ def train(dataset_path, *, use_stage, out_dir, lr=1e-4, batch=32, epochs=16, kl_
     dataset_sha = hashlib.sha256(dataset_path.read_bytes()).hexdigest()
     hyper = dict(lr=lr, batch=batch, epochs=epochs, kl_coef=kl_coef, kl_limit=kl_limit, clip=clip, seed=seed,
                  balance=bool(balance), patience=patience)
+    if use_coef or combos is not None: hyper['use_coef'] = float(use_coef)      # earlier reports have no key
     checkpoint_sha = save_checkpoint(head, path, base_weights_sha256=base_sha,
                                      metadata=dict(dataset=str(dataset_path), dataset_sha256=dataset_sha, hyper=hyper,
                                                    updates_kept=updates_kept, candidate=candidate))
@@ -244,7 +287,8 @@ def train(dataset_path, *, use_stage, out_dir, lr=1e-4, batch=32, epochs=16, kl_
                   balance=bool(balance), patience=patience, best_epoch=best['epoch'] if patience is not None else None,
                   stopped_early=stopped_early, initial=dict(holdout_nll=initial_nll, holdout_kl=initial_hold_kl, kl=initial_kl),
                   epochs=log, rolled_back_epochs=rolled_back, updates_kept=updates_kept,
-                  final=dict(holdout_nll=final_nll, holdout_kl=final_hold_kl, kl=final_kl, kl_unlabelled=final_free_kl),
+                  final=dict(holdout_nll=final_nll, holdout_kl=final_hold_kl, kl=final_kl, kl_unlabelled=final_free_kl,
+                             **({} if combos is None else dict(holdout_use=use_rates(hold_rows)))),
                   kl_limit_rows='unlabelled training rows', candidate=candidate,
                   checkpoint=str(path), checkpoint_sha256=checkpoint_sha, base_weights_sha256=base_sha,
                   reload_max_abs_diff=reload_diff, seconds=time.time() - started, device=device,
