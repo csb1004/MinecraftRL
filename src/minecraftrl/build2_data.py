@@ -9,6 +9,8 @@ The dataset also names, per official button combination, whether it presses `use
 use loss of reacquire_training.
 teacher='careful' (round 4, careful place) uses build_recover.CarefulFeed instead: runs recorded with that teacher are
 checked against the replay, runs of any other teacher are relabelled.
+teacher='repair' (round 5, design 2026-11-15 build-repair) uses build_repair.RepairFeed with its own six stages and twelve
+features: repair runs are checked, runs recorded with the five recovering stages or the round 1 stages are relabelled.
 """
 import json
 from pathlib import Path
@@ -16,14 +18,15 @@ from pathlib import Path
 import numpy as np
 
 from .build_data import FEATURE_TOLERANCE, GROUP
-from .build_recover import BUILD2_FEATURES, BUILD2_STAGES, CAREFUL, TEACHER, CarefulFeed, RecoverFeed
+from .build_recover import BUILD2_FEATURES, BUILD2_STAGES, CAREFUL, REPAIR, TEACHER, CarefulFeed, RecoverFeed
+from .build_repair import REPAIR_FEATURES, REPAIR_STAGES, RepairFeed
 from .build_task import BUILD_STAGES
 from .pipeline.monitor_replay import load_run
 from .reacquire_data import _checked_request, load_latents, sha256
 from .reacquire_teacher import policy_label
 
 SOURCES = ('src/minecraftrl/build2_data.py', 'src/minecraftrl/build_recover.py', 'src/minecraftrl/build_task.py',
-           'src/minecraftrl/place_task.py', 'src/minecraftrl/reacquire_teacher.py')
+           'src/minecraftrl/place_task.py', 'src/minecraftrl/reacquire_teacher.py', 'src/minecraftrl/build_repair.py')
 
 
 def use_combos(mapper):
@@ -32,21 +35,24 @@ def use_combos(mapper):
     return np.array([isinstance(combos[i], tuple) and 'use' in combos[i] for i in range(len(combos))], bool)
 
 
-FEEDS = {TEACHER: RecoverFeed, CAREFUL: CarefulFeed}
-NAMES = {TEACHER: 'build_recover', CAREFUL: 'build_careful'}
+FEEDS = {TEACHER: RecoverFeed, CAREFUL: CarefulFeed, REPAIR: RepairFeed}
+NAMES = {TEACHER: 'build_recover', CAREFUL: 'build_careful', REPAIR: 'build_repair'}
+LISTS = {TEACHER: (BUILD2_STAGES, BUILD2_FEATURES), CAREFUL: (BUILD2_STAGES, BUILD2_FEATURES),
+         REPAIR: (REPAIR_STAGES, REPAIR_FEATURES)}
 
 
 def build2_run_examples(run_dir, mapper, transformer, *, root, teacher=TEACHER):
     if teacher not in FEEDS: raise ValueError('teacher must be one of %s' % sorted(FEEDS))
+    stages, features = LISTS[teacher]
     run_dir = Path(run_dir)
     request, fixture = _checked_request(run_dir, root)
     if not fixture.get('build'): raise ValueError('not a building run: %s' % run_dir)
     recorded = json.loads((run_dir / 'reacquire' / 'manifest.json').read_text(encoding='utf-8')).get('stages')
-    if recorded == list(BUILD2_STAGES): own = fixture['build'].get('teacher') == teacher
-    elif recorded == list(BUILD_STAGES): own = False
+    if recorded == list(stages): own = fixture['build'].get('teacher') == teacher
+    elif recorded in (list(BUILD2_STAGES), list(BUILD_STAGES)): own = False
     else: raise ValueError('latent record uses another stage list: %s' % run_dir)
     manifest, lat = load_latents(run_dir / 'reacquire', tuple(recorded))
-    if own and manifest.get('features') and list(manifest['features']) != list(BUILD2_FEATURES):
+    if own and manifest.get('features') and list(manifest['features']) != list(features):
         raise ValueError('latent record uses another feature list: %s' % run_dir)
     run = load_run(run_dir)
     steps = [s for s in run.steps if s.skill == manifest['meta']['skill']]
@@ -69,7 +75,7 @@ def build2_run_examples(run_dir, mapper, transformer, *, root, teacher=TEACHER):
                label_pitch=np.zeros(n, np.float32), label_yaw=np.zeros(n, np.float32),
                step=lat['step'].astype(np.int32), cond_scale=float(manifest['cond_scale']))
     for i, (_, view, action) in enumerate(decisions):
-        stage = -1 if view is None else BUILD2_STAGES.index(view.stage)
+        stage = -1 if view is None else stages.index(view.stage)
         if own and stage != int(lat['stage'][i]):
             raise ValueError('live stage differs from replay at step %d: recorded %d, recomputed %d'
                              % (decisions[i][0], int(lat['stage'][i]), stage))
@@ -79,7 +85,7 @@ def build2_run_examples(run_dir, mapper, transformer, *, root, teacher=TEACHER):
         out['labelled'][i] = True; out['label_buttons'][i] = label['buttons']; out['label_camera'][i] = label['camera']
         out['camera_on'][i] = label['camera_on']; out['in_view'][i] = True
         out['label_pitch'][i], out['label_yaw'][i] = label['decoded_camera']
-    replayed = np.asarray(feats, np.float32).reshape(n, len(BUILD2_FEATURES))
+    replayed = np.asarray(feats, np.float32).reshape(n, len(features))
     if own and 'features' in lat:
         logged = np.asarray(lat['features'], np.float32)
         if logged.shape != replayed.shape or (n and float(np.abs(logged - replayed).max()) > FEATURE_TOLERANCE):
@@ -107,21 +113,24 @@ def build2_dataset(run_dirs, out_path, *, holdout, mapper, transformer, root, te
     if len(scales) != 1: raise ValueError('runs use different guidance scales: %s' % sorted(scales))
     keys = ('cond', 'uncond', 'stage', 'labelled', 'label_buttons', 'label_camera', 'camera_on', 'in_view',
             'label_pitch', 'label_yaw', 'step', 'features')
+    stages, features = LISTS[teacher]
     data = {k: torch.from_numpy(np.concatenate([p[k] for p in parts])) for k in keys}
     data.update(run=torch.from_numpy(np.concatenate([np.full(len(p['step']), i, np.int64) for i, p in enumerate(parts)])),
                 block=torch.from_numpy(np.concatenate([np.zeros(len(p['step']), np.int64) for p in parts])),
                 runs=names, blocks=[GROUP], holdout=held[0] if isinstance(holdout, str) else held,
-                cond_scale=scales.pop(), width=int(parts[0]['cond'].shape[1]), stages=list(BUILD2_STAGES),
-                teacher=NAMES[teacher], feature_names=list(BUILD2_FEATURES),
+                cond_scale=scales.pop(), width=int(parts[0]['cond'].shape[1]), stages=list(stages),
+                teacher=NAMES[teacher], feature_names=list(features),
                 use_combos=torch.from_numpy(use_combos(mapper)))
     out_path = Path(out_path); out_path.parent.mkdir(parents=True, exist_ok=True)
     torch.save(data, out_path)
     labelled = data['labelled'].numpy(); stage = data['stage'].numpy()
     summary = dict(dataset=str(out_path), dataset_sha256=sha256(out_path), teacher=NAMES[teacher], holdout=holdout, runs=[],
-                   rows=int(len(labelled)), labelled=int(labelled.sum()), features=list(BUILD2_FEATURES),
-                   labelled_by_stage={s: int((labelled & (stage == i)).sum()) for i, s in enumerate(BUILD2_STAGES)},
+                   rows=int(len(labelled)), labelled=int(labelled.sum()), features=list(features),
+                   labelled_by_stage={s: int((labelled & (stage == i)).sum()) for i, s in enumerate(stages)},
                    privileged=('teacher labels, stages and features use the blueprint, the client pose, the client crosshair and '
-                               'the server placement record; success and wrong placements use the server placement record'),
+                               'the server placement record; success and wrong placements use the server placement record'
+                               + ('; the repair teacher also uses the server destroy record and the selected item'
+                                  if teacher == REPAIR else '')),
                    source={p: sha256(Path(root) / p) for p in SOURCES if (Path(root) / p).exists()})
     for name, p in zip(names, parts):
         summary['runs'].append(dict(run=name, task=p['task'], seed=p['seed'], success=p['success'], rows=int(len(p['step'])),

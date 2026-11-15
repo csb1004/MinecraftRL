@@ -20,6 +20,7 @@ from .reacquire_teacher import BUTTONS, point_delta
 
 TEACHER = 'recover'
 CAREFUL = 'careful'    # round 4: the recovering teacher with careful place
+REPAIR = 'repair'      # round 5: careful place plus stray removal (build_repair, design 2026-11-15 build-repair)
 INNER = .2             # blocks: careful place needs the crosshair this far inside the face's edges
 BUILD2_STAGES = ('reach', 'move', 'aim', 'place', 'done')
 LABELLED = ('reach', 'move', 'aim', 'place')
@@ -142,10 +143,12 @@ class RecoverTracker:
         # Seen from anywhere the walk may stop (ARRIVE) around the cell centre, not only from the centre.
         return all(visible_face((eye[0] + a, eye[1], eye[2] + b), target, self.solids) is not None for a, b in MARGIN_EYES)
 
-    def standpoint(self, x, y, z, target):
+    def standpoint(self, x, y, z, target, usable=None):
         """(standpoint, waypoint) feet points, or (None, None): the usable standpoint fewest grid steps away (4-connected
         floor cells free at the feet and head; open blueprint cells may be crossed but not stood in), and the farthest
-        cell of that path a straight walk from the feet reaches without touching a block."""
+        cell of that path a straight walk from the feet reaches without touching a block. `usable(cell, target)` judges
+        a standpoint (default: it sees a face to place on; the repair skill passes its own for a block to dig)."""
+        usable = usable or self._usable
         stand = set(self.stand); level = self.stand[0][1]
         open_cells = {c for c in self.cells if c not in self.filled_cells}
 
@@ -154,7 +157,7 @@ class RecoverTracker:
         prev = {start: None}; order = [start]; i = 0
         while i < len(order):
             c = order[i]; i += 1
-            if c not in open_cells and free(c) and self._usable(c, target):
+            if c not in open_cells and free(c) and usable(c, target):
                 path = []
                 while c is not None: path.append(c); c = prev[c]
                 path.reverse()
@@ -321,13 +324,20 @@ def build2_fixture(task, teacher=TEACHER):
     return fixture
 
 
-def recovering(fixture): return (fixture.get('build') or {}).get('teacher') in (TEACHER, CAREFUL)
+def recovering(fixture): return (fixture.get('build') or {}).get('teacher') in (TEACHER, CAREFUL, REPAIR)
 
 
 def feed_for(fixture):
     teacher = (fixture.get('build') or {}).get('teacher')
+    if teacher == REPAIR:
+        from .build_repair import RepairFeed
+        return RepairFeed(fixture)
     return CarefulFeed(fixture) if teacher == CAREFUL else RecoverFeed(fixture) if teacher == TEACHER else BuildFeed(fixture)
 
 
-def stages_for(fixture): return BUILD2_STAGES if recovering(fixture) else BUILD_STAGES
+def stages_for(fixture):
+    if (fixture.get('build') or {}).get('teacher') == REPAIR:
+        from .build_repair import REPAIR_STAGES
+        return REPAIR_STAGES
+    return BUILD2_STAGES if recovering(fixture) else BUILD_STAGES
 

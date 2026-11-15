@@ -2,7 +2,8 @@
 Run in the WSL steve1 env: make_build_dataset.py --runs RUN... --holdout NAME... --out results/.../x.pt --root R
 [--features on] adds the privileged features (design §3). --teacher recover (design 2026-11-15) relabels every run with the
 recovering teacher, its stages and features (always on) and names the `use` combinations. --teacher careful (round 4)
-does the same with careful place."""
+does the same with careful place. --teacher repair (round 5, design 2026-11-15 build-repair) uses the repair teacher, its
+six stages and twelve features."""
 import argparse
 import json
 import sys
@@ -16,7 +17,7 @@ def main(argv=None):
     p.add_argument('--out', type=Path, required=True)
     p.add_argument('--root', type=Path, required=True)
     p.add_argument('--features', choices=('on', 'off'), default='off')
-    p.add_argument('--teacher', choices=('round1', 'recover', 'careful'), default='round1')
+    p.add_argument('--teacher', choices=('round1', 'recover', 'careful', 'repair'), default='round1')
     args = p.parse_args(argv)
     root = args.root.resolve(); out = args.out.resolve()
     if not out.is_relative_to(root / 'results'): raise SystemExit('output must be under results/')
@@ -27,7 +28,7 @@ def main(argv=None):
     from steve1.VPT.lib.actions import ActionTransformer
     from minecraftrl.build_data import build_build_dataset
     holdout = args.holdout[0] if len(args.holdout) == 1 else args.holdout
-    if args.teacher in ('recover', 'careful'):
+    if args.teacher in ('recover', 'careful', 'repair'):
         from minecraftrl.build2_data import build2_dataset
         summary = build2_dataset(sorted(d.resolve() for d in args.runs), out, holdout=holdout,
                                  mapper=CameraHierarchicalMapping(n_camera_bins=11),

@@ -64,10 +64,11 @@ TOOL_KEYS = ('drop', 'inventory', *('hotbar.%d' % i for i in range(1, 10)))
 GUI_BLOCKS = ('crafting_table', 'furnace', 'blast_furnace', 'smoker', 'chest', 'trapped_chest', 'barrel')
 
 
-def lock_tool(action, hit_block=None):
+def lock_tool(action, hit_block=None, allowed=()):
     """Remove the policy's tool-losing keys so the given/equipped tool stays held; returns (action, masked keys).
-    `use` is removed only while aiming at a GUI block (real check P3, 2026-11-05); placing blocks stays the policy's."""
-    masked = [k for k in TOOL_KEYS if np.asarray(action.get(k, 0)).any()]
+    `use` is removed only while aiming at a GUI block (real check P3, 2026-11-05); placing blocks stays the policy's.
+    `allowed` hotbar keys pass (building round 5 switches between the block and the pickaxe, design 2026-11-15)."""
+    masked = [k for k in TOOL_KEYS if k not in allowed and np.asarray(action.get(k, 0)).any()]
     if hit_block in GUI_BLOCKS and np.asarray(action.get('use', 0)).any(): masked.append('use')
     if not masked: return action, masked
     action = dict(action)
@@ -78,8 +79,10 @@ def lock_tool(action, hit_block=None):
 class DemoSession:
     def __init__(self, env, policy, catalog, recorder, gate, stop_file, *, limit_s, skills, clock=time.monotonic,
                  rule_controller=None, fixture_sha52=None, settle_steps=20, prepare_limit=400, tool_lock=False, oversight=None,
-                 reacquire=None, course=None, place=None, bridge=None, build=None):
+                 reacquire=None, course=None, place=None, bridge=None, build=None, tool_allowed=()):
         if not 0 < limit_s <= 900: raise ValueError('limit_s must be in (0, 900]')
+        if any(not k.startswith('hotbar.') or k not in TOOL_KEYS for k in tool_allowed):
+            raise ValueError('only hotbar keys can pass the tool lock: %s' % list(tool_allowed))
         if rule_controller is None:
             from ..workshop import WorkshopController as rule_controller
         self.env = env; self.policy = policy; self.catalog = catalog; self.recorder = recorder; self.gate = gate
@@ -87,7 +90,7 @@ class DemoSession:
         self.rule_controller = rule_controller; self.fixture_sha52 = fixture_sha52
         self.settle_steps = settle_steps; self.prepare_limit = prepare_limit
         # Explicit action filter on policy steps only; every masked key is logged and never counts as policy skill.
-        self.tool_lock = tool_lock
+        self.tool_lock = tool_lock; self.tool_allowed = tuple(tool_allowed)
         # Goal-derived guard and monitors (None = plain probe session). A hold ends policy dispatch for this run.
         self.oversight = oversight; self.last_sample = None; self.next_steps = None; self.surface_y = None
         self.last_kind = None  # kind of the step that ran last (a policy step after a rule step gets a level view)
@@ -188,6 +191,7 @@ class DemoSession:
     def run(self, steps):
         report = dict(status='initializing', execution_valid=False, steps=0, prepare_steps=0, stage_results=[],
                       all_steps_completed=False, final_inventory=None, release='not_attempted', tool_lock=self.tool_lock,
+                      tool_allowed=list(self.tool_allowed),
                       oversight=self.oversight.summary() if self.oversight else None,
                       stop_contract='no new dispatch after stop acknowledgment; an in-flight step may finish')
         try:
@@ -312,6 +316,7 @@ class DemoSession:
                 extra.update(filled=self.bridge.filled(), wrong=self.bridge.wrong(), unknown_placements=self.bridge.unknown)
             if until == 'build':
                 extra.update(filled=self.build.filled(), wrong=self.build.wrong(), unknown_placements=self.build.unknown)
+                if hasattr(self.build, 'repair_extra'): extra.update(self.build.repair_extra())   # round 5 (2026-11-15)
             return status, dict(extra, tool_masked=masked_steps) if self.tool_lock else extra
 
         while True:
@@ -325,7 +330,7 @@ class DemoSession:
             if hook is not None: hook.before_act()
             action = self.policy.act(self.obs['pov'])
             masked = ()
-            if self.tool_lock: action, masked = lock_tool(action, self.demo().get('demo_hit_block'))
+            if self.tool_lock: action, masked = lock_tool(action, self.demo().get('demo_hit_block'), self.tool_allowed)
             if oversight:
                 # Last reversible moment: the aimed block from the previous observation plus this action's attack.
                 event = oversight.pre_dispatch(self.last_sample, action)
@@ -560,7 +565,10 @@ class DemoSession:
         server placement record covers the blueprint or the step limit. Recorded as scripted_probe; never a policy result."""
         if self.build is None: raise ValueError('the build teacher needs a build fixture')
 
-        def extra(): return dict(filled=self.build.filled(), wrong=self.build.wrong(), unknown_placements=self.build.unknown)
+        def extra():
+            out = dict(filled=self.build.filled(), wrong=self.build.wrong(), unknown_placements=self.build.unknown)
+            if hasattr(self.build, 'repair_extra'): out.update(self.build.repair_extra())    # round 5 (2026-11-15)
+            return out
         for _ in range(int(step.params.get('limit_steps', 1200))):
             if self.build.done(): return 'completed', dict(completion='server_build_done', **extra())
             view = self.build.decision_view(); action = self.noop()

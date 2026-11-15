@@ -136,6 +136,37 @@ class BuildBatchTest(unittest.TestCase):
         self.assertEqual(frozen['mode'], 'large')
         self.assertTrue(any(k.replace('\\', '/').endswith('src/minecraftrl/build_large.py') for k in frozen['hashes']))
 
+    def test_the_repair_modes_use_their_seeds_tasks_fixtures_and_open_slots_1_and_2(self):
+        # Round 5 (design 2026-11-15 build-repair): repair tasks with strays; the repair teacher, or the careful one as a
+        # reference; the policy may switch between the block and the pickaxe.
+        from minecraftrl.build_repair import repair_build, repair_fixture
+        t = self.registry['tasks']
+        self.assertEqual((t['repair_train'], t['repair_dev'], t['repair_final']),
+                         (list(range(1101, 1113)), list(range(1201, 1209)), list(range(1301, 1309))))
+        self.assertEqual((self.m.MODES['repair_train'], self.m.MODES['repair_dev'], self.m.MODES['repair_final']),
+                         (self.m.TRAIN_SEEDS, (414213,), (236067,)))
+        for mode, task, seed in (('repair_dev', 1201, 236067), ('repair_final', 1201, 236067), ('repair_train', 1101, 414213)):
+            with self.subTest(mode=mode, task=task, seed=seed), self.assertRaises(ValueError):
+                self.m.check(mode, [task], [seed], self.registry)
+        config, fixture, _ = self.m.prepare(self.batch, 'official', ROOT, 1203, None, True, teacher='repair', repair=True)
+        self.assertEqual(json.loads(fixture.read_text()), repair_fixture(repair_build(1203)))
+        value = json.loads(config.read_text())
+        self.assertEqual(value['policy_tool_allowed'], ['hotbar.1', 'hotbar.2']); self.assertIs(value['policy_tool_lock'], True)
+        _, fixture, _ = self.m.prepare(self.batch, 'c4', ROOT, 1203, None, True, teacher='careful', repair=True)
+        self.assertEqual(json.loads(fixture.read_text()), repair_fixture(repair_build(1203), teacher='careful'))
+        plain, _, _ = self.m.prepare(self.batch, 'plain', ROOT, 101, None, True, teacher='careful')
+        self.assertNotIn('policy_tool_allowed', json.loads(plain.read_text()))
+        for teacher, repair in (('recover', True), ('repair', False)):
+            with self.subTest(teacher=teacher), self.assertRaises(ValueError):
+                self.m.prepare(self.batch, 'x', ROOT, 1203, None, True, teacher=teacher, repair=repair)
+        with self.assertRaises(ValueError): self.collect(mode='repair_train', tasks=[1101], seeds=[271828], teacher='careful2')
+        with self.assertRaises(ValueError): self.collect(mode='repair_train', tasks=[1101], seeds=[271828])
+        self.assertEqual(self.collect(mode='repair_train', tasks=[1101], seeds=[271828], teacher='repair'), 0)
+        frozen = json.loads((self.batch / 'frozen-teacher-c1101.json').read_text())
+        self.assertEqual((frozen['mode'], frozen['teacher']), ('repair_train', 'repair'))
+        self.assertIn('no stray left', frozen['scope'])
+        self.assertTrue(any(k.replace('\\', '/').endswith('src/minecraftrl/build_repair.py') for k in frozen['hashes']))
+
     def test_teacher_check_has_no_head_and_a_scripted_step(self):
         config, _, plan = self.m.prepare(self.batch, 'teacher', ROOT, 101, None, True, teacher_check=True)
         value = json.loads(config.read_text())
