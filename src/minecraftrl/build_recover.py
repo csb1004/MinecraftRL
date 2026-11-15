@@ -250,7 +250,7 @@ def teacher_action(x, y, z, yaw, pitch, view):
 def build2_features(x, y, z, yaw, pitch, view):
     """Privileged head input in BUILD2_FEATURES order: the direction to the cell centre (sin, cos of the yaw difference,
     pitch difference / 60), the eye distance / 6, the direction to the seen face centre (zeros when none is seen), the
-    open cells / 4, and in reach and move the direction to the waypoint (sin, cos of the yaw difference) and the
+    open cells / 4 (at most 1: size check, design 2026-11-15), and in reach and move the direction to the waypoint (sin, cos of the yaw difference) and the
     horizontal distance to the standpoint / 6 (zeros otherwise). Zeros when done or unknown."""
     if view is None or view.stage not in LABELLED: return [0.] * len(BUILD2_FEATURES)
     eye = (x, y + EYE, z)
@@ -261,7 +261,7 @@ def build2_features(x, y, z, yaw, pitch, view):
     else:
         fp, fy = point_delta(eye, yaw, pitch, view.face['centre'])
         out += [math.sin(math.radians(fy)), math.cos(math.radians(fy)), max(-1., min(1., fp / FEATURE_PITCH))]
-    out.append(view.left / LEFT_SCALE)
+    out.append(min(view.left, LEFT_SCALE) / LEFT_SCALE)   # capped: heads trained on blueprints of at most 4 cells
     if view.stand is None: return out + [0., 0., 0.]
     my = point_delta(eye, yaw, pitch, (view.way[0], eye[1], view.way[2]))[1]
     far = math.hypot(view.stand[0] - x, view.stand[2] - z)
