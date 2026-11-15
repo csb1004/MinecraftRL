@@ -115,6 +115,27 @@ class BuildBatchTest(unittest.TestCase):
         self.assertEqual(json.loads((self.batch / 'fixtures' / 'task-601.json').read_text())['blocks'], [])
         with self.assertRaises(ValueError): self.collect(mode='occluded_train', tasks=[504], seeds=[271828])
 
+    def test_the_large_mode_has_its_own_seed_and_tasks_and_the_larger_blueprints(self):
+        # Size check (design 2026-11-15 build-large-check): tasks 1001-1008 on 693147, a recovering teacher only.
+        from minecraftrl.build_large import large_build
+        from minecraftrl.build_recover import build2_fixture
+        self.assertEqual(self.registry['tasks']['large'], list(range(1001, 1009)))
+        self.assertEqual(self.m.MODES['large'], (693147,))
+        self.m.check('large', [1001], [693147], self.registry)
+        for mode, task, seed in (('large', 1001, 866025), ('large', 801, 693147), ('final4', 1001, 866025)):
+            with self.subTest(mode=mode, task=task, seed=seed), self.assertRaises(ValueError):
+                self.m.check(mode, [task], [seed], self.registry)
+        _, fixture, _ = self.m.prepare(self.batch, 'official', ROOT, 1004, None, True, teacher='careful', large=True)
+        self.assertEqual(json.loads(fixture.read_text()), build2_fixture(large_build(1004), teacher='careful'))
+        with self.assertRaises(ValueError): self.m.prepare(self.batch, 'official', ROOT, 1004, None, True, large=True)
+        with self.assertRaises(ValueError): self.collect(mode='large', tasks=[1001], seeds=[693147])
+        self.assertEqual(self.collect(mode='large', tasks=[1001], seeds=[693147], teacher='careful'), 0)
+        written = json.loads((self.batch / 'fixtures' / 'task-1001.json').read_text())
+        self.assertEqual(written['build']['cells'], large_build(1001)['cells'])
+        frozen = json.loads((self.batch / 'frozen-teacher-c1001.json').read_text())
+        self.assertEqual(frozen['mode'], 'large')
+        self.assertTrue(any(k.replace('\\', '/').endswith('src/minecraftrl/build_large.py') for k in frozen['hashes']))
+
     def test_teacher_check_has_no_head_and_a_scripted_step(self):
         config, _, plan = self.m.prepare(self.batch, 'teacher', ROOT, 101, None, True, teacher_check=True)
         value = json.loads(config.read_text())

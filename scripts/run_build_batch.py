@@ -15,6 +15,8 @@ recovering teacher only; the fixture sets a block right in front of the first ce
 Round 4 (docs/specs/2026-11-15-build-careful-design.md): --teacher careful (careful place); modes occluded_train
 (occluded training tasks on the training seeds), dev4 / dev4_occluded (302585) and final4 / final4_occluded (866025).
 Every occluded mode needs a recovering teacher (recover or careful).
+Mode large (size check, docs/specs/2026-11-15-build-large-check-design.md): larger blueprints (build_large.large_build,
+6-16 cells) on 693147, a recovering teacher only; build_large.py joins the input record.
 """
 import argparse
 import json
@@ -26,6 +28,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'src'))
 sys.path.insert(0, str(ROOT / 'scripts'))
+from minecraftrl.build_large import large_build  # noqa: E402
 from minecraftrl.build_recover import CAREFUL, build2_fixture, occluded_build  # noqa: E402
 from minecraftrl.build_task import build_fixture, generate_build  # noqa: E402
 from run_reacquire_batch import POLICY_DEVICE_MIB, frozen_ok, input_hashes, nvidia_free_mib, run_game, write  # noqa: E402
@@ -33,8 +36,9 @@ from run_reacquire_batch import POLICY_DEVICE_MIB, frozen_ok, input_hashes, nvid
 TRAIN_SEEDS = (271828, 314159, 161803)
 MODES = {'train': TRAIN_SEEDS, 'dev': (130363,), 'final': (662607,), 'occluded': (707106,),
          'occluded_train': TRAIN_SEEDS, 'dev4': (302585,), 'dev4_occluded': (302585,), 'final4': (866025,),
-         'final4_occluded': (866025,)}
+         'final4_occluded': (866025,), 'large': (693147,)}
 OCCLUDED_MODES = ('occluded', 'occluded_train', 'dev4_occluded', 'final4_occluded')
+LARGE_MODES = ('large',)
 RECOVERING = ('recover', CAREFUL)
 REGISTRY = 'configs/build-v1.json'
 BASE = 'configs/reacquire-v1.json'
@@ -69,10 +73,12 @@ def build_config(base, registry, checkpoint, use_stage, teacher_check=False):
     return config
 
 
-def prepare(batch, arm, root, task, checkpoint, use_stage, teacher_check=False, teacher='round1', occluded=False):
+def prepare(batch, arm, root, task, checkpoint, use_stage, teacher_check=False, teacher='round1', occluded=False,
+            large=False):
     if teacher not in TEACHERS: raise ValueError('teacher must be one of %s' % sorted(TEACHERS))
     if occluded and teacher not in RECOVERING: raise ValueError('occluded tasks need a recovering teacher')
-    blueprint = occluded_build(task) if occluded else generate_build(task)
+    if large and teacher not in RECOVERING: raise ValueError('large tasks need a recovering teacher')
+    blueprint = occluded_build(task) if occluded else large_build(task) if large else generate_build(task)
     if blueprint is None: raise ValueError('task %d has no free cell in front of its first cell' % task)
     registry = load_registry(root)
     base = json.loads((Path(root) / BASE).read_text(encoding='utf-8'))
@@ -96,6 +102,7 @@ def collect(*, batch, arm, checkpoint, use_stage, mode, tasks, seeds, sampling, 
     if not batch.is_relative_to(root / 'results'): raise ValueError('batch must be under results/')
     if teacher_check and checkpoint is not None: raise ValueError('the teacher check has no head')
     if mode in OCCLUDED_MODES and teacher not in RECOVERING: raise ValueError('occluded tasks need a recovering teacher')
+    if mode in LARGE_MODES and teacher not in RECOVERING: raise ValueError('large tasks need a recovering teacher')
     if not teacher_check and not registry['sha256']: raise ValueError('the build prompt embedding is not made yet (%s)' % REGISTRY)
     if checkpoint is not None and not Path(checkpoint).exists(): raise ValueError('no checkpoint: %s' % checkpoint)
     meta = dict(arm=arm, checkpoint=None if checkpoint is None else str(Path(checkpoint).resolve()), use_stage=bool(use_stage),
@@ -104,11 +111,12 @@ def collect(*, batch, arm, checkpoint, use_stage, mode, tasks, seeds, sampling, 
     if teacher != 'round1': meta['teacher'] = teacher          # round 1 records stay as they were
     for task in tasks:
         config, fixture, plan = prepare(batch, arm, root, task, meta['checkpoint'], use_stage, teacher_check, teacher,
-                                        occluded=mode in OCCLUDED_MODES)
+                                        occluded=mode in OCCLUDED_MODES, large=mode in LARGE_MODES)
         files = [config, fixture, plan, root / REGISTRY, root / 'src/minecraftrl/build_task.py',
                  root / 'src/minecraftrl/place_task.py',
                  root / 'src/minecraftrl/PlaceObservation.java', root / 'src/minecraftrl/world_save_patch.py']
         if teacher != 'round1': files.append(root / 'src/minecraftrl/build_recover.py')
+        if mode in LARGE_MODES: files.append(root / 'src/minecraftrl/build_large.py')
         if not teacher_check: files.append(root / registry['embedding'])
         if checkpoint: files.append(Path(checkpoint))
         frozen = batch / ('frozen-%s-c%d.json' % (arm, task))

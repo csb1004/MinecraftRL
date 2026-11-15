@@ -7,6 +7,7 @@ version 1 is the round 1-2 teacher (build_task), version 2 the recovering teache
 recovering teacher with careful place (round 4).
 clutter: a placed block in front of the first cell before the start (the round 1-2 failure state).
 stray: probability of an extra `use` press on a decision whose label has none (a student's stray press), seeded.
+make: the blueprint generator (build_task.generate_build; build_large.large_build for the size check).
 noise: standard deviation (degrees) added to each camera axis, and the same share of decisions (noise / 20) that do
 nothing, a crude stand-in for a student that follows the teacher loosely.
 Usage: simulate_build_recover.py [--seeds N] [--stray P ...] -> success and wrong placements per teacher and stray level.
@@ -45,8 +46,8 @@ def clutter_cell(task):
     return cell
 
 
-def run(seed, start_yaw=0., limit=1200, version=2, clutter=False, stray=0., rng_seed=0, noise=0.):
-    task = ct.generate_build(seed); origin = (0, 64, 0)
+def run(seed, start_yaw=0., limit=1200, version=2, clutter=False, stray=0., rng_seed=0, noise=0., make=None):
+    task = (make or ct.generate_build)(seed); origin = (0, 64, 0)
     w = br.world_build2(task, origin, start_yaw)
     tr = (br.CarefulTracker(w) if version == 3 else br.RecoverTracker(w) if version == 2
           else ct.BuildTracker(ct.world_build(task, origin, start_yaw)))

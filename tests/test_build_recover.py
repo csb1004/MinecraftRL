@@ -1,4 +1,5 @@
 """Building with recovery (design 2026-11-15): visible faces, standpoints, the move stage, the teacher and the feed."""
+import dataclasses
 import importlib.util
 import math
 import unittest
@@ -103,6 +104,14 @@ class TeacherTest(unittest.TestCase):
         g = br.build2_features(.5, 64., .5, 0., 0., move)
         self.assertEqual(g[4:7], [0., 0., 0.]); self.assertGreater(g[-1], 0.)
         self.assertEqual(br.build2_features(.5, 64., .5, 0., 0., None), [0.] * len(br.BUILD2_FEATURES))
+
+    def test_the_open_cell_count_is_capped_at_the_trained_range(self):
+        # Size check (design 2026-11-15): heads trained on blueprints of at most 4 cells; more open cells read as 4.
+        i = br.BUILD2_FEATURES.index('left')
+        view = br.RecoverView('aim', (0, 64, 3), None, 3., 0, 16, None, None)
+        self.assertEqual(br.build2_features(.5, 64., .5, 0., 0., view)[i], 1.)
+        for left, value in ((4, 1.), (3, .75), (1, .25)):
+            self.assertEqual(br.build2_features(.5, 64., .5, 0., 0., dataclasses.replace(view, left=left))[i], value)
 
 
 class FeedTest(unittest.TestCase):
