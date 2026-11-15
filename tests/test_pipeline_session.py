@@ -130,11 +130,12 @@ class SessionTests(unittest.TestCase):
         if hasattr(self, 'recorder'): self.recorder.close()
         self.temp.cleanup()
 
-    def session(self, env, policy=None, *, limit_s=60., clock=None, controller=FakeController, fixture=None, tool_lock=False):
+    def session(self, env, policy=None, *, limit_s=60., clock=None, controller=FakeController, fixture=None, tool_lock=False,
+                tool_allowed=()):
         self.recorder = Recorder(self.out / 'run')
         return DemoSession(env, policy or FakePolicy(), None, self.recorder, self.gate, self.stop,
                            limit_s=limit_s, skills=SKILLS, clock=clock or Clock(), rule_controller=controller,
-                           fixture_sha52=fixture, settle_steps=0, tool_lock=tool_lock)
+                           fixture_sha52=fixture, settle_steps=0, tool_lock=tool_lock, tool_allowed=tool_allowed)
 
     def timeline(self):
         return [json.loads(line) for line in (self.out / 'run/timeline.jsonl').read_text().splitlines()]
@@ -206,6 +207,19 @@ class SessionTests(unittest.TestCase):
         self.session(env).run([Step('s1', 'dig', 'policy', 'cobblestone', 3, block='stone')])
         rows = [json.loads(l) for l in (self.out / 'run/telemetry.jsonl').read_text().splitlines()]
         self.assertTrue(rows); self.assertFalse(any('place' in r for r in rows))
+
+    def test_tool_lock_lets_only_the_allowed_slots_through(self):
+        # Building round 5 (design 2026-11-15 build-repair): the policy switches between the block (slot 1) and the
+        # pickaxe (slot 2); the other slots, drop and inventory stay masked.
+        action = noop(); action['hotbar.2'] = 1; action['hotbar.3'] = 1; action['drop'] = 1; action['forward'] = 1
+        env = FakeEnv(lambda n, a: info({'cobblestone': 3 if n >= 4 else 0}, selected='wooden_pickaxe'))
+        report = self.session(env, FakePolicy(action), tool_lock=True, tool_allowed=('hotbar.1', 'hotbar.2')).run(
+            [Step('s1', 'dig', 'policy', 'cobblestone', 3, block='stone')])
+        self.assertEqual([(a['hotbar.2'], a['hotbar.3'], a['drop'], a['forward']) for a in env.actions[1:]], [(1, 0, 0, 1)] * 3)
+        telemetry = [json.loads(l) for l in (self.out / 'run/telemetry.jsonl').read_text().splitlines()]
+        self.assertEqual([t.get('masked') for t in telemetry if t['controller'] == 'policy'], [['drop', 'hotbar.3']] * 3)
+        self.assertEqual(report['tool_allowed'], ['hotbar.1', 'hotbar.2'])
+        with self.assertRaises(ValueError): self.session(env, tool_lock=True, tool_allowed=('drop',))
 
     def test_tool_lock_masks_drop_and_inventory(self):
         # Real probe: STEVE-1 dropped the given stone pickaxe with Q while the hotbar was locked.
@@ -1300,10 +1314,12 @@ class BuildSessionTests(unittest.TestCase):
         return env, session.run([step])
 
     @staticmethod
-    def at(count, last, *, hit=None, pitch=40.):
+    def at(count, last, *, hit=None, pitch=40., selected='cobblestone', destroys=0, destroyed=None):
         # The start block is (0, 64, 0) facing south: the blueprint cells are (0, 64, 3) and (0, 65, 3).
-        value = located(info(x=0.5, y=64., z=0.5, pitch=pitch, demo_fixture_origin_y=64,
-                             demo_hit_block='air' if hit is None else 'grass_block'))
+        gone = dict(demo_last_destroy_removed=1 if destroyed else 0,
+                    **{'demo_last_destroy_' + a: v for a, v in zip('xyz', destroyed or (-999, -999, -999))})
+        value = located(info(x=0.5, y=64., z=0.5, pitch=pitch, demo_fixture_origin_y=64, selected=selected,
+                             destroys=destroys, demo_hit_block='air' if hit is None else 'grass_block', **gone))
         value['workshop'].update(client_x=0.5, client_y=64., client_z=0.5, client_on_ground=1,
                                  hit_x=0 if hit is None else hit[0], hit_y=0 if hit is None else hit[1],
                                  hit_z=0 if hit is None else hit[2], hit_face=1)
@@ -1346,6 +1362,22 @@ class BuildSessionTests(unittest.TestCase):
         env, report = self.run_build(lambda n, a: script.get(n, script[4]), step)
         self.assertNotEqual(float(env.actions[2]['camera'][1]), 0.)
         self.assertEqual(report['stage_results'][0]['status'], 'completed')
+
+    def test_a_repair_fixture_digs_the_stray_first_and_reports_it(self):
+        # Round 5 (design 2026-11-15 build-repair): a stray next to the blueprint; the teacher takes the pickaxe first,
+        # the server destroy record removes the stray, and the step completes only with the blueprint filled.
+        from minecraftrl.build_repair import repair_fixture
+        none = (-999, -999, -999); stray = (-1, 64, 3)
+        self.fixture = repair_fixture(dict(self.TASK, strays=[[1, 0, 3]]))
+        script = {1: self.at(0, none), 2: self.at(0, none, selected='stone_pickaxe'),
+                  3: self.at(0, none, selected='stone_pickaxe', destroys=1, destroyed=stray),
+                  4: self.at(1, (0, 64, 3), destroys=1, destroyed=stray), 5: self.at(2, (0, 65, 3), destroys=1, destroyed=stray)}
+        step = Step('check', 'build', 'scripted', 'build_done', 1, params={'driver': 'build_teacher'})
+        env, report = self.run_build(lambda n, a: script.get(n, script[5]), step)
+        stage = report['stage_results'][0]
+        self.assertEqual((stage['status'], stage['completion']), ('completed', 'server_build_done'))
+        self.assertEqual((stage['strays_left'], stage['dug'], stage['broken'], stage['filled'], stage['wrong']), (0, 1, 0, 2, 0))
+        self.assertEqual(env.actions[1]['hotbar.2'], 1)
 
 
 if __name__ == '__main__':

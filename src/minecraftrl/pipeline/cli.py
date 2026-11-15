@@ -295,6 +295,7 @@ def worker(args):
         session = DemoSession(env, policy, catalog, recorder, gate, args.stop_file, limit_s=limit_s, skills=skills,
                               fixture_sha52=sha52, settle_steps=int(config.get('settle_steps', 20)),
                               tool_lock=bool(config.get('policy_tool_lock', False)), oversight=oversight,
+                              tool_allowed=tuple(config.get('policy_tool_allowed', ())),
                               reacquire=reacquire, course=course_of(args.fixture), place=place_of(args.fixture),
                               bridge=bridge_of(args.fixture), build=build_of(args.fixture))
         report = session.run(steps)
@@ -303,7 +304,9 @@ def worker(args):
                       skills={k: {f: v for f, v in s.items() if f != 'embedding'} for k, s in skills.items()},
                       backend_preparation=preparation, api_calls=report['oversight']['api_calls'] if report.get('oversight') else 0,
                       controller_scope='STEVE-1 policy steps; rule GUI steps and scripted probe steps are recorded separately'
-                                       + ('; policy hotbar/drop/inventory keys masked (tool keeping is not policy skill)' if session.tool_lock else ''),
+                                       + ('; policy hotbar/drop/inventory keys masked (tool keeping is not policy skill)' if session.tool_lock else '')
+                                       + ('; except %s (switching the block and the pickaxe is part of the repair skill)'
+                                          % ', '.join(session.tool_allowed) if session.tool_lock and session.tool_allowed else ''),
                       gpu=dict(torch_peak_allocated_mib=torch.cuda.max_memory_allocated() / 2**20))
         write_json(output / 'summary.json', report)
         return 0 if report['execution_valid'] else 2

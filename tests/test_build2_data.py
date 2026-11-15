@@ -81,6 +81,67 @@ class Build2ExamplesTest(unittest.TestCase):
                                  root=Path(self.tmp.name), teacher='careful')
         self.assertEqual((torch.load(out)['teacher'], summary['teacher']), ('build_careful', 'build_careful'))
 
+    def test_the_repair_teacher_relabels_other_runs_with_its_six_stages_and_twelve_features(self):
+        # Round 5 (design 2026-11-15 build-repair): the dig stage and the pickaxe-in-hand feature.
+        import torch
+        from minecraftrl.build2_data import build2_dataset, build2_run_examples
+        from minecraftrl.build_repair import REPAIR_FEATURES, REPAIR_STAGES
+        def holding(folder, item):
+            path = Path(folder) / 'telemetry.jsonl'
+            rows = [dict(json.loads(line), server_selected_item=item) for line in path.read_text().splitlines()]
+            path.write_text(''.join(json.dumps(r) + '\n' for r in rows), encoding='utf-8')
+            return folder
+
+        run = holding(as_recovering(make_build_run(Path(self.tmp.name) / 'j/r1')), 'cobblestone')
+        ex = build2_run_examples(run, self.mapper, self.transformer, root=Path(self.tmp.name), teacher='repair')
+        self.assertTrue(ex['relabelled']); self.assertEqual(ex['features'].shape, (2, len(REPAIR_FEATURES)))
+        # No stray and the block in hand: the careful teacher's stages, labels and features, plus 'held' = 0.
+        careful = build2_run_examples(run, self.mapper, self.transformer, root=Path(self.tmp.name), teacher='careful')
+        self.assertEqual(ex['stage'].tolist(), [REPAIR_STAGES.index(BUILD2_STAGES[s]) for s in careful['stage']])
+        np.testing.assert_array_equal(ex['label_buttons'], careful['label_buttons'])
+        np.testing.assert_allclose(ex['features'][:, :-1], careful['features']); self.assertEqual(ex['features'][:, -1].tolist(), [0., 0.])
+        # The pickaxe in hand: the same stages, 'held' = 1, and every label switches back to the block (slot 1).
+        pick = holding(as_recovering(make_build_run(Path(self.tmp.name) / 'j2/r1')), 'stone_pickaxe')
+        ex = build2_run_examples(pick, self.mapper, self.transformer, root=Path(self.tmp.name), teacher='repair')
+        self.assertEqual(ex['features'][:, -1].tolist(), [1., 1.])
+        self.assertTrue(all('hotbar.1' in self.keys(ex, i) and 'use' not in self.keys(ex, i) for i in range(2)))
+        runs = [make_build_run(Path(self.tmp.name) / 'k' / name) for name in ('r1', 'r2')]
+        out = Path(self.tmp.name) / 'repair.pt'
+        summary = build2_dataset(runs, out, holdout='r2', mapper=self.mapper, transformer=self.transformer,
+                                 root=Path(self.tmp.name), teacher='repair')
+        data = torch.load(out)
+        self.assertEqual((data['stages'], data['feature_names'], data['teacher']),
+                         (list(REPAIR_STAGES), list(REPAIR_FEATURES), 'build_repair'))
+        self.assertEqual((summary['labelled_by_stage']['dig'], summary['features']), (0, list(REPAIR_FEATURES)))
+
+    def test_a_repair_run_must_match_its_replay(self):
+        from minecraftrl.build2_data import build2_run_examples
+        from minecraftrl.build_repair import REPAIR_STAGES, repair_fixture
+
+        def as_repair(folder, recorded):
+            folder = as_recovering(folder)
+            path = folder.parent / 'task.json'; path.write_text(json.dumps(repair_fixture(TASK)), encoding='utf-8')
+            request = json.loads((folder / 'request.json').read_text())
+            request['fixture_sha256'] = hashlib.sha256(path.read_bytes()).hexdigest()
+            (folder / 'request.json').write_text(json.dumps(request), encoding='utf-8')
+            latents = folder / 'reacquire/latents-000.npz'
+            with np.load(latents) as d: arrays = {k: d[k] for k in d.files}
+            arrays['stage'] = np.array([REPAIR_STAGES.index(s) for s in recorded], np.int8); np.savez(latents, **arrays)
+            manifest = json.loads((folder / 'reacquire/manifest.json').read_text())
+            manifest.update(stages=list(REPAIR_STAGES))
+            manifest['chunks'][0]['sha256'] = hashlib.sha256(latents.read_bytes()).hexdigest()
+            (folder / 'reacquire/manifest.json').write_text(json.dumps(manifest), encoding='utf-8')
+            return folder
+
+        run = as_repair(make_build_run(Path(self.tmp.name) / 'l/r1'), ('aim', 'aim'))     # the careful-place stages
+        ex = build2_run_examples(run, self.mapper, self.transformer, root=Path(self.tmp.name), teacher='repair')
+        self.assertFalse(ex['relabelled'])
+        with self.assertRaises(ValueError):
+            build2_run_examples(as_repair(make_build_run(Path(self.tmp.name) / 'm/r1'), ('aim', 'dig')), self.mapper,
+                                self.transformer, root=Path(self.tmp.name), teacher='repair')
+        with self.assertRaises(ValueError):                  # a repair record is not relabelled by the careful teacher
+            build2_run_examples(run, self.mapper, self.transformer, root=Path(self.tmp.name), teacher='careful')
+
     def test_dataset_names_the_recovering_lists_and_the_use_combinations(self):
         import torch
         from minecraftrl.build2_data import build2_dataset

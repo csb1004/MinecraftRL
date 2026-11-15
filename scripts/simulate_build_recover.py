@@ -4,7 +4,10 @@ Same model as simulate_build_teacher.py: one decision per tick, camera turns as 
 tick (forward or back along the yaw) and stopped by placed blocks at the feet or head, a voxel crosshair from the eye
 (4.5 reach), a placement when `use` lands a block in a free cell outside the player (4 ticks apart).
 version 1 is the round 1-2 teacher (build_task), version 2 the recovering teacher (build_recover), version 3 the
-recovering teacher with careful place (round 4).
+recovering teacher with careful place (round 4), version 4 the repair teacher (build_repair, round 5): the task's strays
+are solid at the start, the hand starts on the block, hotbar.1 / hotbar.2 take the block / the stone pickaxe, `use`
+places only with the block in hand, and attacking the same block with the pickaxe for DIG_TICKS decisions in a row breaks
+it (stone pickaxe on cobblestone: 15 ticks); the result adds the strays left, dug and broken blueprint blocks.
 clutter: a placed block in front of the first cell before the start (the round 1-2 failure state).
 stray: probability of an extra `use` press on a decision whose label has none (a student's stray press), seeded.
 make: the blueprint generator (build_task.generate_build; build_large.large_build for the size check).
@@ -22,10 +25,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
 from minecraftrl import build_recover as br  # noqa: E402
+from minecraftrl import build_repair as rp  # noqa: E402
 from minecraftrl import build_task as ct  # noqa: E402
 from minecraftrl.place_task import EYE, FACE_NORMALS, _at  # noqa: E402
 
-WALK, HALF, USE_DELAY = .216, .3, 4
+WALK, HALF, USE_DELAY, DIG_TICKS = .216, .3, 4, 15
 
 
 def look(yaw, pitch):
@@ -48,11 +52,18 @@ def clutter_cell(task):
 
 def run(seed, start_yaw=0., limit=1200, version=2, clutter=False, stray=0., rng_seed=0, noise=0., make=None):
     task = (make or ct.generate_build)(seed); origin = (0, 64, 0)
-    w = br.world_build2(task, origin, start_yaw)
-    tr = (br.CarefulTracker(w) if version == 3 else br.RecoverTracker(w) if version == 2
-          else ct.BuildTracker(ct.world_build(task, origin, start_yaw)))
-    teacher = br.teacher_action if version in (2, 3) else ct.teacher_action
+    w = rp.world_repair(task, origin, start_yaw) if version == 4 else br.world_build2(task, origin, start_yaw)
+    tr = (rp.RepairTracker(w) if version == 4 else br.CarefulTracker(w) if version == 3 else br.RecoverTracker(w)
+          if version == 2 else ct.BuildTracker(ct.world_build(task, origin, start_yaw)))
+    teacher = rp.teacher_action if version == 4 else br.teacher_action if version in (2, 3) else ct.teacher_action
     solids = set(w['solids'])
+    held = task['block']; digging = None; dug_ticks = 0
+
+    def outcome(ok, steps):
+        out = dict(ok=ok, steps=steps, wrong=wrong, shape=task['shape'])
+        if not ok: out.update(filled=len(tr.filled_cells), cells=len(tr.cells))
+        if version == 4: out.update(strays_left=len(tr.strays), dug=tr.dug, broken=tr.broken)
+        return out
     rng = random.Random(rng_seed * 100003 + seed * 7 + int(start_yaw))
     if clutter:
         c = clutter_cell(task)
@@ -62,13 +73,23 @@ def run(seed, start_yaw=0., limit=1200, version=2, clutter=False, stray=0., rng_
     last_use = -USE_DELAY; wrong = 0
     for k in range(limit):
         hit, face = br.raycast((x, y + EYE, z), look(yaw, pitch), solids)
+        if version == 4: tr.held = held
         view = tr.update(x, y, z, yaw, pitch, hit, face)
-        if view.stage == 'done': return dict(ok=True, steps=k, wrong=wrong, shape=task['shape'])
+        if view.stage == 'done': return outcome(True, k)
         a = dict(teacher(x, y, z, yaw, pitch, view))
         if noise > 0:
-            if rng.random() < noise / 20: a = dict(a, forward=0, back=0, use=0, camera=[0., 0.])
+            if rng.random() < noise / 20: a = dict(a, forward=0, back=0, use=0, camera=[0., 0.])   # attack held
             a['camera'] = [float(a['camera'][0]) + rng.gauss(0, noise), float(a['camera'][1]) + rng.gauss(0, noise)]
+        if version == 4:
+            if a.get('hotbar.1'): held = task['block']
+            if a.get('hotbar.2'): held = rp.PICKAXE
+            if a.get('attack') and held == rp.PICKAXE and hit is not None:
+                dug_ticks = dug_ticks + 1 if hit == digging else 1; digging = hit
+                if dug_ticks >= DIG_TICKS:
+                    solids.discard(hit); tr.destroyed(hit); digging = None; dug_ticks = 0
+            else: digging = None; dug_ticks = 0
         press = a['use'] or (stray > 0 and rng.random() < stray)
+        if version == 4 and held != task['block']: press = False
         if press and hit is not None and k - last_use >= USE_DELAY:
             last_use = k
             lands = tuple(h + n for h, n in zip(hit, FACE_NORMALS[face]))
@@ -78,7 +99,7 @@ def run(seed, start_yaw=0., limit=1200, version=2, clutter=False, stray=0., rng_
         v = WALK * (a['forward'] - a['back'])
         nx, nz = x - math.sin(math.radians(yaw)) * v, z + math.cos(math.radians(yaw)) * v
         if not (body_cells(nx, y, nz) & solids): x, z = nx, nz
-    return dict(ok=False, steps=limit, wrong=wrong, shape=task['shape'], filled=len(tr.filled_cells), cells=len(tr.cells))
+    return outcome(False, limit)
 
 
 def main(argv=None):
