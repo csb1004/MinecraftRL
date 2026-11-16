@@ -13,11 +13,16 @@ from pathlib import Path
 import numpy as np
 
 from ..runtime import jsonable
+from .monitor_thread import MonitorThread
 from .rm import sample_from
 from .steps import block_matches, item_count
 
 CONTROLLERS = {'policy': 'policy', 'rule': 'rule', 'scripted': 'scripted_probe'}
 STOP_STATUSES = ('stop_file', 'time_limit', 'environment_done')
+# Where the fast monitor runs (2026-11-16): 'thread' (its own worker; holds are taken at the next boundary) or 'inline'
+# (the old call inside the control loop, kept to reproduce earlier runs).
+MONITOR_MODES = ('thread', 'inline')
+END_WAIT_S = 1.  # at a step's end, wait this long at most for the monitor's last samples
 WORKSHOP_SAMPLE = ('world_time', 'server_tick', 'server_x', 'server_y', 'server_z', 'yaw', 'pitch', 'screen',
                    'server_selected_item', 'server_health', 'server_available', 'hit_x', 'hit_y', 'hit_z',
                    'held_key_count', 'server_on_ground', 'server_fall_distance',
@@ -79,8 +84,11 @@ def lock_tool(action, hit_block=None, allowed=()):
 class DemoSession:
     def __init__(self, env, policy, catalog, recorder, gate, stop_file, *, limit_s, skills, clock=time.monotonic,
                  rule_controller=None, fixture_sha52=None, settle_steps=20, prepare_limit=400, tool_lock=False, oversight=None,
-                 reacquire=None, course=None, place=None, bridge=None, build=None, tool_allowed=()):
+                 reacquire=None, course=None, place=None, bridge=None, build=None, tool_allowed=(), monitor_mode='thread',
+                 monitor_wait_s=.05):
         if not 0 < limit_s <= 900: raise ValueError('limit_s must be in (0, 900]')
+        if monitor_mode not in MONITOR_MODES: raise ValueError('monitor_mode must be one of %s' % list(MONITOR_MODES))
+        if not monitor_wait_s >= 0: raise ValueError('monitor_wait_s must be >= 0')
         if any(not k.startswith('hotbar.') or k not in TOOL_KEYS for k in tool_allowed):
             raise ValueError('only hotbar keys can pass the tool lock: %s' % list(tool_allowed))
         if rule_controller is None:
@@ -95,6 +103,10 @@ class DemoSession:
         self.oversight = oversight; self.last_sample = None; self.next_steps = None; self.surface_y = None
         self.last_kind = None  # kind of the step that ran last (a policy step after a rule step gets a level view)
         if oversight: oversight.emit = recorder.event
+        # The fast monitor's worker (started by run() when there is oversight and the mode is 'thread'). Before each
+        # dispatch the control loop waits at most monitor_wait_s for it; a later result is acted on at a later boundary.
+        self.monitor_mode = monitor_mode; self.monitor_wait_s = monitor_wait_s; self.monitor_thread = None
+        self.boundaries = 0; self.late_boundaries = 0
         # Reacquire hook (stage_live.ReacquireHook): live stage input for the residual head and the latent record.
         # It only acts on policy steps whose skill has a `reacquire` block.
         self.reacquire = reacquire
@@ -195,6 +207,7 @@ class DemoSession:
                       oversight=self.oversight.summary() if self.oversight else None,
                       stop_contract='no new dispatch after stop acknowledgment; an in-flight step may finish')
         try:
+            if self.oversight and self.monitor_mode == 'thread': self.monitor_thread = MonitorThread().start()
             self.obs = self.env.reset(); self.started = self.clock()
             self.recorder.event('session_started', plan=[asdict(s) for s in steps], limit_s=self.limit_s)
             self.kb_snapshot('session_start')
@@ -235,6 +248,7 @@ class DemoSession:
             ended = self.clock()
             self.gate.stop(report['status'])
             self.recorder.event('stop_acknowledged', reason=self.gate.reason, steps=self.steps)
+            report['monitor'] = self.close_monitor_thread()
             try: report['release'] = self.env.release() or 'neutral_command_sent'
             except BaseException as exc: report['release'] = 'failed: ' + repr(exc)
             self.recorder.event('input_release', controller='cleanup', outcome=report['release'])
@@ -299,14 +313,30 @@ class DemoSession:
         if until == 'bridge' and self.bridge is None: raise ValueError("until='bridge' needs a bridge fixture")
         if until == 'build' and self.build is None: raise ValueError("until='build' needs a build fixture")
 
-        oversight = self.oversight; attack_masks = 0
+        oversight = self.oversight; attack_masks = 0; monitor = self.monitor_thread; monitoring = [False]; drops = 0
         if oversight:
             oversight.start_step(step); self.last_sample = sample_from(self.info, self.noop(), self.clock())
+            if monitor is not None: monitor.begin(oversight.monitor); monitoring[0] = True
         if self.reacquire is not None: self.reacquire.activate(bool(skill.get('reacquire')))
         hook = self.reacquire if self.reacquire is not None and skill.get('reacquire') else None
         if hook is not None: hook.start_step(self.recorder.clock())
 
+        def end_monitoring(act):
+            """End the step on the monitor thread before anything else (a hold's slow path must not look like a stale
+            observation): wait for its last samples, record their events, and return a hold still to act on."""
+            if not monitoring[0]: return None
+            monitoring[0] = False
+            held = self.monitor_boundary(step, END_WAIT_S, act=act); monitor.end()
+            return held
+
+        def hold_and_finish(event):
+            end_monitoring(act=False)
+            return finish('anomaly_hold', **self.hold(event, step))
+
         def finish(status, **extra):
+            # The inline monitor saw the last sample before the end checks; the thread mode looks for it here.
+            held = end_monitoring(act=status != 'anomaly_hold')
+            if held is not None: status, extra = 'anomaly_hold', dict(extra, **self.hold(held, step))
             if start_y is not None: extra['rise'] = peak_y - start_y
             if column is not None: extra['cleared'] = cleared
             if oversight: extra['attack_masks'] = attack_masks
@@ -331,13 +361,18 @@ class DemoSession:
             action = self.policy.act(self.obs['pov'])
             masked = ()
             if self.tool_lock: action, masked = lock_tool(action, self.demo().get('demo_hit_block'), self.tool_allowed)
+            if monitoring[0]:
+                # Boundary: the monitor worked on the last samples while the policy computed this action.
+                held = self.monitor_boundary(step, self.monitor_wait_s)
+                if held is not None: return hold_and_finish(held)
             if oversight:
                 # Last reversible moment: the aimed block from the previous observation plus this action's attack.
+                # The guard stays on the control thread: it must judge this action before it is sent.
                 event = oversight.pre_dispatch(self.last_sample, action)
                 if event and event['mask_attack']:
                     action = dict(action); action['attack'] = np.zeros_like(np.asarray(action['attack'])); attack_masks += 1
                     if attack_masks == 1: self.recorder.event('monitor_event', step_id=step.id, event=event)  # first mask per attempt
-                if event and event['hold']: return finish('anomaly_hold', **self.hold(event, step))
+                if event and event['hold']: return hold_and_finish(event)
             # Probe only: the pre-dispatch aim+attack moment is where the guard will decide.
             if until == 'mining_start' and attacking(action) and block_matches(self.demo().get('demo_hit_block', ''), step.block):
                 return finish('completed', completion='aim_attack')
@@ -346,8 +381,15 @@ class DemoSession:
             masked_steps += bool(masked)
             if oversight:
                 self.last_sample = sample_from(self.info, action, self.clock())
-                for event in oversight.observe(self.last_sample):
-                    if event['hold']: return finish('anomaly_hold', **self.hold(event, step))
+                if monitoring[0]:
+                    if not monitor.publish(self.steps, self.last_sample):
+                        drops += 1   # every drop is in the report; the first one per step is on the timeline
+                        if drops == 1: self.recorder.event('monitor_dropped', step_id=step.id, seq=self.steps)
+                    observed = [oversight.observe_guard(self.last_sample)]
+                else: observed = oversight.observe(self.last_sample)
+                for event in observed:
+                    if not event: continue
+                    if event['hold']: return hold_and_finish(event)
                     self.recorder.event('monitor_event', step_id=step.id, event=event)
             if not self.server_valid(): continue
             if start_y is not None:
@@ -394,6 +436,31 @@ class DemoSession:
             if not self.dispatch(self.noop(), 'rule'): return False
         return True
 
+    def monitor_boundary(self, step, wait_s, act=True):
+        """Take the monitor thread's events at a dispatch or step boundary. The wait is bounded, so a lagging monitor
+        lets the control loop go on. Events are recorded in sample order; the first hold is returned to act on, with
+        how many actions went out after its sample. After STOP (or with act=False) a hold is recorded as not acted."""
+        self.boundaries += 1
+        if not self.monitor_thread.wait(wait_s): self.late_boundaries += 1
+        act = act and not self.gate.requested.is_set(); held = None
+        for event in self.monitor_thread.poll():
+            detected = event.pop('detected_mono', None)
+            if act and held is None and event['hold']:
+                held = dict(event, hold_after_steps=self.steps - event['seq'],
+                            detect_to_hold_ms=None if detected is None else (time.monotonic() - detected) * 1000.)
+                continue
+            if event['hold']: event['acted'] = False
+            self.recorder.event('monitor_event', step_id=step.id, event=event)
+        return held
+
+    def close_monitor_thread(self):
+        """Stop the worker (at STOP, before input release) and summarise it for the report."""
+        if self.oversight is None: return None
+        if self.monitor_thread is None: return dict(mode=self.monitor_mode)
+        stopped = self.monitor_thread.close()
+        return dict(mode='thread', wait_s=self.monitor_wait_s, end_wait_s=END_WAIT_S, boundaries=self.boundaries,
+                    late_boundaries=self.late_boundaries, **dict(self.monitor_thread.stats(), stopped=stopped))
+
     def kb_snapshot(self, reason):
         if self.oversight: self.recorder.event('kb_snapshot', reason=reason, claims=self.oversight.kb.snapshot())
 
@@ -413,7 +480,9 @@ class DemoSession:
         event = dict(event, evidence=dict(self.where(), **event.get('evidence', {})))  # where the player stands
         self.recorder.event('anomaly', step_id=step.id, event=event, rm=self.oversight.rm_state(step))
         self.recorder.event('hold', step_id=step.id, controller='hold', reason=event['kind'],
-                            mining_ticks_at_hold=event.get('mining_ticks'), hold_latency_ms=(self.clock() - detected) * 1000)
+                            mining_ticks_at_hold=event.get('mining_ticks'), hold_latency_ms=(self.clock() - detected) * 1000,
+                            monitor_mode=self.monitor_mode, hold_after_steps=event.get('hold_after_steps', 0),
+                            detect_to_hold_ms=event.get('detect_to_hold_ms'))
         self.recorder.event('kb_query', step_id=step.id, subject=self.oversight.query_for(event)[0],
                             relation=self.oversight.query_for(event)[1])
         slow = self.oversight.slow_path(event, nonzero(self.inventory()), step)

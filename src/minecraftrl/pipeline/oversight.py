@@ -43,7 +43,12 @@ class Oversight:
     def pre_dispatch(self, sample, action): return self.guard.pre_dispatch(sample, action)
 
     def observe(self, sample):
+        """Inline mode: the guard's server-mining check and the step's monitor, both on the control thread."""
         return [e for e in (self.guard.observe(sample), self.monitor.update(sample) if self.monitor else None) if e]
+
+    def observe_guard(self, sample):
+        """Thread mode: only the guard runs here (it reads the knowledge base); the monitor runs on its own thread."""
+        return self.guard.observe(sample)
 
     def rm_state(self, step):
         return dict(goal=self.goal_item, guarded=sorted(self.guarded), needs=sorted(self.needs), active_step=step.id,

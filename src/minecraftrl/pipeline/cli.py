@@ -93,6 +93,11 @@ def course_of(fixture):
     return config if config.get('course') else None
 
 
+def monitor_options(config):
+    """Where the fast monitor runs (2026-11-16): its own thread unless the config asks for the old inline call."""
+    return dict(monitor_mode=config.get('monitor_mode', 'thread'), monitor_wait_s=float(config.get('monitor_wait_s', .05)))
+
+
 def runtime_needs(steps, config, *, oversight):
     """(policy skills to load, whether the recipe catalog is needed). With oversight a replan may use any selected
     skill and craft steps, so load them before the game starts."""
@@ -297,7 +302,8 @@ def worker(args):
                               tool_lock=bool(config.get('policy_tool_lock', False)), oversight=oversight,
                               tool_allowed=tuple(config.get('policy_tool_allowed', ())),
                               reacquire=reacquire, course=course_of(args.fixture), place=place_of(args.fixture),
-                              bridge=bridge_of(args.fixture), build=build_of(args.fixture))
+                              bridge=bridge_of(args.fixture), build=build_of(args.fixture),
+                              **monitor_options(config))
         report = session.run(steps)
         report.update(mode=args.mode, seed=seed, sampling_seed=sampling, limit_s=limit_s, fixture=str(args.fixture) if args.fixture else None,
                       fixture_sha52=sha52, jar=str(jar), jar_receipt=json.loads(jar.with_suffix('.json').read_text()),

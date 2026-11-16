@@ -138,7 +138,7 @@ class SessionTests(unittest.TestCase):
                            fixture_sha52=fixture, settle_steps=0, tool_lock=tool_lock, tool_allowed=tool_allowed)
 
     def timeline(self):
-        return [json.loads(line) for line in (self.out / 'run/timeline.jsonl').read_text().splitlines()]
+        return [json.loads(line) for line in (self.recorder.output / 'timeline.jsonl').read_text().splitlines()]
 
     def test_stop_file_prevents_next_dispatch(self):
         env = FakeEnv(lambda n, a: info(), stop_file=self.stop, stop_at=4)
@@ -539,10 +539,98 @@ class SessionTests(unittest.TestCase):
         self.assertEqual((slow['claim_ids'], slow['rejected'], slow['rounds'], slow['resolution']), ([], 2, 2, 'stop'))
 
     def session_with(self, env, policy, oversight, **kw):
-        self.recorder = Recorder(self.out / 'run')
+        if hasattr(self, 'recorder'): self.recorder.close()
+        self.recorder = Recorder(self.out / kw.get('run', 'run'))
+        modes = {k: kw[k] for k in ('monitor_mode', 'monitor_wait_s') if k in kw}
         return DemoSession(env, policy, None, self.recorder, self.gate, self.stop, limit_s=kw.get('limit_s', 60.), skills=SKILLS,
                            clock=kw.get('clock', Clock()), rule_controller=kw.get('controller', FakeController), settle_steps=0,
-                           oversight=oversight, fixture_sha52=kw.get('fixture'))
+                           oversight=oversight, fixture_sha52=kw.get('fixture'), **modes)
+
+    def climb(self, jumps=True):
+        action = noop(); action['jump'] = int(jumps)
+        env = FakeEnv(lambda n, a: info({'dirt': 16}, tick=1000 + n, y=64. + (n % 2) * .2, selected='dirt'))  # ceiling probe
+        return env, FakePolicy(action), [Step('escape', 'dig', 'policy', 'height', 6, params={'expect': 'rise'})]
+
+    def test_thread_monitor_holds_at_the_same_boundary_as_inline(self):
+        # The fast monitor runs on its own thread (2026-11-16). While it keeps up within the bounded wait, the hold lands
+        # before the same dispatch as the inline monitor did.
+        seen = {}
+        for mode in ('inline', 'thread'):
+            self.gate = StopGate(); env, policy, steps = self.climb()
+            report = self.session_with(env, policy, self.oversee('iron_ore', steps), run=mode, monitor_mode=mode,
+                                       monitor_wait_s=1.).run(steps)
+            stage = report['stage_results'][0]
+            seen[mode] = (report['status'], stage['anomaly']['kind'], stage['anomaly']['tick'], env.calls, stage['steps'])
+            if mode == 'thread':
+                self.assertEqual((stage['anomaly']['seq'], stage['anomaly']['hold_after_steps']), (env.calls, 0))
+                monitor = report['monitor']; policy_steps = report['steps'] - report['prepare_steps']  # one sample per policy action
+                self.assertEqual((monitor['mode'], monitor['published'], monitor['processed'], monitor['dropped'], monitor['stopped']),
+                                 ('thread', policy_steps, policy_steps, 0, True))
+                hold = next(l for l in self.timeline() if l['kind'] == 'hold')
+                self.assertEqual((hold['monitor_mode'], hold['hold_after_steps']), ('thread', 0))
+            else:
+                self.assertEqual(report['monitor'], dict(mode='inline'))
+        self.assertEqual(seen['inline'], seen['thread'])
+        self.assertEqual(seen['thread'][:2], ('anomaly_hold', 'blocked_overhead'))
+
+    def test_the_default_monitor_mode_is_the_thread(self):
+        env, policy, steps = self.climb()
+        report = self.session_with(env, policy, self.oversee('iron_ore', steps)).run(steps)
+        self.assertEqual(report['monitor']['mode'], 'thread')
+        self.assertEqual(report['stage_results'][0]['anomaly']['kind'], 'blocked_overhead')
+
+    def test_a_late_monitor_hold_lands_at_a_later_boundary(self):
+        # A monitor slower than the bounded wait does not stall the control loop: the actions keep going out and the
+        # hold is acted on at a later boundary, with the gap recorded.
+        import threading
+        released = threading.Event()
+        class Slow:
+            def update(self, s):
+                if s.tick != 1003: return None
+                released.wait(5.)
+                return dict(kind='low_health', hold=True, tick=s.tick, step='escape', evidence=dict(health=3.))
+        def script(n, a):
+            if n == 8: released.set()
+            return info({'dirt': 16}, tick=1000 + n, selected='dirt')
+        env, policy, steps = FakeEnv(script), FakePolicy(), [Step('escape', 'dig', 'policy', 'height', 6, params={'expect': 'rise'})]
+        oversight = self.oversee('iron_ore', steps); start = oversight.start_step
+        def start_slow(step):
+            start(step); oversight.monitor = Slow()
+        oversight.start_step = start_slow
+        report = self.session_with(env, policy, oversight, monitor_wait_s=0.).run(steps)
+        anomaly = report['stage_results'][0]['anomaly']
+        self.assertEqual((report['status'], anomaly['kind'], anomaly['seq']), ('anomaly_hold', 'low_health', 3))
+        self.assertGreaterEqual(anomaly['hold_after_steps'], 5); self.assertGreaterEqual(env.calls, 8)
+        self.assertEqual(anomaly['hold_after_steps'], env.calls - 3)
+        self.assertGreater(report['monitor']['late_boundaries'], 0)
+
+    def test_a_hold_on_the_completing_sample_wins_in_both_modes(self):
+        # The inline monitor saw the last sample before the completion check; the thread mode waits for it at the end.
+        def hurt(n, a):
+            value = info({'oak_log': 3 if n >= 4 else 0}, tick=1000 + n)
+            value['workshop']['server_health'] = 4. if n >= 4 else 20.; return value
+        for mode in ('inline', 'thread'):
+            self.gate = StopGate(); env = FakeEnv(hurt); steps = [Step('logs', 'wood', 'policy', 'log', 3, block='log')]
+            oversight = self.oversee('log', steps, [('log', 'harvest_requires', {'tool_class': None, 'min_tier': 'hand'})])
+            report = self.session_with(env, FakePolicy(), oversight, run=mode, monitor_mode=mode).run(steps)
+            stage = report['stage_results'][0]
+            self.assertEqual((report['status'], stage['anomaly']['kind'], env.calls), ('anomaly_hold', 'low_health', 4), mode)
+
+    def test_stop_ends_the_step_without_acting_on_a_late_hold(self):
+        # STOP comes first: events still in the monitor are recorded, but no slow path starts after the stop.
+        def hurt(n, a):
+            value = info(tick=1000 + n); value['workshop']['server_health'] = 4. if n >= 3 else 20.; return value
+        env = FakeEnv(hurt, stop_file=self.stop, stop_at=3); steps = [Step('logs', 'wood', 'policy', 'log', 3, block='log')]
+        report = self.session_with(env, FakePolicy(), self.oversee('log', steps)).run(steps)
+        self.assertEqual((report['status'], report['stage_results'][0]['status']), ('stop_file', 'stop_file'))
+        self.assertNotIn('anomaly', report['stage_results'][0])
+        late = [l for l in self.timeline() if l['kind'] == 'monitor_event' and l['event']['kind'] == 'low_health']
+        self.assertEqual([(l['event']['hold'], l['event']['acted']) for l in late], [(True, False)])
+        self.assertNotIn('slow_path', [l['kind'] for l in self.timeline()])
+
+    def test_unknown_monitor_mode_is_refused(self):
+        with self.assertRaisesRegex(ValueError, 'monitor_mode'):
+            self.session_with(FakeEnv(lambda n, a: info()), FakePolicy(), None, monitor_mode='async')
 
     def pit(self, claims=(), llm=None):
         """Real flow state (run B, 2026-11-04): 6 blocks below the surface after the cobblestone step; the stone pickaxe
@@ -968,6 +1056,11 @@ class LoaderTests(unittest.TestCase):
         args = parse(base + ['--output', str(root / 'results/x')])
         self.assertEqual(settings(args)[1:3], (104729, 104729))
         with self.assertRaises(ValueError): parse(base + ['--output', str(root / 'x')])
+
+    def test_config_chooses_where_the_monitor_runs(self):
+        from minecraftrl.pipeline.cli import monitor_options
+        self.assertEqual(monitor_options({}), dict(monitor_mode='thread', monitor_wait_s=.05))
+        self.assertEqual(monitor_options({'monitor_mode': 'inline', 'monitor_wait_s': 0}), dict(monitor_mode='inline', monitor_wait_s=0.))
 
     def test_parse_goal_turns_on_oversight(self):
         from minecraftrl.pipeline.cli import parse
