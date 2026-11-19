@@ -11,6 +11,7 @@
 | 코드 책임·데이터 흐름 | [architecture](handbook/architecture.md) |
 | 환경·회귀 검사·변경 절차 | [development](handbook/development.md) |
 | 새 PC 설치 | [new-pc-setup](new-pc-setup.md) |
+| 학습된 기술 헤드 가중치 | [checkpoints/README](../checkpoints/README.md) |
 | 최신 연구 결과 | [E2 결과](execution-contract-e2-results-2026-11-03.md) |
 | 최신 실행·독립 학습 | [E2 사용법](execution-contract-e2-usage.md) |
 

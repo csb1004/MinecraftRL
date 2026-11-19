@@ -1,0 +1,207 @@
+{
+  "dataset": "/mnt/d/DATA/Desktop/MinecraftRL/results/bridge-20261114/data/b-r0-1.pt",
+  "dataset_sha256": "236791828d3978eea8757f042e40acfbc465c996e32801b0a72ca71608397627",
+  "use_stage": true,
+  "hyper": {
+    "lr": 0.0001,
+    "batch": 32,
+    "epochs": 16,
+    "kl_coef": 10.0,
+    "kl_limit": 3.0,
+    "clip": 1.0,
+    "seed": 17,
+    "balance": true,
+    "patience": 2
+  },
+  "features": [
+    "h_sin",
+    "h_cos",
+    "a_pitch",
+    "edge",
+    "left"
+  ],
+  "feature_gain": 10.0,
+  "rows": {
+    "train": 7547,
+    "holdout": 1052,
+    "labelled_train": 7487,
+    "labelled_holdout": 1048
+  },
+  "holdout": [
+    "b-r1/b111-s271828-n2",
+    "b-r1/b112-s314159-n2"
+  ],
+  "balance": true,
+  "patience": 2,
+  "best_epoch": 12,
+  "stopped_early": true,
+  "initial": {
+    "holdout_nll": 12.765654829467435,
+    "holdout_kl": 0.0,
+    "kl": 0.0
+  },
+  "epochs": [
+    {
+      "epoch": 1,
+      "train_loss": 7.689379921403982,
+      "train_nll": 8.473448077258183,
+      "kl": 5.246305719185811,
+      "kl_unlabelled": 0.24499344875415166,
+      "holdout_nll": 9.568544322022891,
+      "holdout_kl": 4.268924785657528,
+      "updates": 236
+    },
+    {
+      "epoch": 2,
+      "train_loss": 4.196403762546637,
+      "train_nll": 6.741772608492458,
+      "kl": 7.52486391270952,
+      "kl_unlabelled": 0.17540067583322524,
+      "holdout_nll": 7.913822150228979,
+      "holdout_kl": 6.716504361692944,
+      "updates": 236
+    },
+    {
+      "epoch": 3,
+      "train_loss": 2.857478599174548,
+      "train_nll": 5.6804405017337665,
+      "kl": 8.491889335942675,
+      "kl_unlabelled": 0.10054276684919992,
+      "holdout_nll": 7.15071328867548,
+      "holdout_kl": 7.723348001110237,
+      "updates": 236
+    },
+    {
+      "epoch": 4,
+      "train_loss": 2.2243937376444625,
+      "train_nll": 5.094061582681721,
+      "kl": 8.893887885914934,
+      "kl_unlabelled": 0.048675950368245444,
+      "holdout_nll": 6.652739944635629,
+      "holdout_kl": 8.069742935238683,
+      "updates": 236
+    },
+    {
+      "epoch": 5,
+      "train_loss": 1.8535207604705277,
+      "train_nll": 4.675486152416998,
+      "kl": 9.211359723855505,
+      "kl_unlabelled": 0.047406578063964845,
+      "holdout_nll": 6.436217173435272,
+      "holdout_kl": 8.326633990037577,
+      "updates": 236
+    },
+    {
+      "epoch": 6,
+      "train_loss": 1.6180245253746792,
+      "train_nll": 4.126458945632264,
+      "kl": 9.412886212547205,
+      "kl_unlabelled": 0.06299748420715331,
+      "holdout_nll": 5.86965410914366,
+      "holdout_kl": 8.483981114376634,
+      "updates": 236
+    },
+    {
+      "epoch": 7,
+      "train_loss": 1.3733137524607828,
+      "train_nll": 3.909775088298732,
+      "kl": 9.551075758579568,
+      "kl_unlabelled": 0.040365107357501984,
+      "holdout_nll": 5.853403318960536,
+      "holdout_kl": 8.626172025847344,
+      "updates": 236
+    },
+    {
+      "epoch": 8,
+      "train_loss": 1.2634696702835924,
+      "train_nll": 3.4781542917552892,
+      "kl": 9.621320519018319,
+      "kl_unlabelled": 0.02193393955628077,
+      "holdout_nll": 5.548143550675671,
+      "holdout_kl": 8.635234586186282,
+      "updates": 236
+    },
+    {
+      "epoch": 9,
+      "train_loss": 1.1167825509841411,
+      "train_nll": 3.02906843616277,
+      "kl": 9.75904905431173,
+      "kl_unlabelled": 0.030645896618564924,
+      "holdout_nll": 5.082666699759511,
+      "holdout_kl": 8.76719358030834,
+      "updates": 236
+    },
+    {
+      "epoch": 10,
+      "train_loss": 1.0285125701861866,
+      "train_nll": 2.615611500068613,
+      "kl": 9.786426221201305,
+      "kl_unlabelled": 0.036268273989359535,
+      "holdout_nll": 4.857763791233473,
+      "holdout_kl": 8.784161411764051,
+      "updates": 236
+    },
+    {
+      "epoch": 11,
+      "train_loss": 0.9294912913908898,
+      "train_nll": 2.2992030495239084,
+      "kl": 9.851088840661024,
+      "kl_unlabelled": 0.02310763920346896,
+      "holdout_nll": 4.544788739744152,
+      "holdout_kl": 8.827678085733275,
+      "updates": 236
+    },
+    {
+      "epoch": 12,
+      "train_loss": 0.8620226771681238,
+      "train_nll": 2.158119540606222,
+      "kl": 9.910320002463727,
+      "kl_unlabelled": 0.018588655752440293,
+      "holdout_nll": 4.503179269037033,
+      "holdout_kl": 8.893628225580368,
+      "updates": 236
+    },
+    {
+      "epoch": 13,
+      "train_loss": 0.8234716866923085,
+      "train_nll": 1.9646641414820172,
+      "kl": 9.964581267287498,
+      "kl_unlabelled": 0.025766249746084213,
+      "holdout_nll": 4.602030384516898,
+      "holdout_kl": 8.950940701444793,
+      "updates": 236
+    },
+    {
+      "epoch": 14,
+      "train_loss": 0.7343871272721533,
+      "train_nll": 1.8023727412517998,
+      "kl": 9.990217488633728,
+      "kl_unlabelled": 0.01712645540634791,
+      "holdout_nll": 4.5259419081359935,
+      "holdout_kl": 8.968026338874614,
+      "updates": 236
+    }
+  ],
+  "rolled_back_epochs": [],
+  "updates_kept": 2832,
+  "final": {
+    "holdout_nll": 4.503179269037033,
+    "holdout_kl": 8.893628225580368,
+    "kl": 9.910320002463727,
+    "kl_unlabelled": 0.018588655752440293
+  },
+  "kl_limit_rows": "unlabelled training rows",
+  "candidate": true,
+  "checkpoint": "/mnt/d/DATA/Desktop/MinecraftRL/results/bridge-20261114/train/b-final/checkpoint.pt",
+  "checkpoint_sha256": "32ae5c2e3fe75285897fd6b78849c7177093f52d33c0f5130e952cda1f001056",
+  "base_weights_sha256": "20f57f58985d338f1fccfc54d7f6407db0468656b697492f3bfb46ffade5c4cf",
+  "reload_max_abs_diff": 0.0,
+  "seconds": 65.27614974975586,
+  "device": "cuda",
+  "torch_peak_allocated_mib": 444.42919921875,
+  "source": {
+    "src/minecraftrl/reacquire_training.py": "12469fb108ea918c773cac789b920ba335336ebcf65c00026628aef0e4d157d0",
+    "src/minecraftrl/reacquire_head.py": "7c7bf9c46960ef0716a9576d6271814cdbed40a75971e84613df3932c8a9d8b5"
+  },
+  "trained": "ReacquireHead.adapter only; official STEVE-1 frozen"
+}

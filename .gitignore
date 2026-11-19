@@ -17,6 +17,8 @@ logs/
 *.weights
 *.model
 *.pt
+# Trained skill heads published on purpose (user decision 2026-11-20); see checkpoints/README.md.
+!checkpoints/heads/*/checkpoint.pt
 *.pth
 *.ckpt
 *.pkl

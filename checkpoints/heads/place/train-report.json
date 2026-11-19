@@ -1,0 +1,229 @@
+{
+  "dataset": "/mnt/d/DATA/Desktop/MinecraftRL/results/place-20261114/data/p-r0-1.pt",
+  "dataset_sha256": "09522d5ba89cf61623b2dd797ac1e7ebaf1272034df0044212f0a6c521114aed",
+  "use_stage": true,
+  "hyper": {
+    "lr": 0.0001,
+    "batch": 32,
+    "epochs": 16,
+    "kl_coef": 10.0,
+    "kl_limit": 3.0,
+    "clip": 1.0,
+    "seed": 17,
+    "balance": true,
+    "patience": 2
+  },
+  "features": [
+    "t_sin",
+    "t_cos",
+    "t_pitch",
+    "t_dist",
+    "f_sin",
+    "f_cos",
+    "f_pitch"
+  ],
+  "feature_gain": 10.0,
+  "rows": {
+    "train": 9363,
+    "holdout": 654,
+    "labelled_train": 9363,
+    "labelled_holdout": 654
+  },
+  "holdout": [
+    "p-r1/t111-s271828-n2",
+    "p-r1/t112-s314159-n2"
+  ],
+  "balance": true,
+  "patience": 2,
+  "best_epoch": 15,
+  "stopped_early": false,
+  "initial": {
+    "holdout_nll": 9.435245513916016,
+    "holdout_kl": 0.0,
+    "kl": 0.0
+  },
+  "epochs": [
+    {
+      "epoch": 1,
+      "train_loss": 6.006850708873605,
+      "train_nll": 4.129920572873286,
+      "kl": 8.821531716847565,
+      "kl_unlabelled": NaN,
+      "holdout_nll": 6.922909259796143,
+      "holdout_kl": 3.234373506785168,
+      "updates": 293
+    },
+    {
+      "epoch": 2,
+      "train_loss": 3.536990305262621,
+      "train_nll": 3.2176889883132525,
+      "kl": 9.801527732841787,
+      "kl_unlabelled": NaN,
+      "holdout_nll": 6.438868522644043,
+      "holdout_kl": 3.3969916947391057,
+      "updates": 293
+    },
+    {
+      "epoch": 3,
+      "train_loss": 2.903686400973349,
+      "train_nll": 2.703128123465903,
+      "kl": 10.274683906598362,
+      "kl_unlabelled": NaN,
+      "holdout_nll": 5.7420172691345215,
+      "holdout_kl": 3.2034027379587156,
+      "updates": 293
+    },
+    {
+      "epoch": 4,
+      "train_loss": 2.448683625602071,
+      "train_nll": 2.3494867817775407,
+      "kl": 10.628147270693988,
+      "kl_unlabelled": NaN,
+      "holdout_nll": 5.364328384399414,
+      "holdout_kl": 3.22549485139526,
+      "updates": 293
+    },
+    {
+      "epoch": 5,
+      "train_loss": 2.1158750492558136,
+      "train_nll": 2.0241885540141653,
+      "kl": 10.975699259635666,
+      "kl_unlabelled": NaN,
+      "holdout_nll": 4.68416690826416,
+      "holdout_kl": 3.291162706660933,
+      "updates": 293
+    },
+    {
+      "epoch": 6,
+      "train_loss": 1.8701221995793105,
+      "train_nll": 1.8211487333172032,
+      "kl": 11.095548174058628,
+      "kl_unlabelled": NaN,
+      "holdout_nll": 4.404067039489746,
+      "holdout_kl": 3.1642065952312692,
+      "updates": 293
+    },
+    {
+      "epoch": 7,
+      "train_loss": 1.6795188747982117,
+      "train_nll": 1.6215061123911347,
+      "kl": 11.254628587352228,
+      "kl_unlabelled": NaN,
+      "holdout_nll": 4.264092922210693,
+      "holdout_kl": 3.367719084480122,
+      "updates": 293
+    },
+    {
+      "epoch": 8,
+      "train_loss": 1.5217036731007156,
+      "train_nll": 1.4912542072477162,
+      "kl": 11.21914418945834,
+      "kl_unlabelled": NaN,
+      "holdout_nll": 4.285007953643799,
+      "holdout_kl": 3.0301248626242354,
+      "updates": 293
+    },
+    {
+      "epoch": 9,
+      "train_loss": 1.4113484867196848,
+      "train_nll": 1.377496357184119,
+      "kl": 11.417899690249353,
+      "kl_unlabelled": NaN,
+      "holdout_nll": 3.9170970916748047,
+      "holdout_kl": 3.245347889191514,
+      "updates": 293
+    },
+    {
+      "epoch": 10,
+      "train_loss": 1.2847901144328784,
+      "train_nll": 1.2704975644962238,
+      "kl": 11.602021655427281,
+      "kl_unlabelled": NaN,
+      "holdout_nll": 3.810617446899414,
+      "holdout_kl": 3.5049414211821484,
+      "updates": 293
+    },
+    {
+      "epoch": 11,
+      "train_loss": 1.191407120878786,
+      "train_nll": 1.1621346929564675,
+      "kl": 11.685210350498638,
+      "kl_unlabelled": NaN,
+      "holdout_nll": 3.8020896911621094,
+      "holdout_kl": 3.562952070790329,
+      "updates": 293
+    },
+    {
+      "epoch": 12,
+      "train_loss": 1.1040635493428228,
+      "train_nll": 1.0963918048392627,
+      "kl": 11.78150467494226,
+      "kl_unlabelled": NaN,
+      "holdout_nll": 3.7281389236450195,
+      "holdout_kl": 3.7687167013092506,
+      "updates": 293
+    },
+    {
+      "epoch": 13,
+      "train_loss": 1.0507082438713047,
+      "train_nll": 1.0433829393632943,
+      "kl": 11.956061467011107,
+      "kl_unlabelled": NaN,
+      "holdout_nll": 3.8876187801361084,
+      "holdout_kl": 4.368553791571101,
+      "updates": 293
+    },
+    {
+      "epoch": 14,
+      "train_loss": 0.9804774734855919,
+      "train_nll": 0.9681019155271942,
+      "kl": 11.864152704002791,
+      "kl_unlabelled": NaN,
+      "holdout_nll": 3.6032118797302246,
+      "holdout_kl": 3.8062650814698014,
+      "updates": 293
+    },
+    {
+      "epoch": 15,
+      "train_loss": 0.9213365591019901,
+      "train_nll": 0.8986455674531081,
+      "kl": 11.93673605339835,
+      "kl_unlabelled": NaN,
+      "holdout_nll": 3.4902586936950684,
+      "holdout_kl": 3.8573487074732418,
+      "updates": 293
+    },
+    {
+      "epoch": 16,
+      "train_loss": 0.85985144576115,
+      "train_nll": 0.8635281131825199,
+      "kl": 11.980346549312287,
+      "kl_unlabelled": NaN,
+      "holdout_nll": 3.5336575508117676,
+      "holdout_kl": 3.98893527809633,
+      "updates": 293
+    }
+  ],
+  "rolled_back_epochs": [],
+  "updates_kept": 4395,
+  "final": {
+    "holdout_nll": 3.4902586936950684,
+    "holdout_kl": 3.8573487074732418,
+    "kl": 11.93673605339835,
+    "kl_unlabelled": NaN
+  },
+  "kl_limit_rows": "unlabelled training rows",
+  "candidate": true,
+  "checkpoint": "/mnt/d/DATA/Desktop/MinecraftRL/results/place-20261114/train/p-final/checkpoint.pt",
+  "checkpoint_sha256": "844f435624e2f0d1bc6a86b83988dff425f2c5b831ea1fe68497391c3517a4b3",
+  "base_weights_sha256": "20f57f58985d338f1fccfc54d7f6407db0468656b697492f3bfb46ffade5c4cf",
+  "reload_max_abs_diff": 0.0,
+  "seconds": 79.28167200088501,
+  "device": "cuda",
+  "torch_peak_allocated_mib": 454.76806640625,
+  "source": {
+    "src/minecraftrl/reacquire_training.py": "12469fb108ea918c773cac789b920ba335336ebcf65c00026628aef0e4d157d0",
+    "src/minecraftrl/reacquire_head.py": "7c7bf9c46960ef0716a9576d6271814cdbed40a75971e84613df3932c8a9d8b5"
+  },
+  "trained": "ReacquireHead.adapter only; official STEVE-1 frozen"
+}
