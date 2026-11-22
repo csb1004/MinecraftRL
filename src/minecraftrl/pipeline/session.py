@@ -75,6 +75,17 @@ TOOL_KEYS = ('drop', 'inventory', *('hotbar.%d' % i for i in range(1, 10)))
 GUI_BLOCKS = ('crafting_table', 'furnace', 'blast_furnace', 'smoker', 'chest', 'trapped_chest', 'barrel')
 
 
+SELECT_LIMIT = 20   # rule hotbar presses in a row without the held item turning into the needed block: the rule failed
+
+
+def block_slots(fixture):
+    """Multi-material building (beacon demo 2026-11-23): block -> hotbar key from the fixture's gifts (slot i holds the
+    i-th gift); empty unless the blueprint cells carry their block, so single-block tasks keep their path."""
+    task = (fixture or {}).get('build') or {}
+    if not any(len(c) > 3 for c in task.get('cells', ())): return {}
+    return {g['item']: 'hotbar.%d' % (i + 1) for i, g in enumerate(fixture.get('give', ())[:9])}
+
+
 def lock_tool(action, hit_block=None, allowed=()):
     """Remove the policy's tool-losing keys so the given/equipped tool stays held; returns (action, masked keys).
     `use` is removed only while aiming at a GUI block (real check P3, 2026-11-05); placing blocks stays the policy's.
@@ -143,6 +154,7 @@ class DemoSession:
         self.bridge = bridge
         # Building (design 2026-11-14): its feed ends `until='build'` steps when the server placement record covers the
         # blueprint and drives the preparation-only teacher check.
+        self.block_slots = block_slots(build)       # multi-material slot-selection rule (beacon demo 2026-11-23)
         if build is not None:
             from ..build_recover import feed_for    # the recovering teacher when the fixture names it (design 2026-11-15)
             build = feed_for(build)
@@ -344,7 +356,7 @@ class DemoSession:
         if until == 'build' and self.build is None: raise ValueError("until='build' needs a build fixture")
 
         oversight = self.oversight; attack_masks = 0; monitor = self.monitor_thread; monitoring = [False]; drops = 0
-        sensor_masks = 0; sensor_kinds = set()
+        sensor_masks = 0; sensor_kinds = set(); select = dict(total=0, run=0, keys=set())
         if oversight:
             oversight.start_step(step); self.last_sample = sample_from(self.info, self.noop(), self.clock())
             if monitor is not None: monitor.begin(oversight.monitor); monitoring[0] = True
@@ -382,6 +394,7 @@ class DemoSession:
             if until == 'build':
                 extra.update(filled=self.build.filled(), wrong=self.build.wrong(), unknown_placements=self.build.unknown)
                 if hasattr(self.build, 'repair_extra'): extra.update(self.build.repair_extra())   # round 5 (2026-11-15)
+                if self.block_slots: extra['block_selects'] = select['total']
             return status, dict(extra, tool_masked=masked_steps) if self.tool_lock else extra
 
         while True:
@@ -392,6 +405,11 @@ class DemoSession:
                 if gui_closed == 1: self.recorder.event('gui_closed', step_id=step.id, screen=self.gui.get('screen'))
                 if not self.dispatch(press, 'gui_close') or not self.dispatch(self.noop(), 'gui_close'): return finish(self.gate.reason)
                 continue
+            if until == 'build' and self.block_slots:
+                chosen = self.select_block(step, select)
+                if chosen == 'failed': return finish('block_select_failed')
+                if chosen == 'stopped': return finish(self.gate.reason)
+                if chosen == 'sent': continue
             if hook is not None: hook.before_act()
             action = self.policy.act(self.obs['pov'])
             masked = ()
@@ -461,7 +479,7 @@ class DemoSession:
                 if view is not None and view.stage == 'goal': return finish('completed', completion='server_bridge_goal')
                 if view is not None and view.stage == 'fallen': return finish('bridge_fell')
             if until == 'build' and self.build.done():       # success on the server placement record only
-                return finish('completed', completion='server_build_done')
+                return finish('completed', completion='server_build_done', **self.after_success(step))
             if column is not None and int(self.demo().get('demo_destroys', 0)) > seen:
                 seen = int(self.demo()['demo_destroys'])
                 x, y, z = (int(self.demo()['demo_last_destroy_' + a]) for a in 'xyz')
@@ -471,6 +489,41 @@ class DemoSession:
                 return finish('completed', completion='server_inventory')
             if until == 'mining_start' and block_matches(self.demo().get('demo_mining_block', ''), step.block):
                 return finish('completed', completion='server_mining')
+
+    def block_choice(self):
+        """The hotbar key of the current cell's block (build feed, seen map) when the held item (body sensor) is
+        another block, else None."""
+        if not self.block_slots or self.frame is None or not hasattr(self.build, 'needed_kind'): return None
+        kind = self.build.needed_kind()
+        return None if kind is None or self.frame.selected_item == kind else self.block_slots.get(kind)
+
+    def select_block(self, step, counts):
+        """Disclosed rule (multi-material building, beacon demo 2026-11-23): when the held item is not the current
+        cell's block, press that block's hotbar key (controller 'rule_select') instead of letting the head or the teacher
+        act this step. Returns None when nothing was needed, 'sent', 'failed' after SELECT_LIMIT presses in a row, or
+        'stopped'."""
+        key = self.block_choice()
+        if key is None:
+            counts['run'] = 0; return None
+        if counts['run'] >= SELECT_LIMIT: return 'failed'
+        if key not in counts['keys']:
+            counts['keys'].add(key); self.recorder.event('block_select', step_id=step.id, key=key, block=self.build.needed_kind())
+        press = self.noop(); press[key] = 1
+        if not self.dispatch(press, 'rule_select'): return 'stopped'
+        counts['total'] += 1; counts['run'] += 1
+        return 'sent'
+
+    def hold_after(self, step):
+        """Neutral input after success for the step's `hold_after_steps` (frames only, no policy or teacher action; the
+        beacon demo's beam turns on within 80 game ticks). Stops at STOP or the deadline; returns the steps sent."""
+        sent = 0
+        for _ in range(int(step.params.get('hold_after_steps', 0))):
+            if not self.dispatch(self.noop(), 'after_success'): break
+            sent += 1
+        return sent
+
+    def after_success(self, step):
+        return dict(after_success_steps=self.hold_after(step)) if step.params.get('hold_after_steps') else {}
 
     def turn_away(self, step):
         """Disclosed rule action before retrying a step whose policy kept hitting a protected block (evaluation round 1,
@@ -685,8 +738,17 @@ class DemoSession:
             out = dict(filled=self.build.filled(), wrong=self.build.wrong(), unknown_placements=self.build.unknown)
             if hasattr(self.build, 'repair_extra'): out.update(self.build.repair_extra())    # round 5 (2026-11-15)
             return out
+        select = dict(total=0, run=0, keys=set())
         for _ in range(int(step.params.get('limit_steps', 1200))):
-            if self.build.done(): return 'completed', dict(completion='server_build_done', **extra())
+            if self.build.done():
+                done = dict(completion='server_build_done', **extra())
+                if self.block_slots: done['block_selects'] = select['total']
+                return 'completed', dict(done, **self.after_success(step))
+            if self.block_slots:
+                chosen = self.select_block(step, select)
+                if chosen == 'failed': return 'block_select_failed', dict(extra(), block_selects=select['total'])
+                if chosen == 'stopped': return self.gate.reason, extra()
+                if chosen == 'sent': continue
             view = self.build.decision_view(); action = self.noop()
             label = None if view is None else self.build.label(self.build.last_row, view)
             for k, v in (label or {}).items():

@@ -22,6 +22,10 @@ repair_final (236067) run repair tasks (build_repair.repair_build: stray blocks 
 slot 2) with --teacher repair (success = blueprint filled and no stray left) or --teacher careful (the round 4 skill as a
 reference; its game ends when the blueprint is filled). The config lets the policy press hotbar.1 and hotbar.2 through
 the tool lock; build_repair.py joins the input record.
+Mode beacon (demo, user request 2026-11-23): the beacon pyramid (build_beacon.beacon_build: gold, iron and diamond blocks
+and a beacon, 10 cells) on 316227 with the sensor teacher only. The session's rule selects the hotbar slot of the
+current cell's block (recorded as rule_select); a block of another kind in a blueprint cell is wrong. After success the
+game keeps neutral input for HOLD_AFTER_STEPS steps so the frames show the beam. build_beacon.py joins the input record.
 """
 import argparse
 import json
@@ -33,6 +37,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'src'))
 sys.path.insert(0, str(ROOT / 'scripts'))
+from minecraftrl.build_beacon import beacon_build  # noqa: E402
 from minecraftrl.build_large import large_build  # noqa: E402
 from minecraftrl.build_recover import CAREFUL, REPAIR, build2_fixture, occluded_build  # noqa: E402
 from minecraftrl.build_repair import repair_build, repair_fixture  # noqa: E402
@@ -44,9 +49,12 @@ TRAIN_SEEDS = (271828, 314159, 161803)
 MODES = {'train': TRAIN_SEEDS, 'dev': (130363,), 'final': (662607,), 'occluded': (707106,),
          'occluded_train': TRAIN_SEEDS, 'dev4': (302585,), 'dev4_occluded': (302585,), 'final4': (866025,),
          'final4_occluded': (866025,), 'large': (693147,), 'repair_train': TRAIN_SEEDS, 'repair_dev': (414213,),
-         'repair_final': (236067,), 'sensor_final': (618034,)}
+         'repair_final': (236067,), 'sensor_final': (618034,), 'beacon': (316227,)}
 OCCLUDED_MODES = ('occluded', 'occluded_train', 'dev4_occluded', 'final4_occluded')
 LARGE_MODES = ('large',)
+BEACON_MODES = ('beacon',)
+HOLD_AFTER_STEPS = 160   # neutral steps after a beacon success: the beam turns on within 80 game ticks
+BEACON_LIMIT_S = 90      # beacon games: 10 cells, slot changes and the hold after success
 REPAIR_MODES = ('repair_train', 'repair_dev', 'repair_final')
 RECOVERING = ('recover', CAREFUL, 'sensor')
 REPAIRING = (REPAIR, CAREFUL)            # teachers that can run a repair task (careful: the round 4 reference)
@@ -89,14 +97,15 @@ def build_config(base, registry, checkpoint, use_stage, teacher_check=False, too
 
 
 def prepare(batch, arm, root, task, checkpoint, use_stage, teacher_check=False, teacher='round1', occluded=False,
-            large=False, repair=False):
+            large=False, repair=False, beacon=False):
     if teacher not in TEACHERS: raise ValueError('teacher must be one of %s' % sorted(TEACHERS))
     if occluded and teacher not in RECOVERING: raise ValueError('occluded tasks need a recovering teacher')
     if large and teacher not in RECOVERING: raise ValueError('large tasks need a recovering teacher')
     if repair and teacher not in REPAIRING: raise ValueError('repair tasks need the repair or the careful teacher')
     if teacher == REPAIR and not repair: raise ValueError('the repair teacher runs repair tasks only')
+    if beacon and teacher != 'sensor': raise ValueError('beacon tasks need the sensor teacher')
     blueprint = (occluded_build(task) if occluded else large_build(task) if large else repair_build(task) if repair
-                 else generate_build(task))
+                 else beacon_build(task) if beacon else generate_build(task))
     if blueprint is None: raise ValueError('task %d has no free cell in front of its first cell' % task)
     registry = load_registry(root)
     base = json.loads((Path(root) / BASE).read_text(encoding='utf-8'))
@@ -108,8 +117,9 @@ def prepare(batch, arm, root, task, checkpoint, use_stage, teacher_check=False, 
     fixture = write(batch / 'fixtures' / ('task-%d.json' % task),
                     repair_fixture(blueprint, teacher=teacher) if repair else TEACHERS[teacher](blueprint))
     step = (dict(id='check', skill='build_teacher', kind='scripted', target='build_done', count=1,
-                 params=dict(driver='build_teacher', limit_steps=LIMIT_S * 20)) if teacher_check
+                 params=dict(driver='build_teacher', limit_steps=(BEACON_LIMIT_S if beacon else LIMIT_S) * 20)) if teacher_check
             else dict(id='build', skill=SKILL, kind='policy', target='build_done', count=1, params=dict(until='build')))
+    if beacon: step['params']['hold_after_steps'] = HOLD_AFTER_STEPS
     plan = write(batch / 'plans' / ('teacher.json' if teacher_check else 'build.json'), [step])
     return config, fixture, plan
 
@@ -128,6 +138,7 @@ def collect(*, batch, arm, checkpoint, use_stage, mode, tasks, seeds, sampling, 
     if mode in LARGE_MODES and teacher not in RECOVERING: raise ValueError('large tasks need a recovering teacher')
     if mode in REPAIR_MODES and teacher not in REPAIRING: raise ValueError('repair tasks need the repair or the careful teacher')
     if teacher == REPAIR and mode not in REPAIR_MODES: raise ValueError('the repair teacher runs repair tasks only')
+    if mode in BEACON_MODES and teacher != 'sensor': raise ValueError('beacon tasks need the sensor teacher')
     if not teacher_check and not registry['sha256']: raise ValueError('the build prompt embedding is not made yet (%s)' % REGISTRY)
     if checkpoint is not None and not Path(checkpoint).exists(): raise ValueError('no checkpoint: %s' % checkpoint)
     scope = 'building; no API; success = the server placement record covers the blueprint'
@@ -135,13 +146,18 @@ def collect(*, batch, arm, checkpoint, use_stage, mode, tasks, seeds, sampling, 
         scope += ' and no stray left (server placement and destroy records); policy hotbar.1/hotbar.2 pass the tool lock'
     elif mode in REPAIR_MODES:
         scope += ' (repair task as a reference: strays are scored from the records); policy hotbar.1/hotbar.2 pass the tool lock'
+    if mode in BEACON_MODES:
+        scope += ('; multi-material: a session rule presses the hotbar key of the current cell\'s block (rule_select, not'
+                  ' policy); a block of another kind in a blueprint cell is wrong; %d neutral steps after success'
+                  % HOLD_AFTER_STEPS)
+    limit_s = BEACON_LIMIT_S if mode in BEACON_MODES else LIMIT_S
     meta = dict(arm=arm, checkpoint=None if checkpoint is None else str(Path(checkpoint).resolve()), use_stage=bool(use_stage),
-                mode=mode, limit_s=LIMIT_S, frame_every=FRAME_EVERY, teacher_check=bool(teacher_check), scope=scope)
+                mode=mode, limit_s=limit_s, frame_every=FRAME_EVERY, teacher_check=bool(teacher_check), scope=scope)
     if teacher != 'round1': meta['teacher'] = teacher          # round 1 records stay as they were
     for task in tasks:
         config, fixture, plan = prepare(batch, arm, root, task, meta['checkpoint'], use_stage, teacher_check, teacher,
                                         occluded=mode in OCCLUDED_MODES, large=mode in LARGE_MODES,
-                                        repair=mode in REPAIR_MODES)
+                                        repair=mode in REPAIR_MODES, beacon=mode in BEACON_MODES)
         files = [config, fixture, plan, root / REGISTRY, root / 'src/minecraftrl/build_task.py',
                  root / 'src/minecraftrl/place_task.py',
                  root / 'src/minecraftrl/PlaceObservation.java', root / 'src/minecraftrl/world_save_patch.py']
@@ -150,6 +166,7 @@ def collect(*, batch, arm, checkpoint, use_stage, mode, tasks, seeds, sampling, 
             files += [root / 'src/minecraftrl' / name for name in ('build_sensor.py', 'SensorObservation.java',
                       'pipeline/sensor.py', 'pipeline/seen_map.py', 'pipeline/sensor_guard.py', 'pipeline/session.py')]
         if mode in LARGE_MODES: files.append(root / 'src/minecraftrl/build_large.py')
+        if mode in BEACON_MODES: files.append(root / 'src/minecraftrl/build_beacon.py')
         if mode in REPAIR_MODES:
             files += [root / 'src/minecraftrl/build_repair.py', root / 'src/minecraftrl/pipeline/session.py']
         if not teacher_check: files.append(root / registry['embedding'])
@@ -169,7 +186,7 @@ def collect(*, batch, arm, checkpoint, use_stage, mode, tasks, seeds, sampling, 
                 command = [sys.executable, '-m', 'minecraftrl.pipeline.cli', 'probe', '--root', str(root),
                            '--output', str(run_dir), '--config', str(config), '--plan-json', str(plan), '--fixture', str(fixture),
                            '--stop-file', str(batch / 'STOP'), '--seed', str(seed), '--sampling-seed', str(n),
-                           '--limit-s', str(LIMIT_S), '--frame-every', str(FRAME_EVERY)]
+                           '--limit-s', str(limit_s), '--frame-every', str(FRAME_EVERY)]
                 print('%s %s: start %s' % (arm, run_dir.name, time.strftime('%H:%M:%S')), flush=True)
                 launch(command, run_dir)
                 summary = json.loads((run_dir / 'summary.json').read_text(encoding='utf-8')) if (run_dir / 'summary.json').exists() \

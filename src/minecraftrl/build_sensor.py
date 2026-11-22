@@ -33,12 +33,22 @@ def blueprint_of(task):
                 size=size, min=low, blocks=blocks, order=[list(c) for c in cells])
 
 
+SPARE = 4     # extra blocks of each kind a multi-material fixture gives
+
+
 def sensor_fixture(task):
     """build_task.build_fixture with the sensor teacher named in the task (same arena and judge); a task's `clutter`
-    blocks are set as in the occlusion check. The feed reads only the task's blueprint from it."""
+    blocks are set as in the occlusion check. The feed reads only the task's blueprint from it. When the cells carry
+    their block (multi-material, beacon demo 2026-11-23), every block is given in first-use order, so hotbar slot i holds
+    the i-th block (the session's slot-selection rule reads this list)."""
     fixture = build_fixture(task)
     fixture['build'] = dict(task, teacher=SENSOR)
     fixture['description'] += ' Sensor tier (plan 2026-11-22): blueprint instruction, client pose, crosshair, seen map.'
+    kinds = [c[3] for c in task['cells'] if len(c) > 3]
+    if kinds:
+        fixture['give'] = [dict(item=k, count=min(64, kinds.count(k) + SPARE)) for k in dict.fromkeys(kinds)]
+        fixture['description'] += ' Blocks in hotbar slots 1-%d: %s.' % (len(fixture['give']),
+                                                                        ', '.join(g['item'] for g in fixture['give']))
     if task.get('clutter'):
         fixture['blocks'] = [dict(dx=c[0], dy=c[1], dz=c[2], block=task['block']) for c in task['clutter']]
     return fixture
@@ -66,13 +76,17 @@ class SensorBuildTracker(RecoverTracker):
 
     def __init__(self, blueprint, origin, yaw):
         self.cells = blueprint_world(blueprint, origin, yaw); self.level = int(origin[1])
-        self.solids = set(); self.stand = []; self.filled_cells = set(); self.wrong = 0
+        self.kind_of = {cell: kind for cell, (_, kind) in zip(self.cells, blueprint_cells(blueprint))}
+        self.check_kinds = len(set(self.kind_of.values())) > 1    # multi-material: a cell needs its own block
+        self.solids = set(); self.stand = []; self.filled_cells = set(); self.wrong = 0; self.kinds = {}
 
     def sync(self, seen):
-        """Refresh from the seen map: measured solid cells, filled blueprint cells, and the floor-level cells a player
-        can stand in (measured floor below, measured air at the feet and the head)."""
+        """Refresh from the seen map: measured solid cells, filled blueprint cells (of their own block when the
+        blueprint has several), and the floor-level cells a player can stand in (measured floor below, measured air at
+        the feet and the head)."""
         self.solids = {c for c, (kind, _, _) in seen.cells.items() if kind not in PASSABLE}
-        self.filled_cells = {c for c in self.cells if c in self.solids}
+        self.filled_cells = {c for c in self.cells if c in self.solids
+                             and (not self.check_kinds or seen.kind(c) == self.kind_of[c])}
         level = self.level
         self.stand = sorted((x, level, z) for (x, y, z) in self.solids
                             if y == level - 1 and seen.kind((x, level, z)) == 'air' and seen.kind((x, level + 1, z)) == 'air')
@@ -108,6 +122,12 @@ class SensorBuildFeed:
         self.last_view = self.tracker.update(x, y, z, frame.yaw, frame.pitch, hit, face)
 
     def decision_view(self): return self.last_view
+
+    def needed_kind(self):
+        """The block of the current cell on the seen map (for the session's slot-selection rule), None before the first
+        frame or when every cell is seen filled."""
+        cell = None if self.tracker is None else self.tracker.current()
+        return None if cell is None else self.tracker.kind_of[cell]
 
     def done(self): return self.judge.done()
 

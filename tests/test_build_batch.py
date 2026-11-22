@@ -93,6 +93,31 @@ class BuildBatchTest(unittest.TestCase):
         plain = json.loads(self.m.prepare(self.batch, 'other', ROOT, 103, None, True, teacher='recover')[0].read_text())
         self.assertNotIn('sensor_monitor', plain)
 
+    def test_the_beacon_mode_runs_the_pyramid_on_its_own_seed_with_a_hold_after_success(self):
+        # Beacon demo (user request 2026-11-23): tasks 1501-1504 on 316227 (first use), the sensor teacher only.
+        from minecraftrl.build_beacon import beacon_build
+        from minecraftrl.build_sensor import blueprint_of, sensor_fixture
+        self.assertEqual(self.registry['tasks']['beacon'], [1501, 1502, 1503, 1504])
+        self.assertEqual(self.m.MODES['beacon'], (316227,))
+        self.m.check('beacon', [1501], [316227], self.registry)
+        for task, seed in ((1501, 618034), (1401, 316227)):
+            with self.subTest(task=task, seed=seed), self.assertRaises(ValueError):
+                self.m.check('beacon', [task], [seed], self.registry)
+        _, fixture, plan = self.m.prepare(self.batch, 'official', ROOT, 1502, None, True, teacher='sensor', beacon=True)
+        self.assertEqual(json.loads(fixture.read_text()), sensor_fixture(beacon_build(1502)))
+        self.assertEqual(json.loads((self.batch / 'blueprints' / 'task-1502.json').read_text()), blueprint_of(beacon_build(1502)))
+        self.assertEqual(json.loads(plan.read_text())[0]['params'], dict(until='build', hold_after_steps=self.m.HOLD_AFTER_STEPS))
+        with self.assertRaises(ValueError): self.m.prepare(self.batch, 'official', ROOT, 1502, None, True, beacon=True)
+        with self.assertRaises(ValueError): self.collect(mode='beacon', tasks=[1501], seeds=[316227], teacher='careful')
+        self.assertEqual(self.collect(mode='beacon', tasks=[1501], seeds=[316227], teacher='sensor'), 0)
+        teacher_plan = json.loads((self.batch / 'plans' / 'teacher.json').read_text())[0]
+        self.assertEqual(teacher_plan['params']['hold_after_steps'], self.m.HOLD_AFTER_STEPS)
+        frozen = json.loads((self.batch / 'frozen-teacher-c1501.json').read_text())
+        self.assertTrue(any(k.replace('\\', '/').endswith('src/minecraftrl/build_beacon.py') for k in frozen['hashes']))
+        self.assertIn('rule_select', frozen['scope'])
+        _, _, plain = self.m.prepare(self.batch, 'official', ROOT, 103, None, True, teacher='sensor')
+        self.assertEqual(json.loads(plain.read_text())[0]['params'], dict(until='build'))     # other modes keep their plan
+
     def test_the_occluded_mode_has_its_own_seed_and_tasks_and_sets_the_block(self):
         # Occlusion check (design 2026-11-15): recovering teacher only, a block in front of the first cell.
         from minecraftrl.build_recover import build2_fixture, occluded_build

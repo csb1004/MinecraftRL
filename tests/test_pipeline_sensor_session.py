@@ -96,5 +96,72 @@ class SensorSessionTests(unittest.TestCase):
         self.assertNotIn('sensor_guard_masks', report['stage_results'][0])
 
 
+class BlockSelectTests(unittest.TestCase):
+    """Multi-material building (user request 2026-11-23, beacon demo): a disclosed rule selects the hotbar slot that
+    holds the current cell's block before the head acts; a neutral hold after success records the result."""
+    BUILD = [Step('build', 'dig', 'policy', 'build_done', 1, params=dict(until='build'))]
+
+    def setUp(self):
+        from minecraftrl.build_beacon import beacon_build
+        from minecraftrl.build_sensor import sensor_fixture
+        self.temp = tempfile.TemporaryDirectory(); self.out = Path(self.temp.name); self.gate = StopGate()
+        self.fixture = sensor_fixture(beacon_build(1501)); self.recorder = Recorder(self.out / 'run')
+
+    def tearDown(self):
+        self.recorder.close(); self.temp.cleanup()
+
+    def env(self, switches=True):
+        """Sensor frames whose held item follows the hotbar keys the session sends (the fixture's gifts fill slots 1-4)."""
+        gifts = [g['item'] for g in self.fixture['give']]; held = ['air']
+
+        def script(n, action):
+            for i, item in enumerate(gifts):
+                if switches and action.get('hotbar.%d' % (i + 1)): held[0] = item
+            return sensed(n, selected=held[0])
+        return FakeEnv(script)
+
+    def session(self, env, policy, fixture=None):
+        return DemoSession(env, policy, None, self.recorder, self.gate, self.out / 'STOP', limit_s=6., skills=SKILLS,
+                           clock=Clock(.05), rule_controller=FakeController, settle_steps=0, build=fixture or self.fixture,
+                           sensor_log=SensorLog(self.out / 'run/sensor'))
+
+    def rows(self):
+        return [json.loads(line) for line in (self.out / 'run/telemetry.jsonl').read_text(encoding='utf-8').splitlines()]
+
+    def test_the_rule_selects_the_needed_block_before_the_head_acts(self):
+        policy = FakePolicy(noop()); report = self.session(self.env(), policy).run(self.BUILD)
+        rows = [r for r in self.rows() if r['controller'] in ('rule_select', 'policy')]
+        self.assertEqual(rows[0]['controller'], 'rule_select')
+        self.assertEqual(rows[0]['action'], {'camera': [0., 0.], 'hotbar.1': 1})        # gold sits in slot 1
+        self.assertTrue(len(rows) > 2 and all(r['controller'] == 'policy' for r in rows[1:]))
+        self.assertIn(policy.calls - (len(rows) - 1), (0, 1))   # the last act may meet the deadline before dispatch
+        self.assertEqual(report['stage_results'][0]['block_selects'], 1)
+
+    def test_a_selection_that_never_takes_ends_the_step(self):
+        from minecraftrl.pipeline.session import SELECT_LIMIT
+        policy = FakePolicy(noop()); report = self.session(self.env(switches=False), policy).run(self.BUILD)
+        result = report['stage_results'][0]
+        self.assertEqual((result['status'], result['block_selects'], policy.calls), ('block_select_failed', SELECT_LIMIT, 0))
+
+    def test_single_kind_tasks_have_no_selection_rule(self):
+        from minecraftrl.build_sensor import sensor_fixture
+        from minecraftrl.build_task import generate_build
+        policy = FakePolicy(noop())
+        report = self.session(self.env(), policy, sensor_fixture(generate_build(103))).run(self.BUILD)
+        self.assertFalse(any(r['controller'] == 'rule_select' for r in self.rows()))
+        self.assertNotIn('block_selects', report['stage_results'][0])
+
+    def test_the_hold_after_success_sends_only_neutral_input(self):
+        session = self.session(self.env(), FakePolicy(noop()))
+        session.obs = session.env.reset(); session.started = session.clock()
+        step = Step('build', 'dig', 'policy', 'build_done', 1, params=dict(until='build', hold_after_steps=3))
+        self.assertEqual(session.hold_after(step), 3)
+        rows = [r for r in self.rows() if r['controller'] == 'after_success']
+        self.assertEqual(len(rows), 3); self.assertTrue(all(r['action'] == {'camera': [0., 0.]} for r in rows))
+        self.assertEqual(session.hold_after(Step('b', 'dig', 'policy', 'build_done', 1, params=dict(until='build'))), 0)
+        self.gate.stop('stop_file')
+        self.assertEqual(session.hold_after(step), 0)
+
+
 if __name__ == '__main__':
     unittest.main()

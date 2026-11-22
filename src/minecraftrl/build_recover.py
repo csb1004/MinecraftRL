@@ -84,14 +84,16 @@ def path_clear(start, end, solids):
 
 def world_build2(task, origin, yaw):
     """build_task.world_build plus the arena floor-level cells a player can stand in; the task's `clutter` blocks (set
-    by the fixture, occlusion check) are solid."""
-    cells = [_at(origin, yaw, *c) for c in task['cells']]
+    by the fixture, occlusion check) are solid. `kinds` maps each world cell to its block when the task's cells carry
+    one (multi-material blueprints, beacon demo 2026-11-23), else it is empty."""
+    cells = [_at(origin, yaw, *c[:3]) for c in task['cells']]
+    kinds = {cell: c[3] for cell, c in zip(cells, task['cells']) if len(c) > 3}
     solids, stand = set(), []
     for dx in range(ARENA['x'][0], ARENA['x'][1] + 1):
         for dz in range(ARENA['z'][0], ARENA['z'][1] + 1):
             solids.add(_at(origin, yaw, dx, -1, dz)); stand.append(_at(origin, yaw, dx, 0, dz))
     for c in task.get('clutter', ()): solids.add(_at(origin, yaw, *c))
-    return dict(cells=cells, solids=solids, stand=sorted(stand))
+    return dict(cells=cells, solids=solids, stand=sorted(stand), kinds=kinds)
 
 
 def occluded_build(seed):
@@ -121,13 +123,15 @@ class RecoverTracker:
 
     def __init__(self, world):
         self.cells = [tuple(c) for c in world['cells']]; self.solids = set(world['solids'])
-        self.stand = [tuple(c) for c in world['stand']]
+        self.stand = [tuple(c) for c in world['stand']]; self.kinds = dict(world.get('kinds') or {})
         self.filled_cells = set(); self.wrong = 0
 
-    def placed(self, cell):
-        """A server placement (from the place record)."""
+    def placed(self, cell, block=None):
+        """A server placement (from the place record). With per-cell kinds, a block of another kind in a blueprint
+        cell is wrong (it stays solid; there is no repair)."""
         cell = tuple(int(c) for c in cell); self.solids.add(cell)
-        if cell in self.cells: self.filled_cells.add(cell)
+        right = cell in self.cells and (not self.kinds or block is None or self.kinds.get(cell) == block)
+        if right: self.filled_cells.add(cell)
         else: self.wrong += 1
 
     def current(self):
@@ -290,7 +294,7 @@ class RecoverFeed(BuildFeed):
             elif count > self.count:
                 self.unknown += count - self.count - 1
                 self.count = count
-                self.tracker.placed(tuple(int(p['place_last_' + a]) for a in 'xyz'))
+                self.tracker.placed(tuple(int(p['place_last_' + a]) for a in 'xyz'), p.get('place_last_block'))
         pose = _client(row)
         if pose is None: return
         hit, face = _hit(row)
