@@ -71,6 +71,28 @@ class BuildBatchTest(unittest.TestCase):
         self.assertEqual(frozen['teacher'], 'recover')
         with self.assertRaises(ValueError): self.m.prepare(self.batch, 'official', ROOT, 103, None, True, teacher='other')
 
+    def test_the_sensor_teacher_turns_on_the_sensor_monitor_writes_the_blueprint_and_hashes_its_modules(self):
+        # Plan 2026-11-22 sensor build: the recovering teacher on sensors, a blueprint instruction file, a first-use final.
+        from minecraftrl.build_sensor import blueprint_of, sensor_fixture
+        from minecraftrl.build_task import generate_build
+        config, fixture, _ = self.m.prepare(self.batch, 'official', ROOT, 103, None, True, teacher='sensor')
+        self.assertEqual(json.loads(fixture.read_text()), sensor_fixture(generate_build(103)))
+        self.assertEqual(json.loads(fixture.read_text())['build']['teacher'], 'sensor_recover')
+        value = json.loads(config.read_text())
+        self.assertIs(value['sensor_monitor'], True); self.assertIs(value['place_monitor'], True)
+        self.assertEqual(json.loads((self.batch / 'blueprints' / 'task-103.json').read_text()), blueprint_of(generate_build(103)))
+        self.assertEqual(self.collect(teacher='sensor'), 0)
+        names = [k.replace('\\', '/') for k in json.loads((self.batch / 'frozen-teacher-c101.json').read_text())['hashes']]
+        for module in ('build_sensor.py', 'SensorObservation.java', 'pipeline/sensor.py', 'pipeline/seen_map.py',
+                       'pipeline/sensor_guard.py', 'build_recover.py'):
+            self.assertTrue(any(n.endswith(module) for n in names), module)
+        self.m.check('sensor_final', [1401, 1408], [618034], self.registry)
+        for bad in (([301], [618034]), ([1401], [662607])):
+            with self.assertRaises(ValueError): self.m.check('sensor_final', *bad, self.registry)
+        self.m.prepare(self.batch, 'official', ROOT, 401, None, True, teacher='sensor', occluded=True)   # a recovering teacher
+        plain = json.loads(self.m.prepare(self.batch, 'other', ROOT, 103, None, True, teacher='recover')[0].read_text())
+        self.assertNotIn('sensor_monitor', plain)
+
     def test_the_occluded_mode_has_its_own_seed_and_tasks_and_sets_the_block(self):
         # Occlusion check (design 2026-11-15): recovering teacher only, a block in front of the first cell.
         from minecraftrl.build_recover import build2_fixture, occluded_build

@@ -4,10 +4,20 @@ DEMO_NUMBERS=('demo_available','demo_destroys','demo_last_destroy_tick','demo_la
               'demo_mining_x','demo_mining_y','demo_mining_z','demo_fixture_state','demo_fixture_blocks','demo_fixture_sha52')
 # Opt-in placement telemetry (block placing plan 2026-11-13 §1).
 PLACE_NUMBERS=('place_available','place_count','place_last_tick','place_last_x','place_last_y','place_last_z')
+# Opt-in client sensor telemetry (sensor-tier design 2026-11-19 §3.1): 15x9 view rays + the crosshair, 27 blocks at the feet.
+SENSOR_RAYS,SENSOR_VOXELS=136,27
+SENSOR_NUMBERS=('sensor_available','sensor_client_tick','sensor_cols','sensor_rows','sensor_range','sensor_hfov','sensor_vfov',
+                'sensor_eye_x','sensor_eye_y','sensor_eye_z','sensor_yaw','sensor_pitch','sensor_foot_x','sensor_foot_y',
+                'sensor_foot_z','sensor_tool_damage','sensor_tool_max')
+SENSOR_RAY_NUMBERS=('sensor_ray_dist','sensor_ray_x','sensor_ray_y','sensor_ray_z','sensor_ray_dx','sensor_ray_dy','sensor_ray_dz',
+                    'sensor_ray_fluid_dist')
+SENSOR_EXTRA_KINDS=('other','fire','soul_fire')
+FLUIDS=('none','water','lava')
 
 
-def workshop_survival(*,terminate_on_death=False,demo=False,place=False,**kwargs):
+def workshop_survival(*,terminate_on_death=False,demo=False,place=False,sensor=False,**kwargs):
     if place and not demo:raise ValueError('the place monitor needs the demo monitor')
+    if sensor and not demo:raise ValueError('the sensor monitor needs the demo monitor')
     from minerl.herobraine.env_specs.human_survival_specs import HumanSurvival
     from minerl.herobraine.hero.handlers.translation import TranslationHandler
     from minerl.herobraine.hero import spaces,mc
@@ -43,6 +53,14 @@ def workshop_survival(*,terminate_on_death=False,demo=False,place=False,**kwargs
                        demo_mining_block=block(),demo_hit_block=block())
     place_schema={key:number() for key in PLACE_NUMBERS}
     place_schema.update(place_last_block=block())
+    kind=lambda:spaces.Enum(*mc.ALL_ITEMS,*SENSOR_EXTRA_KINDS)
+    sensor_schema={key:number() for key in SENSOR_NUMBERS}
+    sensor_schema.update({key:spaces.Box(low=-1e12,high=1e12,shape=(SENSOR_RAYS,),dtype=np.float64) for key in SENSOR_RAY_NUMBERS})
+    sensor_schema.update(sensor_tool_item=item(),
+        sensor_ray_kind=spaces.Tuple([kind() for _ in range(SENSOR_RAYS)]),
+        sensor_ray_fluid=spaces.Tuple([spaces.Enum(*FLUIDS) for _ in range(SENSOR_RAYS)]),
+        sensor_voxel_kind=spaces.Tuple([kind() for _ in range(SENSOR_VOXELS)]),
+        sensor_voxel_fluid=spaces.Tuple([spaces.Enum(*FLUIDS) for _ in range(SENSOR_VOXELS)]))
     class Monitor(TranslationHandler):
         def __init__(self,name='workshop',fields=schema):
             super().__init__(spaces.Dict(fields));self.name=name
@@ -53,7 +71,7 @@ def workshop_survival(*,terminate_on_death=False,demo=False,place=False,**kwargs
     class Survival(HumanSurvival):
         def create_monitors(self):
             return (super().create_monitors()+[Monitor()]+([Monitor('demo',demo_schema)] if demo else [])+
-                    ([Monitor('place',place_schema)] if place else []))
+                    ([Monitor('place',place_schema)] if place else [])+([Monitor('sensor',sensor_schema)] if sensor else []))
         def create_agent_start(self):
             handlers=super().create_agent_start()
             if terminate_on_death:

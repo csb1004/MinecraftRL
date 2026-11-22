@@ -1,6 +1,6 @@
 {
   "schema": "build_config_v1",
-  "description": "Building skill (design docs/specs/2026-11-14-build-design.md). Task ids are generator seeds of minecraftrl.build_task.generate_build; train, dev and final ids never overlap (their blueprints can repeat; the world seeds differ). The embedding is the official STEVE-1 prior output for the prompt (made with scripts/prepare_demo_prompts.py --set build); sha256 null = not made yet, and only the teacher check may run. occluded: the occlusion check tasks (docs/specs/2026-11-15-build-occluded-check-design.md), each with a block in front of its first cell (build_recover.occluded_build), on world seed 707106. Round 4 (docs/specs/2026-11-15-build-careful-design.md): occluded_train on the training seeds, dev4 and dev4_occluded on 302585, final4 and final4_occluded on 866025; the occluded lists are the first 8 ids from 501, 701 and 901 with a free cell in front of the first cell and a blueprint and block not already picked. large: the size check (docs/specs/2026-11-15-build-large-check-design.md), larger blueprints from minecraftrl.build_large.large_build (ids 1001-1008 cover each of its 4 shapes twice) on world seed 693147. Round 5 (docs/specs/2026-11-15-build-repair-design.md): repair tasks (minecraftrl.build_repair.repair_build, id % 3 stray blocks next to the blueprint) in repair_train on the training seeds, repair_dev on 414213 and repair_final on 236067.",
+  "description": "Building skill (design docs/specs/2026-11-14-build-design.md). Task ids are generator seeds of minecraftrl.build_task.generate_build; train, dev and final ids never overlap (their blueprints can repeat; the world seeds differ). The embedding is the official STEVE-1 prior output for the prompt (made with scripts/prepare_demo_prompts.py --set build); sha256 null = not made yet, and only the teacher check may run. occluded: the occlusion check tasks (docs/specs/2026-11-15-build-occluded-check-design.md), each with a block in front of its first cell (build_recover.occluded_build), on world seed 707106. Round 4 (docs/specs/2026-11-15-build-careful-design.md): occluded_train on the training seeds, dev4 and dev4_occluded on 302585, final4 and final4_occluded on 866025; the occluded lists are the first 8 ids from 501, 701 and 901 with a free cell in front of the first cell and a blueprint and block not already picked. large: the size check (docs/specs/2026-11-15-build-large-check-design.md), larger blueprints from minecraftrl.build_large.large_build (ids 1001-1008 cover each of its 4 shapes twice) on world seed 693147. Round 5 (docs/specs/2026-11-15-build-repair-design.md): repair tasks (minecraftrl.build_repair.repair_build, id % 3 stray blocks next to the blueprint) in repair_train on the training seeds, repair_dev on 414213 and repair_final on 236067. Sensor tier (docs/superpowers/plans/2026-11-22-sensor-tier-s0-s1-base.md, sensor build): sensor_final on 618034 (first use, checked with git log --all -S and a file search on 2026-11-22) with ids 1401-1408 from generate_build.",
   "prompt": "build a small structure",
   "embedding": "results/build-prompts/build.npy",
   "sha256": "d036570bac6dee46fe2d5bceb6e44735667dca4ff78b270cfa46dffb6c66a08f",
@@ -139,6 +139,16 @@
       1306,
       1307,
       1308
+    ],
+    "sensor_final": [
+      1401,
+      1402,
+      1403,
+      1404,
+      1405,
+      1406,
+      1407,
+      1408
     ]
   }
 }

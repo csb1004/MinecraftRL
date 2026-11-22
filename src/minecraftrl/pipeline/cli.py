@@ -203,13 +203,16 @@ def worker(args):
         from ..workshop_recipes import RecipeCatalog
         from ..world_save_patch import build_save_jar
         from .recorder import Recorder
+        from .sensor import SensorLog
         from .session import DemoSession, fixture_sha52
         process_watcher.launch = partial(launch_scoped_watcher, output)
         minecraft_dir = Path(InstanceManager.MINECRAFT_DIR)
         # Opt-in placement telemetry (block placing plan 2026-11-13 §1); without it the jar is the earlier demo jar.
         place = bool(config.get('place_monitor', False))
+        # Opt-in client sensors (sensor-tier design 2026-11-19 §3.1): rays, voxels, tool wear; guards 1-4 on the sensor path.
+        sensor = bool(config.get('sensor_monitor', False))
         jar = build_save_jar(args.root, minecraft_dir, craft_monitor=True, workshop_monitor=True, demo_monitor=True,
-                             place_monitor=place)
+                             place_monitor=place, sensor_monitor=sensor)
         prepare_jar_cache(minecraft_dir, output, source_override=jar)
         sha52 = None
         if args.fixture:
@@ -217,7 +220,8 @@ def worker(args):
             os.environ['MINECRAFTRL_DEMO_FIXTURE'] = str(fixture)
         else: os.environ.pop('MINECRAFTRL_DEMO_FIXTURE', None)
         catalog = RecipeCatalog.from_jar(jar, extra_ids=('stone_pickaxe',)) if need_catalog else None
-        env = MineRLEnvironment(workshop_survival(**ENV_KWARGS, terminate_on_death=True, demo=True, place=place).make())
+        env = MineRLEnvironment(workshop_survival(**ENV_KWARGS, terminate_on_death=True, demo=True, place=place,
+                                                  sensor=sensor).make())
         preparation = None
         if policy_skills:
             from ..cuda_startup import prime_convolution
@@ -259,7 +263,16 @@ def worker(args):
                                      else 'privileged: blueprint, client pose, crosshair and server placements'
                                      if block.get('stages') == 'build'
                                      else 'privileged: fixture positions and server pose') if block['use_stage'] else 'zeros')
-            if getattr(head, 'features', ()):     # direction input (jump and mining designs 2026-11-14)
+            sensor_build = block.get('stages') == 'build' and hasattr(feed, 'observe_frame')
+            if sensor_build:       # sensor tier (plan 2026-11-22): no fixture world, no server placement record in decisions
+                if not sensor: raise ValueError('the sensor build teacher needs config sensor_monitor')
+                meta['stage_input'] = ('sensor: blueprint instruction, client pose, crosshair and the seen map'
+                                       if block['use_stage'] else 'zeros')
+            if getattr(head, 'features', ()) and sensor_build:
+                meta['feature_input'] = ('sensor: %s from the blueprint instruction, the client pose, the crosshair and the '
+                                         'seen map, times %g' % (', '.join(head.features), head.feature_gain)
+                                         if block['use_stage'] else 'zeros')
+            elif getattr(head, 'features', ()):     # direction input (jump and mining designs 2026-11-14)
                 source = {'jump': 'the course and the client pose', 'place': 'the place target and the client pose',
                           'bridge': 'the bridge task, the client pose and the server placements',
                           'build': 'the blueprint, the client pose and the server placements'}.get(
@@ -303,6 +316,7 @@ def worker(args):
                               tool_allowed=tuple(config.get('policy_tool_allowed', ())),
                               reacquire=reacquire, course=course_of(args.fixture), place=place_of(args.fixture),
                               bridge=bridge_of(args.fixture), build=build_of(args.fixture),
+                              sensor_log=SensorLog(output / 'sensor') if sensor else None,
                               **monitor_options(config))
         report = session.run(steps)
         report.update(mode=args.mode, seed=seed, sampling_seed=sampling, limit_s=limit_s, fixture=str(args.fixture) if args.fixture else None,

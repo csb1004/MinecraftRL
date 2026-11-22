@@ -109,7 +109,8 @@ class Oversight:
     @staticmethod
     def query_for(event):
         kind = event['kind']
-        if kind.startswith('guard_'): return event['family'], 'harvest_requires'
+        # Aim guards name the block family; the sensor guards 2-4 (drop, wear, hazard) have no knowledge to query yet.
+        if kind.startswith('guard_') and 'family' in event: return event['family'], 'harvest_requires'
         if kind == 'destroy_not_harvestable': return block_family(event['evidence']['block']), 'harvest_requires'
         if kind == 'blocked_overhead': return 'solid_block', 'blocks_movement'
         deep = (event.get('evidence', {}).get('depth') or 0) >= 2

@@ -36,6 +36,7 @@ sys.path.insert(0, str(ROOT / 'scripts'))
 from minecraftrl.build_large import large_build  # noqa: E402
 from minecraftrl.build_recover import CAREFUL, REPAIR, build2_fixture, occluded_build  # noqa: E402
 from minecraftrl.build_repair import repair_build, repair_fixture  # noqa: E402
+from minecraftrl.build_sensor import blueprint_of, sensor_fixture  # noqa: E402
 from minecraftrl.build_task import build_fixture, generate_build  # noqa: E402
 from run_reacquire_batch import POLICY_DEVICE_MIB, frozen_ok, input_hashes, nvidia_free_mib, run_game, write  # noqa: E402
 
@@ -43,11 +44,11 @@ TRAIN_SEEDS = (271828, 314159, 161803)
 MODES = {'train': TRAIN_SEEDS, 'dev': (130363,), 'final': (662607,), 'occluded': (707106,),
          'occluded_train': TRAIN_SEEDS, 'dev4': (302585,), 'dev4_occluded': (302585,), 'final4': (866025,),
          'final4_occluded': (866025,), 'large': (693147,), 'repair_train': TRAIN_SEEDS, 'repair_dev': (414213,),
-         'repair_final': (236067,)}
+         'repair_final': (236067,), 'sensor_final': (618034,)}
 OCCLUDED_MODES = ('occluded', 'occluded_train', 'dev4_occluded', 'final4_occluded')
 LARGE_MODES = ('large',)
 REPAIR_MODES = ('repair_train', 'repair_dev', 'repair_final')
-RECOVERING = ('recover', CAREFUL)
+RECOVERING = ('recover', CAREFUL, 'sensor')
 REPAIRING = (REPAIR, CAREFUL)            # teachers that can run a repair task (careful: the round 4 reference)
 REPAIR_SLOTS = ('hotbar.1', 'hotbar.2')  # the block and the stone pickaxe pass the policy tool lock in repair tasks
 REGISTRY = 'configs/build-v1.json'
@@ -55,7 +56,7 @@ BASE = 'configs/reacquire-v1.json'
 SKILL = 'build'
 LIMIT_S, FRAME_EVERY = 60, 2
 TEACHERS = {'round1': build_fixture, 'recover': build2_fixture, CAREFUL: lambda task: build2_fixture(task, teacher=CAREFUL),
-            REPAIR: repair_fixture}
+            REPAIR: repair_fixture, 'sensor': sensor_fixture}
 
 
 def load_registry(root): return json.loads((Path(root) / REGISTRY).read_text(encoding='utf-8'))
@@ -69,12 +70,13 @@ def check(mode, tasks, seeds, registry):
     if bad: raise ValueError('tasks %s are not %s tasks (%s)' % (bad, mode, allowed))
 
 
-def build_config(base, registry, checkpoint, use_stage, teacher_check=False, tool_allowed=()):
+def build_config(base, registry, checkpoint, use_stage, teacher_check=False, tool_allowed=(), sensor=False):
     """The reacquire config without any mining head, with the place monitor; a policy arm adds the build skill.
     `tool_allowed`: hotbar keys the policy may press through the tool lock (repair tasks)."""
     config = json.loads(json.dumps(base))
     for spec in config['skills'].values(): spec.pop('reacquire', None)
     config['place_monitor'] = True
+    if sensor: config['sensor_monitor'] = True    # client sensors for the sensor teacher (plan 2026-11-22)
     if tool_allowed: config['policy_tool_allowed'] = list(tool_allowed)
     if not teacher_check:
         config['skills'][SKILL] = dict(embedding=registry['embedding'], sha256=registry['sha256'],
@@ -99,7 +101,10 @@ def prepare(batch, arm, root, task, checkpoint, use_stage, teacher_check=False, 
     registry = load_registry(root)
     base = json.loads((Path(root) / BASE).read_text(encoding='utf-8'))
     config = write(batch / 'configs' / (arm + '.json'), build_config(base, registry, checkpoint, use_stage, teacher_check,
-                                                                     tool_allowed=REPAIR_SLOTS if repair else ()))
+                                                                     tool_allowed=REPAIR_SLOTS if repair else (),
+                                                                     sensor=teacher == 'sensor'))
+    if teacher == 'sensor':     # the blueprint instruction the sensor feed reads, kept apart from the fixture's world
+        write(batch / 'blueprints' / ('task-%d.json' % task), blueprint_of(blueprint))
     fixture = write(batch / 'fixtures' / ('task-%d.json' % task),
                     repair_fixture(blueprint, teacher=teacher) if repair else TEACHERS[teacher](blueprint))
     step = (dict(id='check', skill='build_teacher', kind='scripted', target='build_done', count=1,
@@ -141,6 +146,9 @@ def collect(*, batch, arm, checkpoint, use_stage, mode, tasks, seeds, sampling, 
                  root / 'src/minecraftrl/place_task.py',
                  root / 'src/minecraftrl/PlaceObservation.java', root / 'src/minecraftrl/world_save_patch.py']
         if teacher != 'round1': files.append(root / 'src/minecraftrl/build_recover.py')
+        if teacher == 'sensor':
+            files += [root / 'src/minecraftrl' / name for name in ('build_sensor.py', 'SensorObservation.java',
+                      'pipeline/sensor.py', 'pipeline/seen_map.py', 'pipeline/sensor_guard.py', 'pipeline/session.py')]
         if mode in LARGE_MODES: files.append(root / 'src/minecraftrl/build_large.py')
         if mode in REPAIR_MODES:
             files += [root / 'src/minecraftrl/build_repair.py', root / 'src/minecraftrl/pipeline/session.py']

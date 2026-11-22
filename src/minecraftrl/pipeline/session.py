@@ -15,7 +15,13 @@ import numpy as np
 from ..runtime import jsonable
 from .monitor_thread import MonitorThread
 from .rm import sample_from
+from .seen_map import SeenMap
+from .sensor import ACTOR_TIERS, check_actor_tiers, sensor_frame
+from .sensor_guard import SensorGuards, apply_masks
 from .steps import block_matches, item_count
+
+# Skill kinds the hazard guard lets walk to an edge (sensor-tier design §2.5 guard 4), by the step's `until`.
+SENSOR_SKILL_KINDS = {'bridge': 'bridge', 'course': 'jump'}
 
 CONTROLLERS = {'policy': 'policy', 'rule': 'rule', 'scripted': 'scripted_probe'}
 STOP_STATUSES = ('stop_file', 'time_limit', 'environment_done')
@@ -85,7 +91,7 @@ class DemoSession:
     def __init__(self, env, policy, catalog, recorder, gate, stop_file, *, limit_s, skills, clock=time.monotonic,
                  rule_controller=None, fixture_sha52=None, settle_steps=20, prepare_limit=400, tool_lock=False, oversight=None,
                  reacquire=None, course=None, place=None, bridge=None, build=None, tool_allowed=(), monitor_mode='thread',
-                 monitor_wait_s=.05):
+                 monitor_wait_s=.05, sensor_log=None):
         if not 0 < limit_s <= 900: raise ValueError('limit_s must be in (0, 900]')
         if monitor_mode not in MONITOR_MODES: raise ValueError('monitor_mode must be one of %s' % list(MONITOR_MODES))
         if not monitor_wait_s >= 0: raise ValueError('monitor_wait_s must be >= 0')
@@ -107,6 +113,13 @@ class DemoSession:
         # dispatch the control loop waits at most monitor_wait_s for it; a later result is acted on at a later boundary.
         self.monitor_mode = monitor_mode; self.monitor_wait_s = monitor_wait_s; self.monitor_thread = None
         self.boundaries = 0; self.late_boundaries = 0
+        # Sensor tier (design 2026-11-19, opt-in `sensor_monitor`): the client sensor log (rows keep only `sensor_row`),
+        # the seen map of this episode, and the pre-dispatch guards 1-4 that read only sensors and the plan.
+        self.sensor_log = sensor_log; self.seen = SeenMap() if sensor_log is not None else None
+        self.frame = None; self.prev_frame = None; self.remaining_steps = []
+        if sensor_log is not None: check_actor_tiers(ACTOR_TIERS)
+        self.sensor_guards = (SensorGuards(oversight.guard, kb=oversight.kb, context=oversight.context, needs=oversight.needs)
+                              if sensor_log is not None and oversight else None)
         # Reacquire hook (stage_live.ReacquireHook): live stage input for the residual head and the latent record.
         # It only acts on policy steps whose skill has a `reacquire` block.
         self.reacquire = reacquire
@@ -134,7 +147,14 @@ class DemoSession:
             from ..build_recover import feed_for    # the recovering teacher when the fixture names it (design 2026-11-15)
             build = feed_for(build)
         self.build = build
+        if self.sensor_feeds() and sensor_log is None:
+            raise ValueError('a sensor-tier skill feed needs the sensor monitor (config sensor_monitor)')
         self.steps = 0; self.obs = None; self.info = {}; self.started = None
+
+    def sensor_feeds(self):
+        """Skill feeds that decide on sensor frames: the session's own feed and the head's (they are separate objects)."""
+        feeds = [self.build, getattr(self.reacquire, 'feed', None)]
+        return [f for f in feeds if f is not None and hasattr(f, 'observe_frame')]
 
     # Workshop controller adapter: it reads .gui, .env.raw.action_space and .steps.
     @property
@@ -161,7 +181,7 @@ class DemoSession:
         if 'place' in self.info: value['place'] = dict(self.info['place'])   # opt-in place monitor (plan 2026-11-13 §1)
         return value
 
-    def dispatch(self, action, controller, masked=()):
+    def dispatch(self, action, controller, masked=(), guard_masked=()):
         """Send one action unless STOP or the deadline is latched; record frame and telemetry."""
         if self.stop_reason(): return False
         dispatched, transition = self.gate.dispatch(lambda: self.env.step(action))
@@ -170,6 +190,14 @@ class DemoSession:
         self.recorder.frame(self.steps, self.obs['pov'])
         sample = self.sample(controller, action)
         if masked: sample['masked'] = list(masked)
+        if guard_masked: sample['guard_masked'] = list(guard_masked)   # sensor guards (design 2026-11-19 §2.5)
+        if self.sensor_log is not None and 'sensor' in self.info:
+            sample['sensor_row'] = self.sensor_log.add(self.steps, self.info['sensor'])
+            frame = sensor_frame(self.info, self.clock())
+            if frame is not None:
+                self.prev_frame, self.frame = self.frame, frame; self.seen.update(frame)
+                for feed in self.sensor_feeds():         # sensor-tier skill feeds decide on frames (plan 2026-11-22)
+                    feed.observe_frame(frame, self.seen)
         row = self.recorder.telemetry(self.steps, sample)
         if self.reacquire is not None: self.reacquire.observe(row)
         if self.course is not None: self.course.observe(row)
@@ -217,6 +245,7 @@ class DemoSession:
                 queue = list(steps)
                 while queue:
                     step = queue.pop(0)
+                    self.remaining_steps = [step] + queue    # the plan's rest: guard 3 counts the tool uses it needs
                     result = self.run_step(step); report['stage_results'].append(result)
                     if result['status'] == 'completed' and self.oversight:
                         self.oversight.verify(step, result['gained'], self.last_sample if step.kind == 'policy' else None)
@@ -253,6 +282,7 @@ class DemoSession:
             except BaseException as exc: report['release'] = 'failed: ' + repr(exc)
             self.recorder.event('input_release', controller='cleanup', outcome=report['release'])
             if self.oversight: report['oversight'] = self.oversight.summary()  # API calls happen during the run
+            if self.sensor_log is not None: report['sensor'] = self.sensor_log.close()     # sensor_v1 manifest
             if self.reacquire is not None:
                 # Flush the last latent chunk on every ending (time limit, STOP, error) so the record stays checkable.
                 try: report['reacquire'] = self.reacquire.close()
@@ -314,9 +344,13 @@ class DemoSession:
         if until == 'build' and self.build is None: raise ValueError("until='build' needs a build fixture")
 
         oversight = self.oversight; attack_masks = 0; monitor = self.monitor_thread; monitoring = [False]; drops = 0
+        sensor_masks = 0; sensor_kinds = set()
         if oversight:
             oversight.start_step(step); self.last_sample = sample_from(self.info, self.noop(), self.clock())
             if monitor is not None: monitor.begin(oversight.monitor); monitoring[0] = True
+        if self.sensor_guards is not None:
+            self.sensor_guards.start_step(steps=self.remaining_steps, skill_kind=SENSOR_SKILL_KINDS.get(until),
+                                          needs=oversight.needs if oversight else None)
         if self.reacquire is not None: self.reacquire.activate(bool(skill.get('reacquire')))
         hook = self.reacquire if self.reacquire is not None and skill.get('reacquire') else None
         if hook is not None: hook.start_step(self.recorder.clock())
@@ -340,6 +374,7 @@ class DemoSession:
             if start_y is not None: extra['rise'] = peak_y - start_y
             if column is not None: extra['cleared'] = cleared
             if oversight: extra['attack_masks'] = attack_masks
+            if self.sensor_guards is not None: extra['sensor_guard_masks'] = sensor_masks
             if gui_closed: extra['gui_closed'] = gui_closed
             if until == 'place': extra['wrong'] = self.place.wrong()
             if until == 'bridge':
@@ -365,6 +400,18 @@ class DemoSession:
                 # Boundary: the monitor worked on the last samples while the policy computed this action.
                 held = self.monitor_boundary(step, self.monitor_wait_s)
                 if held is not None: return hold_and_finish(held)
+            guard_masked = []
+            if self.sensor_guards is not None and self.frame is not None:
+                # Sensor path (design 2026-11-19 §2.5): guards 1-4 read the last sensor frame, the seen map and the plan.
+                # They only remove keys; every removal is in the row and the first of each kind per attempt on the timeline.
+                events = self.sensor_guards.pre_dispatch(self.frame, self.seen, action, self.prev_frame)
+                if events:
+                    action, guard_masked = apply_masks(action, events); sensor_masks += bool(guard_masked)
+                    for e in events:
+                        if e['kind'] not in sensor_kinds:
+                            sensor_kinds.add(e['kind']); self.recorder.event('monitor_event', step_id=step.id, event=e)
+                    held = next((e for e in events if e['hold']), None)
+                    if held is not None: return hold_and_finish(held)
             if oversight:
                 # Last reversible moment: the aimed block from the previous observation plus this action's attack.
                 # The guard stays on the control thread: it must judge this action before it is sent.
@@ -376,7 +423,7 @@ class DemoSession:
             # Probe only: the pre-dispatch aim+attack moment is where the guard will decide.
             if until == 'mining_start' and attacking(action) and block_matches(self.demo().get('demo_hit_block', ''), step.block):
                 return finish('completed', completion='aim_attack')
-            if not self.dispatch(action, 'policy', masked): return finish(self.gate.reason)
+            if not self.dispatch(action, 'policy', masked, guard_masked): return finish(self.gate.reason)
             if hook is not None: hook.after_dispatch(self.steps)
             masked_steps += bool(masked)
             if oversight:

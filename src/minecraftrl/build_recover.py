@@ -21,6 +21,7 @@ from .reacquire_teacher import BUTTONS, point_delta
 TEACHER = 'recover'
 CAREFUL = 'careful'    # round 4: the recovering teacher with careful place
 REPAIR = 'repair'      # round 5: careful place plus stray removal (build_repair, design 2026-11-15 build-repair)
+SENSOR_TEACHER = 'sensor_recover'   # sensor tier (plan 2026-11-22): the recovering teacher on sensors (build_sensor)
 INNER = .2             # blocks: careful place needs the crosshair this far inside the face's edges
 BUILD2_STAGES = ('reach', 'move', 'aim', 'place', 'done')
 LABELLED = ('reach', 'move', 'aim', 'place')
@@ -324,11 +325,14 @@ def build2_fixture(task, teacher=TEACHER):
     return fixture
 
 
-def recovering(fixture): return (fixture.get('build') or {}).get('teacher') in (TEACHER, CAREFUL, REPAIR)
+def recovering(fixture): return (fixture.get('build') or {}).get('teacher') in (TEACHER, CAREFUL, REPAIR, SENSOR_TEACHER)
 
 
 def feed_for(fixture):
     teacher = (fixture.get('build') or {}).get('teacher')
+    if teacher == SENSOR_TEACHER:
+        from .build_sensor import SensorBuildFeed
+        return SensorBuildFeed(fixture)
     if teacher == REPAIR:
         from .build_repair import RepairFeed
         return RepairFeed(fixture)

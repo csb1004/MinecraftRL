@@ -11,6 +11,9 @@ teacher='careful' (round 4, careful place) uses build_recover.CarefulFeed instea
 checked against the replay, runs of any other teacher are relabelled.
 teacher='repair' (round 5, design 2026-11-15 build-repair) uses build_repair.RepairFeed with its own six stages and twelve
 features: repair runs are checked, runs recorded with the five recovering stages or the round 1 stages are relabelled.
+teacher='sensor_recover' (plan 2026-11-22, sensor tier) uses build_sensor.SensorBuildFeed: every run needs its sensor
+log, whose frames rebuild the seen map in the live order (frame, then row); runs without one are refused (sensor-tier
+design §5.2: earlier records have no rays).
 """
 import json
 from pathlib import Path
@@ -20,13 +23,17 @@ import numpy as np
 from .build_data import FEATURE_TOLERANCE, GROUP
 from .build_recover import BUILD2_FEATURES, BUILD2_STAGES, CAREFUL, REPAIR, TEACHER, CarefulFeed, RecoverFeed
 from .build_repair import REPAIR_FEATURES, REPAIR_STAGES, RepairFeed
+from .build_sensor import SENSOR, SENSOR_BUILD_FEATURES, SensorBuildFeed
 from .build_task import BUILD_STAGES
 from .pipeline.monitor_replay import load_run
+from .pipeline.seen_map import SeenMap
+from .pipeline.sensor import load_sensor_log, sensor_frame
 from .reacquire_data import _checked_request, load_latents, sha256
 from .reacquire_teacher import policy_label
 
 SOURCES = ('src/minecraftrl/build2_data.py', 'src/minecraftrl/build_recover.py', 'src/minecraftrl/build_task.py',
-           'src/minecraftrl/place_task.py', 'src/minecraftrl/reacquire_teacher.py', 'src/minecraftrl/build_repair.py')
+           'src/minecraftrl/place_task.py', 'src/minecraftrl/reacquire_teacher.py', 'src/minecraftrl/build_repair.py',
+           'src/minecraftrl/build_sensor.py', 'src/minecraftrl/pipeline/sensor.py', 'src/minecraftrl/pipeline/seen_map.py')
 
 
 def use_combos(mapper):
@@ -35,10 +42,15 @@ def use_combos(mapper):
     return np.array([isinstance(combos[i], tuple) and 'use' in combos[i] for i in range(len(combos))], bool)
 
 
-FEEDS = {TEACHER: RecoverFeed, CAREFUL: CarefulFeed, REPAIR: RepairFeed}
-NAMES = {TEACHER: 'build_recover', CAREFUL: 'build_careful', REPAIR: 'build_repair'}
+FEEDS = {TEACHER: RecoverFeed, CAREFUL: CarefulFeed, REPAIR: RepairFeed, SENSOR: SensorBuildFeed}
+NAMES = {TEACHER: 'build_recover', CAREFUL: 'build_careful', REPAIR: 'build_repair', SENSOR: 'build_sensor'}
 LISTS = {TEACHER: (BUILD2_STAGES, BUILD2_FEATURES), CAREFUL: (BUILD2_STAGES, BUILD2_FEATURES),
-         REPAIR: (REPAIR_STAGES, REPAIR_FEATURES)}
+         REPAIR: (REPAIR_STAGES, REPAIR_FEATURES), SENSOR: (BUILD2_STAGES, SENSOR_BUILD_FEATURES)}
+
+
+def replay_info(row, raw):
+    """The observation a sensor frame is built from, out of a telemetry row and its logged raw sensor values."""
+    return {'workshop': dict(row, server_inventory=row.get('inventory') or {}), 'sensor': raw}
 
 
 def build2_run_examples(run_dir, mapper, transformer, *, root, teacher=TEACHER):
@@ -58,12 +70,19 @@ def build2_run_examples(run_dir, mapper, transformer, *, root, teacher=TEACHER):
     steps = [s for s in run.steps if s.skill == manifest['meta']['skill']]
     if len(steps) != 1: raise ValueError('expected one %s step, found %d' % (manifest['meta']['skill'], len(steps)))
     step = steps[0]; feed = FEEDS[teacher](fixture); decisions = []; feats = []
+    sensor_rows = seen_map = None
+    if teacher == SENSOR:
+        if not (run_dir / 'sensor' / 'manifest.json').exists(): raise ValueError('no sensor log: %s' % run_dir)
+        sensor_rows = list(load_sensor_log(run_dir / 'sensor')); seen_map = SeenMap()
     for r in run.rows:
         inside = r['step'] >= step.start_step and (step.end_step is None or r['step'] <= step.end_step)
         if inside and r['t'] >= step.start_t and r.get('controller') == 'policy':
             view, seen = feed.decision_view(), feed.last_row
             action = None if view is None else feed.label(seen, view)
             decisions.append((r['step'], view, action)); feats.append(feed.features())
+        if sensor_rows is not None and r.get('sensor_row') is not None:
+            frame = sensor_frame(replay_info(r, sensor_rows[r['sensor_row']]), r['t'])
+            if frame is not None: seen_map.update(frame); feed.observe_frame(frame, seen_map)
         feed.observe(r)
     if [d[0] for d in decisions] != lat['step'].tolist():
         raise ValueError('latent record does not match the policy rows (%d latents, %d policy rows)'
@@ -127,7 +146,10 @@ def build2_dataset(run_dirs, out_path, *, holdout, mapper, transformer, root, te
     summary = dict(dataset=str(out_path), dataset_sha256=sha256(out_path), teacher=NAMES[teacher], holdout=holdout, runs=[],
                    rows=int(len(labelled)), labelled=int(labelled.sum()), features=list(features),
                    labelled_by_stage={s: int((labelled & (stage == i)).sum()) for i, s in enumerate(stages)},
-                   privileged=('teacher labels, stages and features use the blueprint, the client pose, the client crosshair and '
+                   privileged=('none in decisions: teacher labels, stages and features use the blueprint instruction, the client '
+                               'pose, the client crosshair and the seen map rebuilt from the sensor log; success and wrong '
+                               'placements use the server placement record' if teacher == SENSOR else
+                               'teacher labels, stages and features use the blueprint, the client pose, the client crosshair and '
                                'the server placement record; success and wrong placements use the server placement record'
                                + ('; the repair teacher also uses the server destroy record and the selected item'
                                   if teacher == REPAIR else '')),

@@ -33,6 +33,66 @@ def as_recovering(folder, recorded=('aim', 'place'), features=None):
     return folder
 
 
+def as_sensor(folder, recorded=None, features=None, log=True):
+    """Turn a round 1 test run into one recorded with the sensor feed (plan 2026-11-22): the sensor fixture, a sensor log
+    with one raw frame per row (floor seen under the start, the first cell in reach), and the rows' `sensor_row`."""
+    from minecraftrl.build_sensor import SENSOR_BUILD_FEATURES, sensor_fixture
+    from minecraftrl.pipeline.sensor import SensorLog
+    from test_pipeline_sensor import raw_sensor
+    folder = Path(folder)
+    if recorded is not None: as_recovering(folder, recorded=recorded, features=features)   # recorded live with this feed
+    path = folder.parent / 'task.json'; path.write_text(json.dumps(sensor_fixture(TASK)), encoding='utf-8')
+    request = json.loads((folder / 'request.json').read_text()); request['fixture_sha256'] = hashlib.sha256(path.read_bytes()).hexdigest()
+    (folder / 'request.json').write_text(json.dumps(request), encoding='utf-8')
+    rows = [json.loads(line) for line in (folder / 'telemetry.jsonl').read_text().splitlines()]
+    if log:
+        sensor = SensorLog(folder / 'sensor')
+        for r in rows:
+            r['sensor_row'] = sensor.add(r['step'], raw_sensor(sensor_client_tick=r['step'], sensor_foot_x=0, sensor_foot_z=0))
+        sensor.close()
+    (folder / 'telemetry.jsonl').write_text(''.join(json.dumps(r) + '\n' for r in rows), encoding='utf-8')
+    if features is not None:
+        manifest = json.loads((folder / 'reacquire/manifest.json').read_text())
+        manifest['features'] = list(SENSOR_BUILD_FEATURES)
+        (folder / 'reacquire/manifest.json').write_text(json.dumps(manifest), encoding='utf-8')
+    return folder
+
+
+@unittest.skipUnless(STEVE1, 'torch and external/steve1 required')
+class SensorExamplesTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory(); self.addCleanup(self.tmp.cleanup)
+        self.mapper, self.transformer = mapping()
+
+    def examples(self, folder):
+        from minecraftrl.build2_data import build2_run_examples
+        from minecraftrl.build_sensor import SENSOR
+        return build2_run_examples(folder, self.mapper, self.transformer, root=Path(self.tmp.name), teacher=SENSOR)
+
+    def test_a_sensor_run_replays_its_frames_and_must_match_the_live_stages_and_features(self):
+        from minecraftrl.build_sensor import SENSOR_BUILD_FEATURES
+        replay = self.examples(as_sensor(make_build_run(Path(self.tmp.name) / 'a/r1')))   # round 1 lists: relabelled
+        self.assertEqual(replay['features'].shape, (2, len(SENSOR_BUILD_FEATURES)))
+        self.assertTrue(replay['relabelled']); self.assertTrue(replay['labelled'].all())
+        names = [BUILD2_STAGES[i] for i in replay['stage'].tolist()]
+        own = self.examples(as_sensor(make_build_run(Path(self.tmp.name) / 'b/r1'), recorded=names, features=replay['features']))
+        self.assertFalse(own['relabelled'])
+        np.testing.assert_allclose(own['features'], replay['features'], atol=1e-6)
+        wrong = replay['features'].copy(); wrong[0, 3] += .5
+        with self.assertRaises(ValueError):
+            self.examples(as_sensor(make_build_run(Path(self.tmp.name) / 'c/r1'), recorded=names, features=wrong))
+        other = [('place' if n != 'place' else 'aim') for n in names]
+        with self.assertRaises(ValueError):
+            self.examples(as_sensor(make_build_run(Path(self.tmp.name) / 'd/r1'), recorded=other, features=replay['features']))
+
+    def test_a_run_without_a_sensor_log_cannot_feed_the_sensor_head(self):
+        # Design §5.2: earlier records have no rays; they are not sensor training data.
+        with self.assertRaises(ValueError):
+            self.examples(as_sensor(make_build_run(Path(self.tmp.name) / 'f/r1'), log=False))
+        with self.assertRaises(ValueError):
+            self.examples(make_build_run(Path(self.tmp.name) / 'e/r1'))
+
+
 @unittest.skipUnless(STEVE1, 'torch and external/steve1 required')
 class Build2ExamplesTest(unittest.TestCase):
     def setUp(self):
