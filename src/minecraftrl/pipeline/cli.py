@@ -387,6 +387,19 @@ def session_start(output):
     return None
 
 
+def worker_report(path, force_reason, returncode):
+    """The worker's summary.json, or an invalid run when it is missing or unreadable (a worker killed while writing it,
+    e.g. after a startup timeout, leaves an empty or cut file; 2026-11-24)."""
+    failed = dict(status=force_reason or 'worker_failed', execution_valid=False,
+                  error=force_reason or 'worker exit ' + str(returncode))
+    if not path.exists(): return dict(failed, shutdown_summary_missing=True)
+    try:
+        report = json.loads(path.read_text())
+    except ValueError:
+        return dict(failed, shutdown_summary_unreadable=True)
+    return report if isinstance(report, dict) else dict(failed, shutdown_summary_unreadable=True)
+
+
 def supervise(args):
     from ..processes import ProcessOwner
     config, seed, sampling, limit_s = settings(args)
@@ -429,8 +442,7 @@ def supervise(args):
         finally:
             cleanup = owner.close(proc)
     path = args.output / 'summary.json'
-    report = json.loads(path.read_text()) if path.exists() else dict(status=force_reason or 'worker_failed',
-        execution_valid=False, error=force_reason or 'worker exit ' + str(proc.returncode), shutdown_summary_missing=True)
+    report = worker_report(path, force_reason, proc.returncode)
     if force_reason == 'cancelled' and report.get('status') != 'stop_file':
         report['shutdown_worker_status'] = report.get('status'); report['status'] = 'cancelled'
     report['process_cleanup'] = cleanup; report['worker_exit_code'] = proc.returncode
