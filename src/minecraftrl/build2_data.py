@@ -14,6 +14,8 @@ features: repair runs are checked, runs recorded with the five recovering stages
 teacher='sensor_recover' (plan 2026-11-22, sensor tier) uses build_sensor.SensorBuildFeed: every run needs its sensor
 log, whose frames rebuild the seen map in the live order (frame, then row); runs without one are refused (sensor-tier
 design §5.2: earlier records have no rays).
+teacher='sensor_dig' (sensor repair 2026-11-23) uses build_sensor_repair.SensorRepairFeed on dig-only tasks: the dig
+head's stages and d_ features, from the sensor log like sensor_recover.
 """
 import json
 from pathlib import Path
@@ -24,6 +26,7 @@ from .build_data import FEATURE_TOLERANCE, GROUP
 from .build_recover import BUILD2_FEATURES, BUILD2_STAGES, CAREFUL, REPAIR, TEACHER, CarefulFeed, RecoverFeed
 from .build_repair import REPAIR_FEATURES, REPAIR_STAGES, RepairFeed
 from .build_sensor import SENSOR, SENSOR_BUILD_FEATURES, SensorBuildFeed
+from .build_sensor_repair import DIG_FEATURES, DIG_STAGES, SENSOR_DIG, SensorRepairFeed
 from .build_task import BUILD_STAGES
 from .pipeline.monitor_replay import load_run
 from .pipeline.seen_map import SeenMap
@@ -33,7 +36,8 @@ from .reacquire_teacher import policy_label
 
 SOURCES = ('src/minecraftrl/build2_data.py', 'src/minecraftrl/build_recover.py', 'src/minecraftrl/build_task.py',
            'src/minecraftrl/place_task.py', 'src/minecraftrl/reacquire_teacher.py', 'src/minecraftrl/build_repair.py',
-           'src/minecraftrl/build_sensor.py', 'src/minecraftrl/pipeline/sensor.py', 'src/minecraftrl/pipeline/seen_map.py')
+           'src/minecraftrl/build_sensor.py', 'src/minecraftrl/pipeline/sensor.py', 'src/minecraftrl/pipeline/seen_map.py',
+           'src/minecraftrl/build_sensor_repair.py')
 
 
 def use_combos(mapper):
@@ -42,10 +46,13 @@ def use_combos(mapper):
     return np.array([isinstance(combos[i], tuple) and 'use' in combos[i] for i in range(len(combos))], bool)
 
 
-FEEDS = {TEACHER: RecoverFeed, CAREFUL: CarefulFeed, REPAIR: RepairFeed, SENSOR: SensorBuildFeed}
-NAMES = {TEACHER: 'build_recover', CAREFUL: 'build_careful', REPAIR: 'build_repair', SENSOR: 'build_sensor'}
+FEEDS = {TEACHER: RecoverFeed, CAREFUL: CarefulFeed, REPAIR: RepairFeed, SENSOR: SensorBuildFeed, SENSOR_DIG: SensorRepairFeed}
+NAMES = {TEACHER: 'build_recover', CAREFUL: 'build_careful', REPAIR: 'build_repair', SENSOR: 'build_sensor',
+         SENSOR_DIG: 'build_sensor_dig'}
 LISTS = {TEACHER: (BUILD2_STAGES, BUILD2_FEATURES), CAREFUL: (BUILD2_STAGES, BUILD2_FEATURES),
-         REPAIR: (REPAIR_STAGES, REPAIR_FEATURES), SENSOR: (BUILD2_STAGES, SENSOR_BUILD_FEATURES)}
+         REPAIR: (REPAIR_STAGES, REPAIR_FEATURES), SENSOR: (BUILD2_STAGES, SENSOR_BUILD_FEATURES),
+         SENSOR_DIG: (DIG_STAGES, DIG_FEATURES)}
+SENSOR_TEACHERS = (SENSOR, SENSOR_DIG)     # decisions from the sensor log
 
 
 def replay_info(row, raw):
@@ -71,7 +78,7 @@ def build2_run_examples(run_dir, mapper, transformer, *, root, teacher=TEACHER):
     if len(steps) != 1: raise ValueError('expected one %s step, found %d' % (manifest['meta']['skill'], len(steps)))
     step = steps[0]; feed = FEEDS[teacher](fixture); decisions = []; feats = []
     sensor_rows = seen_map = None
-    if teacher == SENSOR:
+    if teacher in SENSOR_TEACHERS:
         if not (run_dir / 'sensor' / 'manifest.json').exists(): raise ValueError('no sensor log: %s' % run_dir)
         sensor_rows = list(load_sensor_log(run_dir / 'sensor')); seen_map = SeenMap()
     for r in run.rows:
@@ -149,6 +156,10 @@ def build2_dataset(run_dirs, out_path, *, holdout, mapper, transformer, root, te
                    privileged=('none in decisions: teacher labels, stages and features use the blueprint instruction, the client '
                                'pose, the client crosshair and the seen map rebuilt from the sensor log; success and wrong '
                                'placements use the server placement record' if teacher == SENSOR else
+                               'none in decisions: teacher labels, stages and features use the blueprint instruction (cells to '
+                               'keep empty), the client pose, the client crosshair, the in-hand counts and the seen map rebuilt '
+                               'from the sensor log; success uses the server placement and destroy records and the server '
+                               'inventory' if teacher == SENSOR_DIG else
                                'teacher labels, stages and features use the blueprint, the client pose, the client crosshair and '
                                'the server placement record; success and wrong placements use the server placement record'
                                + ('; the repair teacher also uses the server destroy record and the selected item'

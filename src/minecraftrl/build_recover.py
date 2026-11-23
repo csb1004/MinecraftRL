@@ -22,6 +22,8 @@ TEACHER = 'recover'
 CAREFUL = 'careful'    # round 4: the recovering teacher with careful place
 REPAIR = 'repair'      # round 5: careful place plus stray removal (build_repair, design 2026-11-15 build-repair)
 SENSOR_TEACHER = 'sensor_recover'   # sensor tier (plan 2026-11-22): the recovering teacher on sensors (build_sensor)
+SENSOR_DIG = 'sensor_dig'           # sensor repair (2026-11-23): dig-only training tasks for the dig head
+SENSOR_REPAIR = 'sensor_repair'     # sensor repair (2026-11-23): building head + dig head, switched by the anomaly monitor
 INNER = .2             # blocks: careful place needs the crosshair this far inside the face's edges
 BUILD2_STAGES = ('reach', 'move', 'aim', 'place', 'done')
 LABELLED = ('reach', 'move', 'aim', 'place')
@@ -148,11 +150,12 @@ class RecoverTracker:
         # Seen from anywhere the walk may stop (ARRIVE) around the cell centre, not only from the centre.
         return all(visible_face((eye[0] + a, eye[1], eye[2] + b), target, self.solids) is not None for a, b in MARGIN_EYES)
 
-    def standpoint(self, x, y, z, target, usable=None):
+    def standpoint(self, x, y, z, target, usable=None, stand_in_open=False):
         """(standpoint, waypoint) feet points, or (None, None): the usable standpoint fewest grid steps away (4-connected
-        floor cells free at the feet and head; open blueprint cells may be crossed but not stood in), and the farthest
-        cell of that path a straight walk from the feet reaches without touching a block. `usable(cell, target)` judges
-        a standpoint (default: it sees a face to place on; the repair skill passes its own for a block to dig)."""
+        floor cells free at the feet and head; open blueprint cells may be crossed but not stood in, unless
+        `stand_in_open`: picking up a drop, sensor repair 2026-11-23), and the farthest cell of that path a straight walk
+        from the feet reaches without touching a block. `usable(cell, target)` judges a standpoint (default: it sees a
+        face to place on; the repair skill passes its own for a block to dig)."""
         usable = usable or self._usable
         stand = set(self.stand); level = self.stand[0][1]
         open_cells = {c for c in self.cells if c not in self.filled_cells}
@@ -162,7 +165,7 @@ class RecoverTracker:
         prev = {start: None}; order = [start]; i = 0
         while i < len(order):
             c = order[i]; i += 1
-            if c not in open_cells and free(c) and usable(c, target):
+            if (stand_in_open or c not in open_cells) and free(c) and usable(c, target):
                 path = []
                 while c is not None: path.append(c); c = prev[c]
                 path.reverse()
@@ -334,6 +337,9 @@ def recovering(fixture): return (fixture.get('build') or {}).get('teacher') in (
 
 def feed_for(fixture):
     teacher = (fixture.get('build') or {}).get('teacher')
+    if teacher in (SENSOR_DIG, SENSOR_REPAIR):      # sensor repair (2026-11-23): dig head, or building head + dig head
+        from .build_sensor_repair import SensorRepairFeed
+        return SensorRepairFeed(fixture)
     if teacher == SENSOR_TEACHER:
         from .build_sensor import SensorBuildFeed
         return SensorBuildFeed(fixture)
@@ -344,7 +350,11 @@ def feed_for(fixture):
 
 
 def stages_for(fixture):
-    if (fixture.get('build') or {}).get('teacher') == REPAIR:
+    teacher = (fixture.get('build') or {}).get('teacher')
+    if teacher in (SENSOR_DIG, SENSOR_REPAIR):
+        from .build_sensor_repair import COMBINED_STAGES, DIG_STAGES
+        return DIG_STAGES if teacher == SENSOR_DIG else COMBINED_STAGES
+    if teacher == REPAIR:
         from .build_repair import REPAIR_STAGES
         return REPAIR_STAGES
     return BUILD2_STAGES if recovering(fixture) else BUILD_STAGES

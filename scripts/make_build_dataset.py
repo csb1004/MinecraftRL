@@ -4,7 +4,8 @@ Run in the WSL steve1 env: make_build_dataset.py --runs RUN... --holdout NAME...
 recovering teacher, its stages and features (always on) and names the `use` combinations. --teacher careful (round 4)
 does the same with careful place. --teacher repair (round 5, design 2026-11-15 build-repair) uses the repair teacher, its
 six stages and twelve features. --teacher sensor (plan 2026-11-22) relabels sensor-tier runs from their sensor logs
-with the recovering teacher on sensors and the s_ features."""
+with the recovering teacher on sensors and the s_ features. --teacher sensor_dig (sensor repair 2026-11-23) relabels
+dig-task runs from their sensor logs with the dig teacher, its stages and the d_ features."""
 import argparse
 import json
 import sys
@@ -18,7 +19,7 @@ def main(argv=None):
     p.add_argument('--out', type=Path, required=True)
     p.add_argument('--root', type=Path, required=True)
     p.add_argument('--features', choices=('on', 'off'), default='off')
-    p.add_argument('--teacher', choices=('round1', 'recover', 'careful', 'repair', 'sensor'), default='round1')
+    p.add_argument('--teacher', choices=('round1', 'recover', 'careful', 'repair', 'sensor', 'sensor_dig'), default='round1')
     args = p.parse_args(argv)
     root = args.root.resolve(); out = args.out.resolve()
     if not out.is_relative_to(root / 'results'): raise SystemExit('output must be under results/')
@@ -29,7 +30,7 @@ def main(argv=None):
     from steve1.VPT.lib.actions import ActionTransformer
     from minecraftrl.build_data import build_build_dataset
     holdout = args.holdout[0] if len(args.holdout) == 1 else args.holdout
-    if args.teacher in ('recover', 'careful', 'repair', 'sensor'):
+    if args.teacher in ('recover', 'careful', 'repair', 'sensor', 'sensor_dig'):
         from minecraftrl.build2_data import build2_dataset
         summary = build2_dataset(sorted(d.resolve() for d in args.runs), out, holdout=holdout,
                                  mapper=CameraHierarchicalMapping(n_camera_bins=11),

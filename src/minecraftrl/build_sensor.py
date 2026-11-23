@@ -22,13 +22,17 @@ SENSOR_BUILD_FEATURES = tuple('s_' + name for name in BUILD2_FEATURES)
 
 
 def blueprint_of(task):
-    """The instruction part of a building task as a blueprint_v1 block matrix (nothing of the fixture's world)."""
+    """The instruction part of a building task as a blueprint_v1 block matrix (nothing of the fixture's world). A task's
+    `empty` cells (repair tasks, 2026-11-23) are 'air': they must stay empty."""
     cells = [tuple(int(v) for v in c[:3]) for c in task['cells']]
     kinds = [c[3] if len(c) > 3 else task['block'] for c in task['cells']]
-    low = [min(c[a] for c in cells) for a in range(3)]
-    size = [max(c[a] for c in cells) - low[a] + 1 for a in range(3)]
+    empty = [tuple(int(v) for v in c[:3]) for c in task.get('empty', ())]
+    every = cells + empty
+    low = [min(c[a] for c in every) for a in range(3)]
+    size = [max(c[a] for c in every) - low[a] + 1 for a in range(3)]
     blocks = [[[None] * size[2] for _ in range(size[1])] for _ in range(size[0])]
     for (x, y, z), kind in zip(cells, kinds): blocks[x - low[0]][y - low[1]][z - low[2]] = kind
+    for x, y, z in empty: blocks[x - low[0]][y - low[1]][z - low[2]] = 'air'
     return dict(schema=BLUEPRINT_SCHEMA, name=task.get('shape'), frame='start block; x right, y up, z forward',
                 size=size, min=low, blocks=blocks, order=[list(c) for c in cells])
 
@@ -91,9 +95,9 @@ class SensorBuildTracker(RecoverTracker):
         self.stand = sorted((x, level, z) for (x, y, z) in self.solids
                             if y == level - 1 and seen.kind((x, level, z)) == 'air' and seen.kind((x, level + 1, z)) == 'air')
 
-    def standpoint(self, x, y, z, target, usable=None):
+    def standpoint(self, x, y, z, target, usable=None, stand_in_open=False):
         if not self.stand: return None, None
-        return super().standpoint(x, y, z, target, usable)
+        return super().standpoint(x, y, z, target, usable, stand_in_open)
 
 
 class SensorBuildFeed:

@@ -250,8 +250,20 @@ def worker(args):
                 feed = BridgeFeed(fixture_config)
             elif block.get('stages') == 'build':  # building (design 2026-11-14): its own stages and feed
                 # The fixture may name the recovering teacher (design 2026-11-15): its stages and feed.
-                from ..build_recover import feed_for, stages_for
-                head = install(policy, use_stage=block['use_stage'], checkpoint=checkpoint, stages=stages_for(fixture_config))
+                from ..build_recover import SENSOR_REPAIR, feed_for, stages_for
+                if (fixture_config.get('build') or {}).get('teacher') == SENSOR_REPAIR:
+                    # Sensor repair (2026-11-23): the building head and the dig head over one action head.
+                    from ..build_recover import BUILD2_STAGES
+                    from ..build_sensor_repair import DIG_STAGES
+                    from ..head_switch import install_switch
+                    if checkpoint is None or not block.get('dig_checkpoint'):
+                        raise ValueError('building with repair needs the building and the dig head checkpoints')
+                    dig_checkpoint = (args.root / block['dig_checkpoint']).resolve()
+                    head = install_switch(policy, use_stage=block['use_stage'], build_checkpoint=checkpoint,
+                                          dig_checkpoint=dig_checkpoint, build_stages=BUILD2_STAGES, dig_stages=DIG_STAGES)
+                else:
+                    dig_checkpoint = None
+                    head = install(policy, use_stage=block['use_stage'], checkpoint=checkpoint, stages=stages_for(fixture_config))
                 feed = feed_for(fixture_config)
             else: head = install(policy, use_stage=block['use_stage'], checkpoint=checkpoint)
             meta = dict(skill=name, use_stage=block['use_stage'], checkpoint=None if checkpoint is None else str(checkpoint),
@@ -263,6 +275,8 @@ def worker(args):
                                      else 'privileged: blueprint, client pose, crosshair and server placements'
                                      if block.get('stages') == 'build'
                                      else 'privileged: fixture positions and server pose') if block['use_stage'] else 'zeros')
+            if block.get('stages') == 'build' and dig_checkpoint is not None:
+                meta.update(dig_checkpoint=str(dig_checkpoint), dig_checkpoint_sha256=sha256_file(dig_checkpoint))
             sensor_build = block.get('stages') == 'build' and hasattr(feed, 'observe_frame')
             if sensor_build:       # sensor tier (plan 2026-11-22): no fixture world, no server placement record in decisions
                 if not sensor: raise ValueError('the sensor build teacher needs config sensor_monitor')

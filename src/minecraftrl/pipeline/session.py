@@ -78,11 +78,15 @@ GUI_BLOCKS = ('crafting_table', 'furnace', 'blast_furnace', 'smoker', 'chest', '
 SELECT_LIMIT = 20   # rule hotbar presses in a row without the held item turning into the needed block: the rule failed
 
 
+REPAIR_TEACHERS = ('sensor_dig', 'sensor_repair')   # sensor repair (2026-11-23): the rule reads the client hand
+
+
 def block_slots(fixture):
     """Multi-material building (beacon demo 2026-11-23): block -> hotbar key from the fixture's gifts (slot i holds the
-    i-th gift); empty unless the blueprint cells carry their block, so single-block tasks keep their path."""
+    i-th gift); empty unless the blueprint cells carry their block or the task is a sensor repair task (blocks and the
+    pickaxe), so single-block tasks keep their path."""
     task = (fixture or {}).get('build') or {}
-    if not any(len(c) > 3 for c in task.get('cells', ())): return {}
+    if task.get('teacher') not in REPAIR_TEACHERS and not any(len(c) > 3 for c in task.get('cells', ())): return {}
     return {g['item']: 'hotbar.%d' % (i + 1) for i, g in enumerate(fixture.get('give', ())[:9])}
 
 
@@ -155,6 +159,9 @@ class DemoSession:
         # Building (design 2026-11-14): its feed ends `until='build'` steps when the server placement record covers the
         # blueprint and drives the preparation-only teacher check.
         self.block_slots = block_slots(build)       # multi-material slot-selection rule (beacon demo 2026-11-23)
+        # Sensor repair (2026-11-23): the rule reads the client hand item (it shows a pressed slot on the same row; the
+        # server's selected item lags 5-6 rows) and learns where an item moved.
+        self.client_hand = ((build or {}).get('build') or {}).get('teacher') in REPAIR_TEACHERS
         if build is not None:
             from ..build_recover import feed_for    # the recovering teacher when the fixture names it (design 2026-11-15)
             build = feed_for(build)
@@ -216,6 +223,8 @@ class DemoSession:
         if self.place is not None: self.place.observe(row)
         if self.bridge is not None: self.bridge.observe(row)
         if self.build is not None: self.build.observe(row)
+        if hasattr(self.build, 'pop_events'):         # sensor repair (2026-11-23): anomaly monitor, digs, pickups, heads
+            for event in self.build.pop_events(): self.recorder.event('repair_monitor', **event)
         if done: self.gate.stop('environment_done')
         return True
 
@@ -495,22 +504,41 @@ class DemoSession:
         another block, else None."""
         if not self.block_slots or self.frame is None or not hasattr(self.build, 'needed_kind'): return None
         kind = self.build.needed_kind()
-        return None if kind is None or self.frame.selected_item == kind else self.block_slots.get(kind)
+        held = self.frame.tool_item if self.client_hand else self.frame.selected_item
+        return None if kind is None or held == kind else self.block_slots.get(kind, 'hotbar.1')
+
+    def next_slot(self, kind, counts):
+        """Sensor repair: after a press that brought another item into the client hand, that slot holds that item, and
+        the needed item is looked for in the next slot not tried yet (slots not known to hold something else first).
+        Returns the key to press, or None when every slot was tried."""
+        pressed = counts['last'][0]; held = self.frame.tool_item
+        if held not in ('air', kind): self.block_slots[held] = pressed
+        tried = counts['tried'].setdefault(kind, set()); tried.add(pressed)
+        if self.block_slots.get(kind) not in tried: return self.block_slots[kind]
+        known = {v for k, v in self.block_slots.items() if k != kind}
+        keys = [k for k in ('hotbar.%d' % i for i in range(1, 10)) if k not in tried]
+        found = next(iter([k for k in keys if k not in known] + keys), None)
+        if found is not None: self.block_slots[kind] = found
+        return found
 
     def select_block(self, step, counts):
         """Disclosed rule (multi-material building, beacon demo 2026-11-23): when the held item is not the current
         cell's block, press that block's hotbar key (controller 'rule_select') instead of letting the head or the teacher
         act this step. Returns None when nothing was needed, 'sent', 'failed' after SELECT_LIMIT presses in a row, or
-        'stopped'."""
+        'stopped'. In sensor repair tasks the needed item may be the pickaxe and the rule follows moved items."""
         key = self.block_choice()
         if key is None:
-            counts['run'] = 0; return None
+            counts['run'] = 0; counts['last'] = None; counts['tried'] = {}; return None
         if counts['run'] >= SELECT_LIMIT: return 'failed'
+        kind = self.build.needed_kind()
+        if self.client_hand and counts.get('last') and counts['last'][1] == kind:
+            counts.setdefault('tried', {}); key = self.next_slot(kind, counts)
+            if key is None: return 'failed'
         if key not in counts['keys']:
-            counts['keys'].add(key); self.recorder.event('block_select', step_id=step.id, key=key, block=self.build.needed_kind())
+            counts['keys'].add(key); self.recorder.event('block_select', step_id=step.id, key=key, block=kind)
         press = self.noop(); press[key] = 1
         if not self.dispatch(press, 'rule_select'): return 'stopped'
-        counts['total'] += 1; counts['run'] += 1
+        counts['total'] += 1; counts['run'] += 1; counts['last'] = (key, kind)
         return 'sent'
 
     def hold_after(self, step):

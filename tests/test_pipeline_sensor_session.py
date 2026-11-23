@@ -163,5 +163,69 @@ class BlockSelectTests(unittest.TestCase):
         self.assertEqual(session.hold_after(step), 0)
 
 
+class RepairSessionTests(unittest.TestCase):
+    """Sensor repair (2026-11-23): the rule reads the client hand, which shows a pressed slot on the same row, finds a
+    slot whose item moved (a picked-up block lands in the first empty slot), and the monitor's events reach the timeline."""
+    BUILD = BlockSelectTests.BUILD
+
+    def setUp(self):
+        from minecraftrl.build_sensor_repair import SENSOR_DIG, dig_task, repair_fixture
+        self.temp = tempfile.TemporaryDirectory(); self.out = Path(self.temp.name); self.gate = StopGate()
+        self.fixture = repair_fixture(dig_task(1601), SENSOR_DIG); self.recorder = Recorder(self.out / 'run')
+
+    def tearDown(self):
+        self.recorder.close(); self.temp.cleanup()
+
+    def env(self, hotbar):
+        """Sensor frames whose client hand item is the pressed slot's item in `hotbar` (slots 1-9); the server's selected
+        item never changes, as if it lagged."""
+        held = ['air']
+
+        def script(n, action):
+            for i, item in enumerate(hotbar):
+                if action.get('hotbar.%d' % (i + 1)): held[0] = item
+            return sensed(n, selected='air', sensor_tool_item=held[0])
+        return FakeEnv(script)
+
+    def session(self, env, want):
+        from minecraftrl.pipeline.session import DemoSession as Session
+        s = Session(env, FakePolicy(noop()), None, self.recorder, self.gate, self.out / 'STOP', limit_s=2., skills=SKILLS,
+                    clock=Clock(.05), rule_controller=FakeController, settle_steps=0, build=self.fixture,
+                    sensor_log=SensorLog(self.out / 'run/sensor'))
+        s.build.needed_kind = lambda: want
+        return s
+
+    def presses(self):
+        rows = [json.loads(line) for line in (self.out / 'run/telemetry.jsonl').read_text(encoding='utf-8').splitlines()]
+        return [next(k for k in r['action'] if k.startswith('hotbar')) for r in rows if r['controller'] == 'rule_select']
+
+    def test_one_press_puts_the_pickaxe_in_hand_from_the_client_hand(self):
+        from minecraftrl.build_sensor_repair import DIG_KINDS, PICKAXE
+        session = self.session(self.env(list(DIG_KINDS) + [PICKAXE]), PICKAXE)
+        self.assertEqual(session.block_slots[PICKAXE], 'hotbar.5')
+        report = session.run(self.BUILD)
+        self.assertEqual(self.presses(), ['hotbar.5'])
+        self.assertEqual(report['stage_results'][0]['block_selects'], 1)
+
+    def test_a_moved_item_is_found_in_the_next_unknown_slot_and_the_slot_map_learns(self):
+        from minecraftrl.build_sensor_repair import PICKAXE
+        hotbar = ['air', 'iron_block', 'diamond_block', 'beacon', 'gold_block', PICKAXE]
+        session = self.session(self.env(hotbar), PICKAXE)
+        session.run(self.BUILD)
+        self.assertEqual(self.presses(), ['hotbar.5', 'hotbar.1', 'hotbar.6'])
+        self.assertEqual((session.block_slots[PICKAXE], session.block_slots['gold_block']), ('hotbar.6', 'hotbar.5'))
+
+    def test_the_monitor_events_reach_the_timeline(self):
+        from minecraftrl.build_sensor_repair import PICKAXE
+        session = self.session(self.env([PICKAXE]), None)
+        session.build.events.append(dict(event='anomaly', rule='stray', cell=[1, 64, 3], block='gold_block'))
+        session.run(self.BUILD)
+        lines = [json.loads(line) for line in (self.out / 'run/timeline.jsonl').read_text(encoding='utf-8').splitlines()]
+        found = [e for e in lines if e['kind'] == 'repair_monitor']
+        self.assertEqual([(e['event'], e['rule']) for e in found if e['event'] == 'anomaly'], [('anomaly', 'stray')])
+        # the fake inventory holds none of the gifts: the ledger reports them once as unaccounted
+        self.assertEqual([e['event'] for e in found if e['event'] != 'anomaly'], ['unaccounted'])
+
+
 if __name__ == '__main__':
     unittest.main()

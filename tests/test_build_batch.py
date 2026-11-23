@@ -118,6 +118,47 @@ class BuildBatchTest(unittest.TestCase):
         _, _, plain = self.m.prepare(self.batch, 'official', ROOT, 103, None, True, teacher='sensor')
         self.assertEqual(json.loads(plain.read_text())[0]['params'], dict(until='build'))     # other modes keep their plan
 
+    def test_the_dig_modes_run_dig_tasks_with_the_dig_teacher_and_sensors(self):
+        # Sensor repair (user request 2026-11-23): dig_train on the training seeds, dig_dev on 331662 (first use).
+        from minecraftrl.build_sensor_repair import SENSOR_DIG, dig_task, repair_fixture
+        self.assertEqual(self.registry['tasks']['dig_train'], list(range(1601, 1613)))
+        self.assertEqual((self.m.MODES['dig_dev'], self.registry['tasks']['dig_dev']), ((331662,), [1701, 1702, 1703, 1704]))
+        self.m.check('dig_dev', [1701], [331662], self.registry)
+        with self.assertRaises(ValueError): self.m.check('dig_dev', [1601], [331662], self.registry)
+        config, fixture, plan = self.m.prepare(self.batch, 'official', ROOT, 1601, None, True, teacher=SENSOR_DIG, dig=True)
+        self.assertEqual(json.loads(fixture.read_text()), repair_fixture(dig_task(1601), SENSOR_DIG))
+        self.assertTrue(json.loads(config.read_text())['sensor_monitor'])
+        self.assertTrue((self.batch / 'blueprints' / 'task-1601.json').exists())
+        self.assertEqual(json.loads(plan.read_text())[0]['params'], dict(until='build'))
+        with self.assertRaises(ValueError): self.m.prepare(self.batch, 'official', ROOT, 1601, None, True, teacher='sensor', dig=True)
+        with self.assertRaises(ValueError): self.m.prepare(self.batch, 'official', ROOT, 103, None, True, teacher=SENSOR_DIG)
+        with self.assertRaises(ValueError): self.collect(mode='dig_train', tasks=[1601], seeds=[271828], teacher='sensor')
+        self.assertEqual(self.collect(mode='dig_train', tasks=[1601], seeds=[271828], teacher=SENSOR_DIG), 0)
+        frozen = json.loads((self.batch / 'frozen-teacher-c1601.json').read_text())
+        self.assertTrue(any(k.replace('\\', '/').endswith('src/minecraftrl/build_sensor_repair.py') for k in frozen['hashes']))
+        self.assertIn('back in the server inventory', frozen['scope'])
+
+    def test_beacon_repair_needs_both_heads_and_puts_the_dig_head_in_the_config(self):
+        from minecraftrl.build_beacon import beacon_build
+        from minecraftrl.build_sensor_repair import SENSOR_REPAIR, repair_fixture
+        self.assertEqual((self.m.MODES['beacon_repair'], self.registry['tasks']['beacon_repair']), ((316227,), [1801, 1802, 1803, 1804]))
+        build_head, dig_head = self.batch / 'b.pt', self.batch / 'd.pt'
+        self.batch.mkdir(parents=True, exist_ok=True); build_head.write_bytes(b'b'); dig_head.write_bytes(b'd')
+        config, fixture, plan = self.m.prepare(self.batch, 'demo', ROOT, 1801, str(build_head), True, teacher=SENSOR_REPAIR,
+                                               beacon_repair=True, dig_checkpoint=str(dig_head))
+        block = json.loads(config.read_text())['skills']['build']['reacquire']
+        self.assertEqual((block['checkpoint'], block['dig_checkpoint']), (str(build_head), str(dig_head)))
+        self.assertEqual(json.loads(fixture.read_text()), repair_fixture(beacon_build(1801), SENSOR_REPAIR))
+        self.assertEqual(json.loads(plan.read_text())[0]['params'], dict(until='build', hold_after_steps=self.m.HOLD_AFTER_STEPS))
+        with self.assertRaises(ValueError):
+            self.m.prepare(self.batch, 'demo', ROOT, 1801, str(build_head), True, teacher=SENSOR_REPAIR, beacon_repair=True)
+        with self.assertRaises(ValueError):
+            self.collect(mode='beacon_repair', tasks=[1801], seeds=[316227], teacher=SENSOR_REPAIR, checkpoint=build_head,
+                         teacher_check=False)
+        self.assertEqual(self.collect(mode='beacon_repair', tasks=[1801], seeds=[316227], teacher=SENSOR_REPAIR), 0)
+        teacher_plan = json.loads((self.batch / 'plans' / 'teacher.json').read_text())[0]
+        self.assertEqual(teacher_plan['params']['limit_steps'], self.m.REPAIR_LIMIT_S * 20)
+
     def test_the_occluded_mode_has_its_own_seed_and_tasks_and_sets_the_block(self):
         # Occlusion check (design 2026-11-15): recovering teacher only, a block in front of the first cell.
         from minecraftrl.build_recover import build2_fixture, occluded_build
