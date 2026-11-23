@@ -34,6 +34,7 @@ ACTOR_TIERS = {
     'voxel_kinds': 'sensor', 'voxel_fluids': 'sensor', 'ray_kinds': 'sensor', 'ray_dist': 'sensor', 'ray_cells': 'sensor',
     'ray_dirs': 'sensor', 'ray_fluids': 'sensor', 'ray_fluid_dist': 'sensor', 'layout': 'sensor', 'seen_map': 'sensor',
     'hit_face': 'sensor', 'blueprint': 'instruction',
+    'ray_entities': 'sensor', 'ray_entity_dist': 'sensor', 'ray_entity_points': 'sensor',
     'guarded': 'instruction', 'needs': 'instruction', 'harvest_requires': 'instruction', 'planned_uses': 'instruction',
     'skill_kind': 'instruction',
 }
@@ -74,9 +75,19 @@ class SensorFrame:
     ray_fluid_dist: tuple
     layout: dict
     hit_face: int | None = None      # face ordinal of the crosshair block (client pick), None without one
+    # Entity rays (design §3.1, 2026-11-23): per ray, the first entity nearer than its block hit ('none'), its distance
+    # (-1) and hit point (None). Kind = entity type, or 'item:<item>' for a dropped item. Logs before then have none.
+    ray_entities: tuple = ()
+    ray_entity_dist: tuple = ()
+    ray_entity_points: tuple = ()
 
     @property
     def crosshair(self): return self.ray_kinds[CROSSHAIR], self.ray_cells[CROSSHAIR]
+
+    def entity_sightings(self):
+        """[(kind, hit point, distance)] of the rays that met an entity, in ray order."""
+        return [(k, p, d) for k, p, d in zip(self.ray_entities, self.ray_entity_points, self.ray_entity_dist)
+                if k != 'none' and p is not None]
 
     def voxel(self, dx, dy, dz):
         """(kind, fluid) of the block at feet + offset, each offset in -1..1."""
@@ -89,6 +100,15 @@ def _cell(x, y, z):
     return None if (x, y, z) == (MISS, MISS, MISS) else (x, y, z)
 
 
+def _entity_rays(s):
+    kinds = list(s.get('sensor_ray_entity') or ())
+    if len(kinds) != RAYS: return ('none',) * RAYS, (-1.,) * RAYS, (None,) * RAYS
+    dist = [float(d) for d in s['sensor_ray_entity_dist']]
+    points = [None if k == 'none' or d < 0 else (float(x), float(y), float(z))
+              for k, d, x, y, z in zip(kinds, dist, s['sensor_ray_entity_x'], s['sensor_ray_entity_y'], s['sensor_ray_entity_z'])]
+    return tuple(kinds), tuple(d if p is not None else -1. for d, p in zip(dist, points)), tuple(points)
+
+
 def sensor_frame(info, t):
     """The sensor-tier view of one observation, or None when the client sensors are not available."""
     s = info.get('sensor') or {}; w = info.get('workshop') or {}
@@ -98,6 +118,7 @@ def sensor_frame(info, t):
     picked = _cell(s['sensor_ray_x'][CROSSHAIR], s['sensor_ray_y'][CROSSHAIR], s['sensor_ray_z'][CROSSHAIR])
     face = w.get('hit_face')
     hit_face = int(face) if picked is not None and face is not None and 0 <= int(face) < 6 else None
+    entities, entity_dist, entity_points = _entity_rays(s)
     return SensorFrame(
         t=float(t), tick=int(s['sensor_client_tick']),
         position=tuple(float(w.get('client_' + a) or 0.) for a in 'xyz'),
@@ -115,7 +136,8 @@ def sensor_frame(info, t):
         ray_cells=tuple(_cell(s['sensor_ray_x'][i], s['sensor_ray_y'][i], s['sensor_ray_z'][i]) for i in rays),
         ray_dirs=tuple((float(s['sensor_ray_dx'][i]), float(s['sensor_ray_dy'][i]), float(s['sensor_ray_dz'][i])) for i in rays),
         ray_fluids=tuple(s['sensor_ray_fluid']), ray_fluid_dist=tuple(float(d) for d in s['sensor_ray_fluid_dist']),
-        layout=layout_of(s), hit_face=hit_face)
+        layout=layout_of(s), hit_face=hit_face, ray_entities=entities, ray_entity_dist=entity_dist,
+        ray_entity_points=entity_points)
 
 
 def layout_of(raw):
@@ -135,8 +157,12 @@ class SensorLog:
                ('sensor_hfov', np.float64), ('sensor_vfov', np.float64))
     RAY_NUMBERS = (('sensor_ray_dist', np.float32, -1.), ('sensor_ray_x', np.int32, MISS), ('sensor_ray_y', np.int32, MISS),
                    ('sensor_ray_z', np.int32, MISS), ('sensor_ray_dx', np.float32, 0.), ('sensor_ray_dy', np.float32, 0.),
-                   ('sensor_ray_dz', np.float32, 0.), ('sensor_ray_fluid_dist', np.float32, -1.))
+                   ('sensor_ray_dz', np.float32, 0.), ('sensor_ray_fluid_dist', np.float32, -1.),
+                   # entity rays (2026-11-23): float64 so a frame rebuilt from the log equals the live one
+                   ('sensor_ray_entity_dist', np.float64, -1.), ('sensor_ray_entity_x', np.float64, -999.),
+                   ('sensor_ray_entity_y', np.float64, -999.), ('sensor_ray_entity_z', np.float64, -999.))
     KINDS = (('sensor_ray_kind', RAYS), ('sensor_voxel_kind', VOXELS))
+    ENTITY_KEY = 'sensor_ray_entity'
     FLUID_KEYS = (('sensor_ray_fluid', RAYS), ('sensor_voxel_fluid', VOXELS))
 
     def __init__(self, folder, *, chunk=512):
@@ -157,6 +183,8 @@ class SensorLog:
         for key, size in self.KINDS:
             values = list(raw.get(key) or ()); values += ['air'] * (size - len(values))
             row[key] = np.asarray([self._code(v) for v in values], np.int16)
+        values = list(raw.get(self.ENTITY_KEY) or ()); values += ['none'] * (RAYS - len(values))
+        row[self.ENTITY_KEY] = np.asarray([self._code(v) for v in values], np.int16)
         for key, size in self.FLUID_KEYS:
             values = list(raw.get(key) or ()); values += ['none'] * (size - len(values))
             row[key] = np.asarray([FLUIDS.index(v) for v in values], np.int8)
@@ -201,7 +229,7 @@ def load_sensor_log(folder):
             row = {}
             for key, value in arrays.items():
                 v = value[i]
-                if key in ('sensor_ray_kind', 'sensor_voxel_kind'): row[key] = [kinds[c] for c in v.tolist()]
+                if key in ('sensor_ray_kind', 'sensor_voxel_kind', 'sensor_ray_entity'): row[key] = [kinds[c] for c in v.tolist()]
                 elif key in ('sensor_ray_fluid', 'sensor_voxel_fluid'): row[key] = [fluids[c] for c in v.tolist()]
                 elif key == 'sensor_tool_item': row[key] = kinds[int(v)]
                 else: row[key] = v.tolist()

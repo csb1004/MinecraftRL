@@ -1,6 +1,7 @@
 """Sensor-tier repair (user request 2026-11-23): the anomaly monitor (seen map, in-hand counts, blueprint), the dig head's
 stages and teacher (reach, move, dig, collect), the composite feed of the beacon demo (building head + dig head), the
 server-record judge, and the dig training tasks with exact gifts."""
+import math
 import unittest
 from dataclasses import replace
 
@@ -26,6 +27,12 @@ def world(*c): return _at(ORIGIN, YAW, *c)
 def frame(inventory=None, **kw):
     f = base_frame(**kw)
     return f if inventory is None else replace(f, inventory=dict(inventory))
+
+
+def sighted(f, *sightings):
+    """Frame `f` whose rays met these (kind, point) entities."""
+    return replace(f, ray_entities=tuple(k for k, _ in sightings), ray_entity_points=tuple(p for _, p in sightings),
+                   ray_entity_dist=tuple(2. for _ in sightings))
 
 
 def aimed(cell, normal, x=0.5, z=0.5, **extra):
@@ -174,6 +181,39 @@ class DigTests(unittest.TestCase):
         self.assertEqual(view.stage, 'done')
         self.assertEqual((self.feed.dig.dug, self.feed.dig.collected, self.feed.dig.lost), (1, 1, 0))
         self.assertEqual([e['event'] for e in self.feed.pop_events()], ['anomaly', 'anomaly_cleared', 'dug', 'collected'])
+
+    def test_the_collect_follows_the_seen_drop_to_its_cell_and_keeps_its_last_point(self):
+        # Entity rays (2026-11-23): a dropped block can slide; the collect walks to where the rays saw it.
+        self.step(aimed(self.target, self.normal, inventory={GOLD: 1, PICKAXE: 1}))
+        self.seen.mark(self.target, 'air', 3, 'ray')
+        moved = (self.target[0] + 1.6, self.target[1] + .1, self.target[2] + .5)      # one cell over
+        cell = tuple(math.floor(v) for v in moved)
+        view = self.step(sighted(frame(inventory={GOLD: 1}), ('item:gold_block', moved), ('cow', (9., 64., 9.))))
+        self.assertEqual((view.stage, view.target, view.face['centre'], view.seen_item), ('collect', cell, moved, True))
+        self.assertLessEqual(math.hypot(view.stand[0] - .5 - cell[0], view.stand[2] - .5 - cell[2]), 1.)
+        view = self.step(frame(inventory={GOLD: 1}))                     # out of the rays: its last point stays
+        self.assertEqual((view.target, view.seen_item), (cell, True))
+        feats = self.feed.features()
+        self.assertNotEqual(feats[4:7], [0., 0., 0.])                    # the face slot points at the drop
+        self.feed.dig.owed = None
+
+    def test_a_drop_of_another_block_or_seen_before_the_dig_is_not_followed(self):
+        old = (self.target[0] + 2.5, self.target[1] + .1, self.target[2] + .5)
+        self.step(sighted(aimed(self.target, self.normal, inventory={GOLD: 1}), ('item:gold_block', old)))
+        self.seen.mark(self.target, 'air', 3, 'ray')
+        view = self.step(sighted(frame(inventory={GOLD: 1}), ('item:iron_block', old)))
+        self.assertEqual((view.target, view.seen_item, view.face), (self.target, False, None))
+
+    def test_an_arrived_collect_that_sees_no_drop_looks_around(self):
+        self.step(aimed(self.target, self.normal, inventory={GOLD: 1}))
+        self.seen.mark(self.target, 'air', 3, 'ray')
+        view = self.step(frame(inventory={GOLD: 1}))
+        stand = view.stand
+        view = self.step(frame(x=stand[0], z=stand[2], pitch=0., inventory={GOLD: 1}))
+        label = self.feed.label(None, view)
+        self.assertEqual((view.stage, label['forward'], label['attack']), ('collect', 0, 0))
+        self.assertGreater(abs(label['camera'][1]), 0.)                     # turns to look around
+        self.assertGreater(label['camera'][0], 0.)                          # and down toward the ground
 
     def test_a_drop_no_floor_cell_reaches_is_lost_after_the_collect_limit(self):
         high = world(0, 2, 3)

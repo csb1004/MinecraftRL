@@ -17,6 +17,10 @@ attacks only while the straight crosshair ray strikes it (a strike then holds an
 cell turned to air) walks to a floor cell within COLLECT_REACH of the drop, open blueprint cells included, until the
 in-hand count of the dug block is one more than at the dig, at most COLLECT_ROWS frames (a drop no floor cell reaches,
 e.g. on top of the beacon pyramid's centre, is then lost and the game cannot finish with exact gifts).
+Entity rays (2026-11-23): a drop can slide off its cell. When a view ray has met a dropped item of the dug block since
+the dig ('item:<block>', `pipeline.entity_track`), collect walks to that item's last seen cell and looks at it, and the
+face features point at it; when none was seen it walks to the dug cell, and once there it looks around (turns while
+looking down) until a ray meets the drop or the pickup counts. Records without entity rays replay as before.
 The session's disclosed rule holds the pickaxe in reach / move / dig and the current cell's block while building.
 
 `SensorRepairFeed` is the dig-only feed (teacher sensor_dig: the dig head's DIG_STAGES) and the beacon demo's composite
@@ -30,11 +34,12 @@ import random
 from collections import Counter
 from dataclasses import dataclass
 
-from .build_recover import (BUILD2_FEATURES, BUILD2_STAGES, INNER, MARGIN_EYES, SENSOR_DIG, SENSOR_REPAIR, STAND_REACH,
+from .build_recover import (ARRIVE, BUILD2_FEATURES, BUILD2_STAGES, INNER, MARGIN_EYES, SENSOR_DIG, SENSOR_REPAIR, STAND_REACH,
                             RecoverView, build2_features, look, teacher_action)
 from .build_repair import struck_face, visible_block_face
 from .build_sensor import SensorBuildTracker, blueprint_of
 from .build_task import SCHEMA, build_fixture
+from .pipeline.entity_track import EntityTracks
 from .pipeline.seen_map import PASSABLE, UNKNOWN
 from .pipeline.stage_replay import fixture_origin
 from .place_task import EYE, REACH, _at, _centre, _turn
@@ -51,6 +56,8 @@ COMBINED_STAGES = BUILD2_STAGES + tuple(DIG_PREFIX + s for s in DIG_STAGES)
 COLLECT_REACH = 1.      # blocks, horizontal cell distance: a floor cell this close picks the drop up (pickup box 1.3 + item)
 COLLECT_ROWS = 100      # frames a pickup may take before the drop counts as lost
 LEDGER_ROWS = 10        # frames a ledger shortfall must last before it is an anomaly
+SCAN_YAW = 20.          # degrees per frame an arrived collect turns while it sees no drop
+SCAN_PITCH = 35.        # degrees below the horizon it looks while turning
 
 
 def blueprint_empty(blueprint):
@@ -148,6 +155,7 @@ class RepairMonitor:
 @dataclass(frozen=True)
 class DigView(RecoverView):
     strike: bool = False     # dig: the straight crosshair ray strikes the target block
+    seen_item: bool = False  # collect: a ray met the dug block's drop since the dig (target = its last seen cell)
 
 
 class SensorDigTracker(SensorBuildTracker):
@@ -169,11 +177,11 @@ class SensorDigTracker(SensorBuildTracker):
     def _usable_collect(self, cell, drop):
         return math.hypot(cell[0] - drop[0], cell[2] - drop[2]) <= COLLECT_REACH + 1e-9 and 0 <= drop[1] - cell[1] <= 1
 
-    def update_dig(self, x, y, z, yaw, pitch, inventory):
+    def update_dig(self, x, y, z, yaw, pitch, inventory, entities=None, frame=0):
         eye = (x, y + EYE, z); filled = len(self.filled_cells)
         if self.digging is not None and self.digging['cell'] not in self.solids:
             d = self.digging; self.digging = None; self.dug += 1
-            self.owed = dict(cell=d['cell'], block=d['block'], need=inventory.get(d['block'], 0) + 1, frames=0)
+            self.owed = dict(cell=d['cell'], block=d['block'], need=inventory.get(d['block'], 0) + 1, frames=0, since=frame)
             self.events.append(dict(event='dug', cell=list(d['cell']), block=d['block']))
         left = len(self.targets) + (self.owed is not None)
         if self.owed is not None:
@@ -186,8 +194,13 @@ class SensorDigTracker(SensorBuildTracker):
                 self.events.append(dict(event='collect_lost', cell=list(o['cell']), block=o['block'], frames=o['frames']))
             else:
                 o['frames'] += 1
-                stand, way = self.standpoint(x, y, z, o['cell'], usable=self._usable_collect, stand_in_open=True)
-                return DigView('collect', o['cell'], None, math.dist(eye, _centre(o['cell'])), filled, left, stand, way)
+                track = None if entities is None else entities.latest('item:' + o['block'], since=o['since'])
+                cell, face = o['cell'], None
+                if track is not None:
+                    cell = tuple(math.floor(v) for v in track['point']); face = dict(block=None, normal=None, centre=track['point'])
+                stand, way = self.standpoint(x, y, z, cell, usable=self._usable_collect, stand_in_open=True)
+                return DigView('collect', cell, face, math.dist(eye, _centre(cell)), filled, left, stand, way,
+                               seen_item=track is not None)
         left = len(self.targets)
         if not self.targets:
             self.striking = None
@@ -212,9 +225,11 @@ def dig_action(x, y, z, yaw, pitch, view):
     eye = (x, y + EYE, z)
     if view.stage in ('reach', 'move'): return teacher_action(x, y, z, yaw, pitch, view)
     if view.stage == 'collect':
-        if view.stand is not None: return teacher_action(x, y, z, yaw, pitch, dataclasses.replace(view, stage='move'))
+        if view.stand is not None and math.hypot(view.stand[0] - x, view.stand[2] - z) > ARRIVE:
+            return teacher_action(x, y, z, yaw, pitch, dataclasses.replace(view, stage='move'))
         action = {k: 0 for k in BUTTONS}
-        action['camera'] = _turn(*point_delta(eye, yaw, pitch, _centre(view.target)))
+        if view.seen_item: action['camera'] = _turn(*point_delta(eye, yaw, pitch, view.face['centre']))
+        else: action['camera'] = _turn(SCAN_PITCH - pitch, SCAN_YAW)       # look around for the drop
         return action
     action = {k: 0 for k in BUTTONS}
     if view.strike:
@@ -306,6 +321,7 @@ class SensorRepairFeed:
         self.blueprint = blueprint_of(self.task); self.given = gifts(fixture)
         self.judge = RepairJudge(fixture)
         self.build = self.dig = self.monitor = None; self.mode = None
+        self.entities = EntityTracks(); self.frames = 0
         self.last_view = self.last_local = self.last_frame = self.last_row = None; self.events = []
 
     def start_step(self, start_t): self.start_t = start_t; self.judge.start_step(start_t)
@@ -320,9 +336,10 @@ class SensorRepairFeed:
             empty = [_at(frame.foot, frame.yaw, *c) for c in blueprint_empty(self.blueprint)]
             self.monitor = RepairMonitor(self.build.kind_of, empty, self.given, self.build.check_kinds)
         self.build.sync(seen); self.dig.sync(seen); self.last_frame = frame
+        self.frames += 1; self.entities.update(self.frames, frame.entity_sightings())
         self.dig.targets = self.monitor.update(seen, frame.inventory, owed=self.dig.owed_counts())
         x, y, z = frame.position
-        view = self.dig.update_dig(x, y, z, frame.yaw, frame.pitch, frame.inventory)
+        view = self.dig.update_dig(x, y, z, frame.yaw, frame.pitch, frame.inventory, self.entities, self.frames)
         self.events += self.monitor.pop_events() + self.dig.events; self.dig.events = []
         mode = self.mode
         if view.stage != 'done' or not self.combined:

@@ -6,10 +6,13 @@ import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.player.ClientPlayerEntity;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.item.ItemEntity;
 import net.minecraft.fluid.FluidState;
 import net.minecraft.item.ItemStack;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.util.ResourceLocation;
+import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.BlockRayTraceResult;
 import net.minecraft.util.math.RayTraceContext;
@@ -17,10 +20,18 @@ import net.minecraft.util.math.RayTraceResult;
 import net.minecraft.util.math.vector.Vector3d;
 import net.minecraft.util.registry.Registry;
 
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
+
 /** Read-only client sensor telemetry (sensor-tier design 2026-11-19 §3.1): the 27 blocks around the feet, 136 view rays
  *  (a 15x9 grid over the field of view plus the crosshair) with the first fluid nearer than the solid hit, and the held
  *  tool's wear. Reads only the client world and the client player, like a body-mounted sensor. Opt-in: only jars built
- *  with the sensor monitor carry this class. */
+ *  with the sensor monitor carry this class.
+ *  Entity rays (design §3.1, user request 2026-11-23 "엔티티 전반으로"): each ray also records the first entity of the
+ *  client world whose bounding box it meets nearer than its block hit (within RANGE): its kind (entity type, or
+ *  "item:<item>" for a dropped item), distance and hit point. No entity id, UUID or health; nothing behind a block or
+ *  outside the rays. */
 public final class SensorObservation {
     static final int COLS=15,ROWS=9,RAYS=COLS*ROWS+1;
     static final double RANGE=8.;
@@ -37,6 +48,11 @@ public final class SensorObservation {
         if(id.equals("fire") || id.equals("soul_fire"))return id;
         return Registry.ITEM.containsKey(new ResourceLocation("minecraft",id))?id:"other";
     }
+    // Entity type id path; a dropped item is "item:" + the item it shows (what a camera with object recognition sees).
+    private static String entityKind(Entity e) {
+        if(e instanceof ItemEntity)return "item:"+Registry.ITEM.getKey(((ItemEntity)e).getItem().getItem()).getPath();
+        return Registry.ENTITY_TYPE.getKey(e.getType()).getPath();
+    }
     private static String fluid(FluidState f) {
         if(f==null || f.isEmpty())return "none";
         return f.isTagged(FluidTags.LAVA)?"lava":f.isTagged(FluidTags.WATER)?"water":"none";
@@ -50,7 +66,8 @@ public final class SensorObservation {
         ClientPlayerEntity player=mc.player;
         JsonArray kinds=new JsonArray(),dist=new JsonArray(),rx=new JsonArray(),ry=new JsonArray(),rz=new JsonArray(),
             dx=new JsonArray(),dy=new JsonArray(),dz=new JsonArray(),fluids=new JsonArray(),fluidDist=new JsonArray(),
-            voxels=new JsonArray(),voxelFluids=new JsonArray();
+            voxels=new JsonArray(),voxelFluids=new JsonArray(),ents=new JsonArray(),entDist=new JsonArray(),
+            ex=new JsonArray(),ey=new JsonArray(),ez=new JsonArray();
         boolean available=player!=null && mc.world!=null;
         number(j,"sensor_available",available?1:0);
         number(j,"sensor_cols",COLS);number(j,"sensor_rows",ROWS);number(j,"sensor_range",RANGE);
@@ -76,6 +93,9 @@ public final class SensorObservation {
             Vector3d right=new Vector3d(-Math.cos(y),0,-Math.sin(y));
             Vector3d up=right.crossProduct(forward).normalize();
             double th=Math.tan(Math.toRadians(hfov)/2),tv=Math.tan(Math.toRadians(vfov)/2);
+            // Candidates only: the output keeps, per ray, the first one its segment meets before the block hit.
+            List<Entity> near=mc.world==null?Collections.emptyList()
+                :mc.world.getEntitiesWithinAABBExcludingEntity(player,player.getBoundingBox().grow(RANGE+1));
             for(int i=0;i<RAYS;i++) {
                 Vector3d dir;
                 if(i<COLS*ROWS) {
@@ -107,6 +127,17 @@ public final class SensorObservation {
                     if(!wf.equals("none") && (d<0 || wd<d)) {f=wf;fd=wd;}
                 }
                 fluids.add(f);fluidDist.add(fd);
+                double limit=d>=0?d:RANGE;Entity first=null;Vector3d at=null;double best=limit;
+                Vector3d stop=eye.add(dir.scale(limit));
+                for(Entity e:near) {
+                    Optional<Vector3d> meet=e.getBoundingBox().rayTrace(eye,stop);
+                    if(meet.isPresent()) {
+                        double m=meet.get().distanceTo(eye);
+                        if(m<best) {best=m;first=e;at=meet.get();}
+                    }
+                }
+                ents.add(first==null?"none":entityKind(first));entDist.add(first==null?-1:best);
+                ex.add(at==null?-999:at.x);ey.add(at==null?-999:at.y);ez.add(at==null?-999:at.z);
             }
             BlockPos foot=new BlockPos(player.getPosX(),player.getPosY(),player.getPosZ());
             number(j,"sensor_foot_x",foot.getX());number(j,"sensor_foot_y",foot.getY());number(j,"sensor_foot_z",foot.getZ());
@@ -124,6 +155,8 @@ public final class SensorObservation {
         j.add("sensor_ray_dx",dx);j.add("sensor_ray_dy",dy);j.add("sensor_ray_dz",dz);
         j.add("sensor_ray_fluid",fluids);j.add("sensor_ray_fluid_dist",fluidDist);
         j.add("sensor_voxel_kind",voxels);j.add("sensor_voxel_fluid",voxelFluids);
+        j.add("sensor_ray_entity",ents);j.add("sensor_ray_entity_dist",entDist);
+        j.add("sensor_ray_entity_x",ex);j.add("sensor_ray_entity_y",ey);j.add("sensor_ray_entity_z",ez);
         return j;
     }
 }

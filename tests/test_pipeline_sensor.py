@@ -108,6 +108,31 @@ class SensorLogTests(unittest.TestCase):
             live = sensor_frame(info(), 0.); again = sensor_frame(dict(info(), sensor=loaded[0]), 0.)
             self.assertEqual(live, again)
 
+    def test_entity_rays_are_logged_and_old_raws_without_them_read_as_none(self):
+        # Entity rays (design §3.1, user request 2026-11-23): first entity before the block on each ray, no ids.
+        ents = ['none'] * RAYS; ents[7] = 'item:beacon'; ents[CROSSHAIR] = 'cow'
+        dist = [-1.] * RAYS; dist[7] = 1.75; dist[CROSSHAIR] = 3.25
+        xs = [-999.] * RAYS; xs[7] = 551.6123456789; xs[CROSSHAIR] = 2.5
+        ys = [-999.] * RAYS; ys[7] = 64.0; ys[CROSSHAIR] = 65.
+        zs = [-999.] * RAYS; zs[7] = 831.4; zs[CROSSHAIR] = 4.
+        raw = raw_sensor(sensor_ray_entity=ents, sensor_ray_entity_dist=dist, sensor_ray_entity_x=xs,
+                         sensor_ray_entity_y=ys, sensor_ray_entity_z=zs)
+        live = sensor_frame(info(), 0.)
+        live = sensor_frame(dict(info(), sensor=raw), 0.)
+        self.assertEqual((live.ray_entities[7], live.ray_entity_points[7], live.ray_entity_dist[7]),
+                         ('item:beacon', (551.6123456789, 64.0, 831.4), 1.75))
+        self.assertIsNone(live.ray_entity_points[0])
+        self.assertEqual(live.entity_sightings(), [('item:beacon', (551.6123456789, 64.0, 831.4), 1.75),
+                                                   ('cow', (2.5, 65., 4.), 3.25)])
+        old = sensor_frame(info(), 0.)                        # logs before 2026-11-23 have no entity rays
+        self.assertEqual((set(old.ray_entities), old.entity_sightings()), ({'none'}, []))
+        with tempfile.TemporaryDirectory() as tmp:
+            log = SensorLog(Path(tmp) / 'sensor'); log.add(1, raw); log.add(2, raw_sensor()); log.close()
+            loaded = list(load_sensor_log(Path(tmp) / 'sensor'))
+            self.assertEqual(sensor_frame(dict(info(), sensor=loaded[0]), 0.), live)     # exact: points are float64
+            self.assertEqual(sensor_frame(dict(info(), sensor=loaded[1]), 0.), old)
+        self.assertEqual({ACTOR_TIERS[k] for k in ('ray_entities', 'ray_entity_dist', 'ray_entity_points')}, {'sensor'})
+
     def test_unavailable_raw_with_empty_arrays_is_logged(self):
         with tempfile.TemporaryDirectory() as tmp:
             log = SensorLog(Path(tmp) / 'sensor')
