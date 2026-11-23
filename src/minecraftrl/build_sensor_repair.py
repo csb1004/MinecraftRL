@@ -22,6 +22,11 @@ the dig ('item:<block>', `pipeline.entity_track`), collect walks to that item's 
 face features point at it; when none was seen it walks to the dug cell, and once there it looks around (turns while
 looking down) until a ray meets the drop or the pickup counts. Records without entity rays replay as before.
 The session's disclosed rule holds the pickaxe in reach / move / dig and the current cell's block while building.
+Crosshair inputs (user decision 2026-11-24): the dig teacher attacks on a strike, which the d_ features did not show, and
+heads of 11-23 pressed attack on 75% of strike rows and on 35% of rows aimed at another block. DIG2_FEATURES adds
+d_strike (the teacher's own attack condition) and d_other (in dig, the straight crosshair ray meets another solid first,
+on the seen map) after the d_ features; zeros outside dig. The feed gives the list its dig head was trained with
+(`use_dig_features`); a building head next to it gets its own values padded to that width.
 
 `SensorRepairFeed` is the dig-only feed (teacher sensor_dig: the dig head's DIG_STAGES) and the beacon demo's composite
 (teacher sensor_repair: the building head's stages while no anomaly is open, else the dig head's stages prefixed
@@ -35,8 +40,8 @@ from collections import Counter
 from dataclasses import dataclass
 
 from .build_recover import (ARRIVE, BUILD2_FEATURES, BUILD2_STAGES, INNER, MARGIN_EYES, SENSOR_DIG, SENSOR_REPAIR, STAND_REACH,
-                            RecoverView, build2_features, look, teacher_action)
-from .build_repair import struck_face, visible_block_face
+                            RecoverView, build2_features, look, raycast, teacher_action)
+from .build_repair import STRIKE_REACH, struck_face, visible_block_face
 from .build_sensor import SensorBuildTracker, blueprint_of
 from .build_task import SCHEMA, build_fixture
 from .pipeline.entity_track import EntityTracks
@@ -51,6 +56,8 @@ DIG_KINDS = ('gold_block', 'iron_block', 'diamond_block', 'beacon')
 DIG_STAGES = ('reach', 'move', 'dig', 'collect', 'done')
 DIG_LABELLED = ('reach', 'move', 'dig', 'collect')
 DIG_FEATURES = tuple('d_' + name for name in BUILD2_FEATURES)
+DIG2_FEATURES = DIG_FEATURES + ('d_strike', 'd_other')    # crosshair inputs (2026-11-24, module doc)
+DIG_FEATURE_LISTS = (DIG_FEATURES, DIG2_FEATURES)
 DIG_PREFIX = 'dig_'
 COMBINED_STAGES = BUILD2_STAGES + tuple(DIG_PREFIX + s for s in DIG_STAGES)
 COLLECT_REACH = 1.      # blocks, horizontal cell distance: a floor cell this close picks the drop up (pickup box 1.3 + item)
@@ -166,6 +173,7 @@ class RepairMonitor:
 class DigView(RecoverView):
     strike: bool = False     # dig: the straight crosshair ray strikes the target block
     seen_item: bool = False  # collect: a ray met the dug block's drop since the dig (target = its last seen cell)
+    other: bool = False      # dig: the straight crosshair ray meets another solid first (no strike)
 
 
 class SensorDigTracker(SensorBuildTracker):
@@ -228,7 +236,9 @@ class SensorDigTracker(SensorBuildTracker):
         if distance <= REACH and seen is not None:
             if self.digging is None or self.digging['cell'] != target:
                 self.digging = dict(cell=target, block=self.targets[target][1])
-            return DigView('dig', target, seen, distance, filled, left, None, None, strike=struck is not None)
+            hit = None if struck is not None else raycast(eye, look(yaw, pitch), self.solids, reach=STRIKE_REACH)[0]
+            return DigView('dig', target, seen, distance, filled, left, None, None, strike=struck is not None,
+                           other=hit is not None and tuple(hit) != tuple(target))
         stand, way = self.standpoint(x, y, z, target, usable=self._usable_dig)
         return DigView('reach' if distance > REACH else 'move', target, seen, distance, filled, left, stand, way)
 
@@ -258,11 +268,17 @@ def dig_action(x, y, z, yaw, pitch, view):
     return action
 
 
-def dig_features(x, y, z, yaw, pitch, view):
-    """DIG_FEATURES: the building features with dig shown as aim (toward the seen face) and collect as move."""
-    if view is None or view.stage not in DIG_LABELLED: return [0.] * len(DIG_FEATURES)
+def dig_features(x, y, z, yaw, pitch, view, names=DIG_FEATURES):
+    """DIG_FEATURES: the building features with dig shown as aim (toward the seen face) and collect as move;
+    DIG2_FEATURES adds d_strike and d_other (dig only, module doc)."""
+    if names not in DIG_FEATURE_LISTS: raise ValueError('unknown dig feature list: %s' % (names,))
+    if view is None or view.stage not in DIG_LABELLED: return [0.] * len(names)
     shown = dataclasses.replace(view, stage={'dig': 'aim', 'collect': 'move'}.get(view.stage, view.stage))
-    return build2_features(x, y, z, yaw, pitch, shown)
+    out = build2_features(x, y, z, yaw, pitch, shown)
+    if names == DIG2_FEATURES:
+        dig = view.stage == 'dig'
+        out += [float(dig and view.strike), float(dig and view.other)]
+    return out
 
 
 class RepairJudge:
@@ -334,7 +350,8 @@ class SensorRepairFeed:
     """Live and replayed sensor repair feed (module doc). Decisions come from sensor frames, the seen map and the
     blueprint (`observe_frame`); `observe(row)` only feeds the judge."""
 
-    def __init__(self, fixture):
+    def __init__(self, fixture, dig_features=DIG_FEATURES):
+        self.use_dig_features(dig_features)
         self.task = fixture['build']; self.combined = self.task.get('teacher') == SENSOR_REPAIR
         self.blueprint = blueprint_of(self.task); self.given = gifts(fixture)
         self.judge = RepairJudge(fixture)
@@ -402,10 +419,18 @@ class SensorRepairFeed:
         act = dig_action if self.mode == 'dig' else teacher_action
         return act(*f.position, f.yaw, f.pitch, self.last_local)
 
+    def use_dig_features(self, names):
+        """The dig feature list of the dig head (DIG_FEATURES or DIG2_FEATURES, module doc)."""
+        names = tuple(names)
+        if names not in DIG_FEATURE_LISTS: raise ValueError('unknown dig feature list: %s' % (names,))
+        self.dig_feature_names = names
+
     def features(self):
-        f = self.last_frame
-        if f is None or self.last_local is None: return [0.] * len(DIG_FEATURES)
-        return (dig_features if self.mode == 'dig' else build2_features)(*f.position, f.yaw, f.pitch, self.last_local)
+        f = self.last_frame; width = len(self.dig_feature_names)
+        if f is None or self.last_local is None: return [0.] * width
+        if self.mode == 'dig': return dig_features(*f.position, f.yaw, f.pitch, self.last_local, self.dig_feature_names)
+        values = build2_features(*f.position, f.yaw, f.pitch, self.last_local)
+        return values + [0.] * (width - len(values))
 
     def repair_extra(self):
         j, m, d = self.judge, self.monitor, self.dig

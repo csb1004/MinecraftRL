@@ -46,6 +46,32 @@ class SwitchHeadTests(unittest.TestCase):
         odd = ReacquireHead(Base(), 4, use_stage=True, stages=DIG_STAGES, features=('d_0',))
         with self.assertRaises(ValueError): SwitchHead(build, odd)
 
+    def test_a_dig_head_with_more_inputs_gets_all_of_them_and_the_building_head_its_own(self):
+        # The dig head with crosshair inputs (user decision 2026-11-24) next to the building head of 11-22.
+        build, _ = heads()
+        dig = ReacquireHead(Base(), 4, use_stage=True, stages=DIG_STAGES, features=tuple('d_%d' % i for i in range(5)))
+        switch = SwitchHead(build, dig)
+        self.assertEqual(switch.features, build.features + ('d_3', 'd_4'))      # names of the latent log's columns
+        switch.stage = COMBINED_STAGES.index('aim'); switch.feature = [1., 2., 3., 0., 0.]
+        self.assertEqual(build.feature, [1., 2., 3.]); self.assertEqual(switch.feature, [1., 2., 3., 0., 0.])
+        self.assertTrue(torch.equal(switch(torch.zeros(1, 1, 4)), torch.zeros(1, 1, 4)))
+        switch.stage = COMBINED_STAGES.index('dig_dig'); switch.feature = [1., 2., 3., 4., 5.]
+        self.assertEqual(dig.feature, [1., 2., 3., 4., 5.]); self.assertEqual(switch.feature, [1., 2., 3., 4., 5.])
+        switch.feature = None
+        self.assertEqual((build.feature, dig.feature, switch.feature), (None, None, None))
+
+    def test_sampling_goes_through_the_head_that_runs(self):
+        build, dig = heads(); switch = SwitchHead(build, dig)
+        seen = []
+        dig.decode = lambda pd, action: seen.append(pd) or dict(action, decoded=True)
+        dig.decode_stages = ('dig',)
+        dig.base.sample = lambda pd, deterministic=False: dict(buttons=pd)
+        switch.stage = COMBINED_STAGES.index('aim')
+        self.assertEqual(switch.sample(1, deterministic=False), dict(buttons=1))
+        switch.stage = COMBINED_STAGES.index('dig_dig')
+        self.assertEqual(switch.sample(2, deterministic=False), dict(buttons=2, decoded=True))
+        self.assertEqual(seen, [2])
+
 
 if __name__ == '__main__':
     unittest.main()

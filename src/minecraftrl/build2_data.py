@@ -26,7 +26,7 @@ from .build_data import FEATURE_TOLERANCE, GROUP
 from .build_recover import BUILD2_FEATURES, BUILD2_STAGES, CAREFUL, REPAIR, TEACHER, CarefulFeed, RecoverFeed
 from .build_repair import REPAIR_FEATURES, REPAIR_STAGES, RepairFeed
 from .build_sensor import SENSOR, SENSOR_BUILD_FEATURES, SensorBuildFeed
-from .build_sensor_repair import DIG_FEATURES, DIG_STAGES, SENSOR_DIG, SensorRepairFeed
+from .build_sensor_repair import DIG_FEATURE_LISTS, DIG_FEATURES, DIG_STAGES, SENSOR_DIG, SensorRepairFeed
 from .build_task import BUILD_STAGES
 from .pipeline.monitor_replay import load_run
 from .pipeline.seen_map import SeenMap
@@ -55,14 +55,40 @@ LISTS = {TEACHER: (BUILD2_STAGES, BUILD2_FEATURES), CAREFUL: (BUILD2_STAGES, BUI
 SENSOR_TEACHERS = (SENSOR, SENSOR_DIG)     # decisions from the sensor log
 
 
+def feature_list_for(teacher, features=None):
+    """The feature list of a dataset: the teacher's own, or for the dig teacher DIG2_FEATURES (crosshair inputs,
+    2026-11-24), whose first columns are the d_ features earlier runs logged."""
+    default = LISTS[teacher][1]
+    if features is None: return default
+    features = tuple(features)
+    if features == default: return default
+    if teacher == SENSOR_DIG and features in DIG_FEATURE_LISTS: return features
+    raise ValueError('teacher %s takes no feature list %s' % (teacher, features))
+
+
+def compare_logged_features(own, recorded, names, logged, replayed, run_dir):
+    """A run recorded with this teacher must match the replay on the columns it logged: its whole list, or the first
+    columns when the dataset's list extends the logged one. Relabelled runs are not compared."""
+    if not own: return
+    recorded = list(recorded or ())
+    if recorded and recorded != list(names[:len(recorded)]):
+        raise ValueError('latent record uses another feature list: %s' % run_dir)
+    if logged is None: return
+    width = logged.shape[1] if logged.ndim == 2 else -1
+    if width != len(recorded or names) or logged.shape[0] != replayed.shape[0]:
+        raise ValueError('live features differ from replay: %s' % run_dir)
+    if len(replayed) and float(np.abs(logged - replayed[:, :width]).max()) > FEATURE_TOLERANCE:
+        raise ValueError('live features differ from replay: %s' % run_dir)
+
+
 def replay_info(row, raw):
     """The observation a sensor frame is built from, out of a telemetry row and its logged raw sensor values."""
     return {'workshop': dict(row, server_inventory=row.get('inventory') or {}), 'sensor': raw}
 
 
-def build2_run_examples(run_dir, mapper, transformer, *, root, teacher=TEACHER):
+def build2_run_examples(run_dir, mapper, transformer, *, root, teacher=TEACHER, features=None):
     if teacher not in FEEDS: raise ValueError('teacher must be one of %s' % sorted(FEEDS))
-    stages, features = LISTS[teacher]
+    stages = LISTS[teacher][0]; features = feature_list_for(teacher, features)
     run_dir = Path(run_dir)
     request, fixture = _checked_request(run_dir, root)
     if not fixture.get('build'): raise ValueError('not a building run: %s' % run_dir)
@@ -71,12 +97,12 @@ def build2_run_examples(run_dir, mapper, transformer, *, root, teacher=TEACHER):
     elif recorded in (list(BUILD2_STAGES), list(BUILD_STAGES)): own = False
     else: raise ValueError('latent record uses another stage list: %s' % run_dir)
     manifest, lat = load_latents(run_dir / 'reacquire', tuple(recorded))
-    if own and manifest.get('features') and list(manifest['features']) != list(features):
-        raise ValueError('latent record uses another feature list: %s' % run_dir)
+    compare_logged_features(own, manifest.get('features'), features, None, None, run_dir)
     run = load_run(run_dir)
     steps = [s for s in run.steps if s.skill == manifest['meta']['skill']]
     if len(steps) != 1: raise ValueError('expected one %s step, found %d' % (manifest['meta']['skill'], len(steps)))
     step = steps[0]; feed = FEEDS[teacher](fixture); decisions = []; feats = []
+    if features != LISTS[teacher][1]: feed.use_dig_features(features)     # crosshair inputs (2026-11-24)
     sensor_rows = seen_map = None
     if teacher in SENSOR_TEACHERS:
         if not (run_dir / 'sensor' / 'manifest.json').exists(): raise ValueError('no sensor log: %s' % run_dir)
@@ -113,16 +139,15 @@ def build2_run_examples(run_dir, mapper, transformer, *, root, teacher=TEACHER):
         out['label_pitch'][i], out['label_yaw'][i] = label['decoded_camera']
     replayed = np.asarray(feats, np.float32).reshape(n, len(features))
     if own and 'features' in lat:
-        logged = np.asarray(lat['features'], np.float32)
-        if logged.shape != replayed.shape or (n and float(np.abs(logged - replayed).max()) > FEATURE_TOLERANCE):
-            raise ValueError('live features differ from replay: %s' % run_dir)
+        compare_logged_features(own, manifest.get('features'), features, np.asarray(lat['features'], np.float32), replayed,
+                                run_dir)
     out['features'] = replayed
     out.update(manifest=manifest, seed=request['seed'], task=fixture['build']['seed'], relabelled=not own,
                success=bool(json.loads((run_dir / 'summary.json').read_text(encoding='utf-8')).get('all_steps_completed')))
     return out
 
 
-def build2_dataset(run_dirs, out_path, *, holdout, mapper, transformer, root, teacher=TEACHER):
+def build2_dataset(run_dirs, out_path, *, holdout, mapper, transformer, root, teacher=TEACHER, features=None):
     """Concatenate the runs' examples; `holdout` (run folder names) is kept for validation. One block group, so the
     balanced loss weighs the stages."""
     import torch
@@ -134,12 +159,13 @@ def build2_dataset(run_dirs, out_path, *, holdout, mapper, transformer, root, te
         if len(matches) != 1: raise ValueError('holdout must name exactly one run folder: %s' % name)
         held.append(matches[0])
     if not held or len(set(held)) != len(held): raise ValueError('holdout runs must be distinct and not empty')
-    parts = [build2_run_examples(d, mapper, transformer, root=root, teacher=teacher) for d in run_dirs]
+    features = feature_list_for(teacher, features)
+    parts = [build2_run_examples(d, mapper, transformer, root=root, teacher=teacher, features=features) for d in run_dirs]
     scales = {p['cond_scale'] for p in parts}
     if len(scales) != 1: raise ValueError('runs use different guidance scales: %s' % sorted(scales))
     keys = ('cond', 'uncond', 'stage', 'labelled', 'label_buttons', 'label_camera', 'camera_on', 'in_view',
             'label_pitch', 'label_yaw', 'step', 'features')
-    stages, features = LISTS[teacher]
+    stages = LISTS[teacher][0]
     data = {k: torch.from_numpy(np.concatenate([p[k] for p in parts])) for k in keys}
     data.update(run=torch.from_numpy(np.concatenate([np.full(len(p['step']), i, np.int64) for i, p in enumerate(parts)])),
                 block=torch.from_numpy(np.concatenate([np.zeros(len(p['step']), np.int64) for p in parts])),

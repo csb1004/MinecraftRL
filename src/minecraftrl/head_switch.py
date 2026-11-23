@@ -17,12 +17,14 @@ PREFIX = 'dig_'
 class SwitchHead(torch.nn.Module):
     def __init__(self, build, dig, prefix=PREFIX):
         super().__init__()
-        if len(build.features) != len(dig.features): raise ValueError('both heads must take as many feature values')
+        # A dig head may take more feature values (crosshair inputs, 2026-11-24): the feed pads the building head's.
+        if len(dig.features) < len(build.features): raise ValueError('the dig head takes at least the building feature count')
         self.build = build; self.dig = dig; self.prefix = prefix
         self.stages = tuple(build.stages) + tuple(prefix + s for s in dig.stages)
-        self.features = tuple(build.features)       # names for the latent log; the values belong to the head that runs
+        # Names for the latent log; the values belong to the head that runs (the building head reads the first ones).
+        self.features = tuple(build.features) + tuple(dig.features[len(build.features):])
         self.feature_gain = build.feature_gain; self.width = build.width; self.use_stage = build.use_stage
-        self._stage = None; self._which = 'build'; self._active = True
+        self._stage = None; self._which = 'build'; self._active = True; self._values = None
 
     def _head(self): return self.dig if self._which == 'dig' else self.build
 
@@ -49,19 +51,24 @@ class SwitchHead(torch.nn.Module):
             self._which = 'build'; self.build.stage = self.build.stages.index(name); self.dig.stage = None
 
     @property
-    def feature(self): return self._head().feature
+    def feature(self): return self._values
 
     @feature.setter
     def feature(self, values):
-        self._head().feature = values
-        if values is None: self.build.feature = None; self.dig.feature = None
+        self._values = None if values is None else list(values)
+        if values is None:
+            self.build.feature = None; self.dig.feature = None
+            return
+        head = self._head(); head.feature = list(values)[:len(head.features)]
 
     @property
     def last_latent(self): return self._head().last_latent
 
     def forward(self, pi_h, mask=None, **kwargs): return self._head()(pi_h, mask=mask, **kwargs)
 
-    def sample(self, *args, **kwargs): return self.build.base.sample(*args, **kwargs)
+    def sample(self, *args, **kwargs): return self._head().sample(*args, **kwargs)   # its attack decode, if any
+
+    def decode_stats(self): return self.dig.decode_stats()
     def logprob(self, *args, **kwargs): return self.build.base.logprob(*args, **kwargs)
     def entropy(self, *args, **kwargs): return self.build.base.entropy(*args, **kwargs)
     def kl_divergence(self, *args, **kwargs): return self.build.base.kl_divergence(*args, **kwargs)

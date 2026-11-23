@@ -8,7 +8,7 @@ from dataclasses import replace
 from minecraftrl.build_beacon import beacon_build
 from minecraftrl.build_recover import feed_for, look, stages_for
 from minecraftrl.build_sensor import blueprint_cells, blueprint_of
-from minecraftrl.build_sensor_repair import (COLLECT_POINT_REACH, COLLECT_ROWS, COMBINED_STAGES, DIG_FEATURES, DIG_KINDS,
+from minecraftrl.build_sensor_repair import (COLLECT_POINT_REACH, COLLECT_ROWS, COMBINED_STAGES, DIG2_FEATURES, DIG_FEATURES, DIG_KINDS,
                                              DIG_STAGES, ITEM_HALF, LEDGER_ROWS, PICKAXE, SENSOR_DIG, SENSOR_REPAIR, SUPPORT,
                                              RepairJudge, RepairMonitor, SensorRepairFeed, blueprint_empty, dig_action,
                                              dig_task, item_centre, repair_fixture)
@@ -244,6 +244,55 @@ class DigTests(unittest.TestCase):
         views = [self.step(frame(inventory={GOLD: 1})) for _ in range(COLLECT_ROWS + 2)]
         self.assertEqual(views[0].stage, 'collect'); self.assertIsNone(views[0].stand)
         self.assertEqual(views[-1].stage, 'done'); self.assertEqual(self.feed.dig.lost, 1)
+
+
+class CrosshairFeatureTests(unittest.TestCase):
+    """The dig head's crosshair inputs (user decision 2026-11-24): d_strike and d_other after the d_ features."""
+
+    def setUp(self):
+        self.target = world(0, 0, 3); self.seen = full_arena(); self.seen.mark(self.target, GOLD, 1, 'voxel')
+        self.feed = SensorRepairFeed(repair_fixture(ONE, SENSOR_DIG), dig_features=DIG2_FEATURES)
+        self.old = SensorRepairFeed(repair_fixture(ONE, SENSOR_DIG))
+
+    def values(self, f):
+        self.feed.observe_frame(f, self.seen); self.old.observe_frame(f, self.seen)
+        return self.feed.decision_view(), self.feed.features()
+
+    def test_the_list_adds_two_crosshair_inputs_and_other_lists_are_refused(self):
+        self.assertEqual(DIG2_FEATURES, DIG_FEATURES + ('d_strike', 'd_other'))
+        with self.assertRaises(ValueError): SensorRepairFeed(repair_fixture(ONE, SENSOR_DIG), dig_features=('d_x',))
+        with self.assertRaises(ValueError): self.old.use_dig_features(('d_x',))
+
+    def test_a_strike_on_the_target_sets_d_strike_and_keeps_the_earlier_values(self):
+        view, values = self.values(aimed(self.target, (0, 0, -1), inventory={PICKAXE: 1}))
+        self.assertEqual((view.stage, view.strike, view.other), ('dig', True, False))
+        self.assertEqual(len(values), len(DIG2_FEATURES)); self.assertEqual(values[-2:], [1., 0.])
+        self.assertEqual(values[:-2], self.old.features())
+
+    def test_a_crosshair_on_another_solid_sets_d_other_and_the_teacher_does_not_attack(self):
+        other = world(1, 0, 3); self.seen.mark(other, 'stone', 1, 'voxel')
+        view, values = self.values(aimed(other, (0, 0, -1), inventory={PICKAXE: 1}))
+        self.assertEqual((view.stage, view.strike, view.other), ('dig', False, True))
+        self.assertEqual(values[-2:], [0., 1.])
+        self.assertEqual(self.feed.label(None, view)['attack'], 0)
+        view, values = self.values(frame(yaw=0., pitch=-60., inventory={PICKAXE: 1}))    # the sky: neither
+        self.assertEqual((view.stage, values[-2:]), ('dig', [0., 0.]))
+
+    def test_outside_the_dig_stage_both_are_zero(self):
+        far = world(0, 0, 8); self.seen.mark(self.target, 'air', 2, 'ray'); self.seen.mark(far, IRON, 2, 'ray')
+        self.feed = SensorRepairFeed(repair_fixture(dict(ONE, empty=[[0, 0, 8]], wrong=[[0, 0, 8, IRON]]), SENSOR_DIG),
+                                     dig_features=DIG2_FEATURES)
+        self.old = SensorRepairFeed(repair_fixture(dict(ONE, empty=[[0, 0, 8]], wrong=[[0, 0, 8, IRON]]), SENSOR_DIG))
+        view, values = self.values(frame(z=0.5, pitch=20.))                               # the floor in the crosshair
+        self.assertEqual((view.stage, values[-2:]), ('reach', [0., 0.]))
+
+    def test_the_building_head_gets_its_own_values_padded_to_the_dig_width(self):
+        task = beacon_build(1501); seen = full_arena()
+        feed = SensorRepairFeed(repair_fixture(task, SENSOR_REPAIR), dig_features=DIG2_FEATURES)
+        old = SensorRepairFeed(repair_fixture(task, SENSOR_REPAIR))
+        feed.observe_frame(frame(), seen); old.observe_frame(frame(), seen)
+        self.assertEqual(feed.mode, 'build')
+        self.assertEqual(feed.features(), old.features() + [0., 0.])
 
 
 class CompositeTests(unittest.TestCase):

@@ -5,7 +5,9 @@ recovering teacher, its stages and features (always on) and names the `use` comb
 does the same with careful place. --teacher repair (round 5, design 2026-11-15 build-repair) uses the repair teacher, its
 six stages and twelve features. --teacher sensor (plan 2026-11-22) relabels sensor-tier runs from their sensor logs
 with the recovering teacher on sensors and the s_ features. --teacher sensor_dig (sensor repair 2026-11-23) relabels
-dig-task runs from their sensor logs with the dig teacher, its stages and the d_ features."""
+dig-task runs from their sensor logs with the dig teacher, its stages and the d_ features; --dig-features d2 (user
+decision 2026-11-24) adds the crosshair inputs d_strike and d_other (runs that logged the d_ features are compared on
+those columns)."""
 import argparse
 import json
 import sys
@@ -20,7 +22,9 @@ def main(argv=None):
     p.add_argument('--root', type=Path, required=True)
     p.add_argument('--features', choices=('on', 'off'), default='off')
     p.add_argument('--teacher', choices=('round1', 'recover', 'careful', 'repair', 'sensor', 'sensor_dig'), default='round1')
+    p.add_argument('--dig-features', choices=('d', 'd2'), default='d', help='sensor_dig only: d2 adds the crosshair inputs')
     args = p.parse_args(argv)
+    if args.dig_features != 'd' and args.teacher != 'sensor_dig': p.error('--dig-features needs --teacher sensor_dig')
     root = args.root.resolve(); out = args.out.resolve()
     if not out.is_relative_to(root / 'results'): raise SystemExit('output must be under results/')
     if out.exists(): raise SystemExit('refusing to overwrite %s' % out)
@@ -32,10 +36,12 @@ def main(argv=None):
     holdout = args.holdout[0] if len(args.holdout) == 1 else args.holdout
     if args.teacher in ('recover', 'careful', 'repair', 'sensor', 'sensor_dig'):
         from minecraftrl.build2_data import build2_dataset
+        from minecraftrl.build_sensor_repair import DIG2_FEATURES
         summary = build2_dataset(sorted(d.resolve() for d in args.runs), out, holdout=holdout,
                                  mapper=CameraHierarchicalMapping(n_camera_bins=11),
                                  transformer=ActionTransformer(**ACTION_TRANSFORMER_KWARGS), root=root,
-                                 teacher='sensor_recover' if args.teacher == 'sensor' else args.teacher)
+                                 teacher='sensor_recover' if args.teacher == 'sensor' else args.teacher,
+                                 features=DIG2_FEATURES if args.dig_features == 'd2' else None)
         print(json.dumps({k: v for k, v in summary.items() if k not in ('runs', 'source')}, indent=1))
         return 0
     summary = build_build_dataset(sorted(d.resolve() for d in args.runs), out, holdout=holdout,

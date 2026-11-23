@@ -159,6 +159,28 @@ class BuildBatchTest(unittest.TestCase):
         teacher_plan = json.loads((self.batch / 'plans' / 'teacher.json').read_text())[0]
         self.assertEqual(teacher_plan['params']['limit_steps'], self.m.REPAIR_LIMIT_S * 20)
 
+    def test_the_attack_decode_comparison_arm_is_named_in_the_config_and_the_frozen_meta(self):
+        # User decision 2026-11-24: the verdict samples; a comparison arm decodes attack at 0.5.
+        from minecraftrl.build_sensor_repair import SENSOR_DIG, SENSOR_REPAIR
+        build_head, dig_head = self.batch / 'b.pt', self.batch / 'd.pt'
+        self.batch.mkdir(parents=True, exist_ok=True); build_head.write_bytes(b'b'); dig_head.write_bytes(b'd')
+        config, _, _ = self.m.prepare(self.batch, 'thr', ROOT, 1801, str(build_head), True, teacher=SENSOR_REPAIR,
+                                      beacon_repair=True, dig_checkpoint=str(dig_head), attack_decode='threshold')
+        self.assertEqual(json.loads(config.read_text())['skills']['build']['reacquire']['attack_decode'], 'threshold')
+        config, _, _ = self.m.prepare(self.batch, 'plain', ROOT, 1801, str(build_head), True, teacher=SENSOR_REPAIR,
+                                      beacon_repair=True, dig_checkpoint=str(dig_head))
+        self.assertNotIn('attack_decode', json.loads(config.read_text())['skills']['build']['reacquire'])
+        with self.assertRaises(ValueError):
+            self.m.prepare(self.batch, 'x', ROOT, 1801, str(build_head), True, teacher=SENSOR_REPAIR, beacon_repair=True,
+                           dig_checkpoint=str(dig_head), attack_decode='argmax')
+        with self.assertRaises(ValueError):       # the teacher check has no head to decode
+            self.collect(mode='dig_train', tasks=[1601], seeds=[271828], teacher=SENSOR_DIG, attack_decode='threshold')
+        self.assertEqual(self.collect(mode='dig_train', tasks=[1601], seeds=[271828], teacher=SENSOR_DIG, arm='thr',
+                                      checkpoint=dig_head, teacher_check=False, attack_decode='threshold'), 0)
+        frozen = json.loads((self.batch / 'frozen-thr-c1601.json').read_text())
+        self.assertEqual(frozen['attack_decode'], 'threshold')
+        self.assertTrue(any(k.replace('\\', '/').endswith('src/minecraftrl/attack_decode.py') for k in frozen['hashes']))
+
     def test_the_occluded_mode_has_its_own_seed_and_tasks_and_sets_the_block(self):
         # Occlusion check (design 2026-11-15): recovering teacher only, a block in front of the first cell.
         from minecraftrl.build_recover import build2_fixture, occluded_build

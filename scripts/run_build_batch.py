@@ -68,6 +68,7 @@ DIG_MODES = ('dig_train', 'dig_dev')
 BEACON_REPAIR_MODES = ('beacon_repair',)
 REPAIR_LIMIT_S = 120     # beacon games with repairs: digs and pickups on top of the 10 cells
 SENSOR_TEACHERS = ('sensor', SENSOR_DIG, SENSOR_REPAIR)
+ATTACK_DECODES = ('sample', 'threshold')   # the dig head's attack key: sampled, or from its own probability
 REPAIR_MODES = ('repair_train', 'repair_dev', 'repair_final')
 RECOVERING = ('recover', CAREFUL, 'sensor')
 REPAIRING = (REPAIR, CAREFUL)            # teachers that can run a repair task (careful: the round 4 reference)
@@ -93,10 +94,12 @@ def check(mode, tasks, seeds, registry):
 
 
 def build_config(base, registry, checkpoint, use_stage, teacher_check=False, tool_allowed=(), sensor=False,
-                 dig_checkpoint=None):
+                 dig_checkpoint=None, attack_decode='sample'):
     """The reacquire config without any mining head, with the place monitor; a policy arm adds the build skill.
     `tool_allowed`: hotbar keys the policy may press through the tool lock (repair tasks). `dig_checkpoint`: the dig
-    head next to the building head (sensor repair)."""
+    head next to the building head (sensor repair). `attack_decode` 'threshold': the dig head's attack key from its own
+    probability (comparison arm, user decision 2026-11-24); 'sample' leaves the config as before."""
+    if attack_decode not in ATTACK_DECODES: raise ValueError('attack_decode must be one of %s' % (ATTACK_DECODES,))
     config = json.loads(json.dumps(base))
     for spec in config['skills'].values(): spec.pop('reacquire', None)
     config['place_monitor'] = True
@@ -108,13 +111,15 @@ def build_config(base, registry, checkpoint, use_stage, teacher_check=False, too
                                        reacquire=dict(checkpoint=checkpoint, use_stage=bool(use_stage), record_latents=True,
                                                       stages='build'))
         if dig_checkpoint is not None: config['skills'][SKILL]['reacquire']['dig_checkpoint'] = dig_checkpoint
+        if attack_decode != 'sample': config['skills'][SKILL]['reacquire']['attack_decode'] = attack_decode
     config['description'] = 'Building run (design 2026-11-14): ' + ('teacher check, no policy step' if teacher_check
                                                                           else 'build skill with the build head')
     return config
 
 
 def prepare(batch, arm, root, task, checkpoint, use_stage, teacher_check=False, teacher='round1', occluded=False,
-            large=False, repair=False, beacon=False, dig=False, beacon_repair=False, dig_checkpoint=None):
+            large=False, repair=False, beacon=False, dig=False, beacon_repair=False, dig_checkpoint=None,
+            attack_decode='sample'):
     if teacher not in TEACHERS: raise ValueError('teacher must be one of %s' % sorted(TEACHERS))
     if occluded and teacher not in RECOVERING: raise ValueError('occluded tasks need a recovering teacher')
     if large and teacher not in RECOVERING: raise ValueError('large tasks need a recovering teacher')
@@ -133,7 +138,8 @@ def prepare(batch, arm, root, task, checkpoint, use_stage, teacher_check=False, 
     config = write(batch / 'configs' / (arm + '.json'), build_config(base, registry, checkpoint, use_stage, teacher_check,
                                                                      tool_allowed=REPAIR_SLOTS if repair else (),
                                                                      sensor=teacher in SENSOR_TEACHERS,
-                                                                     dig_checkpoint=None if teacher_check else dig_checkpoint))
+                                                                     dig_checkpoint=None if teacher_check else dig_checkpoint,
+                                                                     attack_decode=attack_decode))
     if teacher in SENSOR_TEACHERS:     # the blueprint instruction the sensor feed reads, kept apart from the fixture's world
         write(batch / 'blueprints' / ('task-%d.json' % task), blueprint_of(blueprint))
     fixture = write(batch / 'fixtures' / ('task-%d.json' % task),
@@ -154,8 +160,12 @@ def limit_for(beacon=False, beacon_repair=False):
 
 
 def collect(*, batch, arm, checkpoint, use_stage, mode, tasks, seeds, sampling, teacher_check=False, root=ROOT,
-            launch=run_game, gpu_free=nvidia_free_mib, gpu_wait=(40, 15.), teacher='round1', dig_checkpoint=None):
+            launch=run_game, gpu_free=nvidia_free_mib, gpu_wait=(40, 15.), teacher='round1', dig_checkpoint=None,
+            attack_decode='sample'):
     """0 done, 1 STOP, 3 GPU busy, 4 invalid launch excluded, 5 inputs changed."""
+    if attack_decode not in ATTACK_DECODES: raise ValueError('attack_decode must be one of %s' % (ATTACK_DECODES,))
+    if attack_decode != 'sample' and (teacher_check or teacher not in (SENSOR_DIG, SENSOR_REPAIR)):
+        raise ValueError('the attack decode needs a dig head (dig or beacon_repair policy arm)')
     root = Path(root).resolve(); batch = Path(batch).resolve(); registry = load_registry(root)
     check(mode, tasks, seeds, registry)
     if not batch.is_relative_to(root / 'results'): raise ValueError('batch must be under results/')
@@ -197,11 +207,13 @@ def collect(*, batch, arm, checkpoint, use_stage, mode, tasks, seeds, sampling, 
                 mode=mode, limit_s=limit_s, frame_every=FRAME_EVERY, teacher_check=bool(teacher_check), scope=scope)
     if teacher != 'round1': meta['teacher'] = teacher          # round 1 records stay as they were
     if dig_checkpoint is not None: meta['dig_checkpoint'] = str(Path(dig_checkpoint).resolve())
+    if attack_decode != 'sample': meta['attack_decode'] = attack_decode
     for task in tasks:
         config, fixture, plan = prepare(batch, arm, root, task, meta['checkpoint'], use_stage, teacher_check, teacher,
                                         occluded=mode in OCCLUDED_MODES, large=mode in LARGE_MODES,
                                         repair=mode in REPAIR_MODES, beacon=mode in BEACON_MODES, dig=mode in DIG_MODES,
-                                        beacon_repair=mode in BEACON_REPAIR_MODES, dig_checkpoint=meta.get('dig_checkpoint'))
+                                        beacon_repair=mode in BEACON_REPAIR_MODES, dig_checkpoint=meta.get('dig_checkpoint'),
+                                        attack_decode=attack_decode)
         files = [config, fixture, plan, root / REGISTRY, root / 'src/minecraftrl/build_task.py',
                  root / 'src/minecraftrl/place_task.py',
                  root / 'src/minecraftrl/PlaceObservation.java', root / 'src/minecraftrl/world_save_patch.py']
@@ -212,6 +224,8 @@ def collect(*, batch, arm, checkpoint, use_stage, mode, tasks, seeds, sampling, 
         if teacher in (SENSOR_DIG, SENSOR_REPAIR):
             files += [root / 'src/minecraftrl' / name for name in ('build_sensor_repair.py', 'head_switch.py',
                                                                     'build_repair.py', 'pipeline/cli.py')]
+        if attack_decode != 'sample':
+            files += [root / 'src/minecraftrl' / name for name in ('attack_decode.py', 'reacquire_head.py')]
         if mode in LARGE_MODES: files.append(root / 'src/minecraftrl/build_large.py')
         if mode in BEACON_MODES + BEACON_REPAIR_MODES: files.append(root / 'src/minecraftrl/build_beacon.py')
         if mode in REPAIR_MODES:
@@ -273,12 +287,14 @@ def main(argv=None):
     p.add_argument('--teacher-check', action='store_true', help='preparation-only teacher run (design §5), no policy')
     p.add_argument('--teacher', choices=tuple(TEACHERS), default='round1', help='the teacher named in the fixture')
     p.add_argument('--dig-checkpoint', type=Path, help='the dig head next to the building head (beacon_repair)')
+    p.add_argument('--attack-decode', choices=ATTACK_DECODES, default='sample',
+                   help="'threshold': the dig head's attack key from its own probability (comparison arm, 2026-11-24)")
     args = p.parse_args(argv)
     if not args.teacher_check and args.checkpoint is None: p.error('--checkpoint is required for a policy arm')
     checkpoint = None if args.checkpoint in (None, 'official') else Path(args.checkpoint)
     return collect(batch=args.batch, arm=args.arm, checkpoint=checkpoint, use_stage=args.use_stage == 'on', mode=args.mode,
                    tasks=args.tasks, seeds=args.seeds, sampling=args.sampling, teacher_check=args.teacher_check,
-                   teacher=args.teacher, dig_checkpoint=args.dig_checkpoint)
+                   teacher=args.teacher, dig_checkpoint=args.dig_checkpoint, attack_decode=args.attack_decode)
 
 
 if __name__ == '__main__':

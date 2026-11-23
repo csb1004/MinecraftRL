@@ -265,6 +265,15 @@ def worker(args):
                     dig_checkpoint = None
                     head = install(policy, use_stage=block['use_stage'], checkpoint=checkpoint, stages=stages_for(fixture_config))
                 feed = feed_for(fixture_config)
+                decode = block.get('attack_decode', 'sample')
+                if decode not in ('sample', 'threshold'): raise ValueError('unknown attack_decode: %s' % decode)
+                if hasattr(feed, 'use_dig_features'):     # sensor repair: the dig head's own lists (2026-11-24)
+                    dig_head = head.dig if hasattr(head, 'dig') else head
+                    if dig_head.features: feed.use_dig_features(dig_head.features)
+                    if decode == 'threshold':              # comparison arm: attack from the head's own probability
+                        from ..attack_decode import AttackThreshold
+                        dig_head.decode = AttackThreshold(policy.agent.action_mapper); dig_head.decode_stages = ('dig',)
+                elif decode != 'sample': raise ValueError('attack_decode needs the sensor repair feed')
             else: head = install(policy, use_stage=block['use_stage'], checkpoint=checkpoint)
             meta = dict(skill=name, use_stage=block['use_stage'], checkpoint=None if checkpoint is None else str(checkpoint),
                         checkpoint_sha256=None if checkpoint is None else sha256_file(checkpoint),
@@ -277,6 +286,9 @@ def worker(args):
                                      else 'privileged: fixture positions and server pose') if block['use_stage'] else 'zeros')
             if block.get('stages') == 'build' and dig_checkpoint is not None:
                 meta.update(dig_checkpoint=str(dig_checkpoint), dig_checkpoint_sha256=sha256_file(dig_checkpoint))
+            if block.get('stages') == 'build' and block.get('attack_decode', 'sample') != 'sample':
+                meta['attack_decode'] = ('dig stage: the sampled action with attack pressed iff the dig head gives it more '
+                                         'than 0.5 (comparison arm, user decision 2026-11-24)')
             sensor_build = block.get('stages') == 'build' and hasattr(feed, 'observe_frame')
             if sensor_build:       # sensor tier (plan 2026-11-22): no fixture world, no server placement record in decisions
                 if not sensor: raise ValueError('the sensor build teacher needs config sensor_monitor')

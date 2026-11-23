@@ -159,4 +159,7 @@ class ReacquireHook:
 
     def close(self):
         manifest = self.log.close() if self.log is not None else None
-        return dict(self.meta, decisions=self.decisions, latent_rows=manifest['rows'] if manifest else 0)
+        out = dict(self.meta, decisions=self.decisions, latent_rows=manifest['rows'] if manifest else 0)
+        stats = getattr(self.head, 'decode_stats', lambda: None)()
+        if stats: out['attack_decode_rows'] = stats       # comparison arm of 2026-11-24: rows the decode changed
+        return out

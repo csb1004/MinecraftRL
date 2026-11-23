@@ -155,6 +155,24 @@ class LatentLogTest(unittest.TestCase):
         hook.activate(False)
         self.assertEqual((head.stage, head.feature), (None, None))
 
+    def test_closing_reports_the_rows_an_attack_decode_changed(self):
+        # Comparison arm of 2026-11-24: the summary says how many rows the decode pressed or released attack on.
+        from types import SimpleNamespace
+        from minecraftrl.pipeline.stage_live import ReacquireHook
+
+        class Feed:
+            def observe(self, row): pass
+            def start_step(self, t): pass
+            def decision_view(self): return None
+        stats = dict(rule='r', rows=3, pressed=2, released=0, stages=['dig'])
+        head = SimpleNamespace(stages=('dig',), width=4, features=(), stage=None, feature=None, active=False,
+                               decode_stats=lambda: stats)
+        self.assertEqual(ReacquireHook(head, {}, None, None, None, cond_scale=6., meta={}, feed=Feed()).close(),
+                         dict(decisions=0, latent_rows=0, attack_decode_rows=stats))
+        head.decode_stats = lambda: None
+        self.assertEqual(ReacquireHook(head, {}, None, None, None, cond_scale=6., meta={}, feed=Feed()).close(),
+                         dict(decisions=0, latent_rows=0))
+
 
 if __name__ == '__main__':
     unittest.main()

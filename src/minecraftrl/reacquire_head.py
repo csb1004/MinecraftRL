@@ -44,6 +44,9 @@ class ReacquireHead(torch.nn.Module):
         # False = the official head alone. install() turns it off; the live hook turns it on only for policy steps of
         # the skill with a `reacquire` block, so other skills in the same game keep the official policy.
         self.active = True
+        # Optional attack decode (attack_decode.AttackThreshold, comparison arm of 2026-11-24): applied to the sampled
+        # action while the head is active in one of `decode_stages`; None = sampling as before.
+        self.decode = None; self.decode_stages = ()
         # Local initialization must not consume the policy's sampling RNG stream.
         with torch.random.fork_rng(devices=[]):
             torch.manual_seed(INIT_SEED)
@@ -79,7 +82,16 @@ class ReacquireHead(torch.nn.Module):
         latent = pi_h + self.delta(pi_h, stage_onehot.to(pi_h.device), features).to(pi_h.dtype)
         return self.base(latent, mask=mask)
 
-    def sample(self, *args, **kwargs): return self.base.sample(*args, **kwargs)
+    def sample(self, pd, *args, **kwargs):
+        action = self.base.sample(pd, *args, **kwargs)
+        if (self.decode is not None and self.active and self.stage is not None
+                and self.stages[int(self.stage)] in self.decode_stages):
+            action = self.decode(pd, action)
+        return action
+
+    def decode_stats(self):
+        return None if self.decode is None else dict(self.decode.stats(), stages=list(self.decode_stages))
+
     def logprob(self, *args, **kwargs): return self.base.logprob(*args, **kwargs)
     def entropy(self, *args, **kwargs): return self.base.entropy(*args, **kwargs)
     def kl_divergence(self, *args, **kwargs): return self.base.kl_divergence(*args, **kwargs)

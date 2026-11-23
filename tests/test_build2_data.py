@@ -218,5 +218,27 @@ class Build2ExamplesTest(unittest.TestCase):
         self.assertEqual(summary['labelled_by_stage']['place'], 2); self.assertTrue(summary['runs'][0]['relabelled'])
 
 
+class DigFeatureListTests(unittest.TestCase):
+    """The dig head's crosshair inputs (user decision 2026-11-24): a dataset may extend the d_ list of earlier runs."""
+
+    def test_only_the_dig_teacher_takes_the_extended_list(self):
+        from minecraftrl.build2_data import feature_list_for
+        from minecraftrl.build_sensor_repair import DIG2_FEATURES, DIG_FEATURES
+        self.assertEqual(feature_list_for('sensor_dig', None), DIG_FEATURES)
+        self.assertEqual(feature_list_for('sensor_dig', DIG2_FEATURES), DIG2_FEATURES)
+        with self.assertRaises(ValueError): feature_list_for('sensor_dig', ('d_x',))
+        with self.assertRaises(ValueError): feature_list_for('sensor_recover', DIG2_FEATURES)
+
+    def test_an_extended_list_compares_the_logged_columns_and_another_list_is_refused(self):
+        from minecraftrl.build2_data import compare_logged_features
+        replayed = np.array([[1., 2., 0., 1.]], np.float32); names = ('a', 'b', 'c', 'd')
+        compare_logged_features(True, ['a', 'b'], names, np.array([[1., 2.]], np.float32), replayed, 'r')
+        compare_logged_features(True, list(names), names, replayed.copy(), replayed, 'r')
+        with self.assertRaises(ValueError):
+            compare_logged_features(True, ['a', 'b'], names, np.array([[1., 2.5]], np.float32), replayed, 'r')
+        with self.assertRaises(ValueError): compare_logged_features(True, ['a', 'x'], names, None, replayed, 'r')
+        compare_logged_features(False, ['a', 'x'], names, np.array([[9., 9.]], np.float32), replayed, 'r')   # relabelled
+
+
 if __name__ == '__main__':
     unittest.main()
