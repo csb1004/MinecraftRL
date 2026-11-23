@@ -8,9 +8,10 @@ from dataclasses import replace
 from minecraftrl.build_beacon import beacon_build
 from minecraftrl.build_recover import feed_for, look, stages_for
 from minecraftrl.build_sensor import blueprint_cells, blueprint_of
-from minecraftrl.build_sensor_repair import (COLLECT_ROWS, COMBINED_STAGES, DIG_FEATURES, DIG_KINDS, DIG_STAGES, LEDGER_ROWS,
-                                             PICKAXE, SENSOR_DIG, SENSOR_REPAIR, SUPPORT, RepairJudge, RepairMonitor,
-                                             SensorRepairFeed, blueprint_empty, dig_task, repair_fixture)
+from minecraftrl.build_sensor_repair import (COLLECT_POINT_REACH, COLLECT_ROWS, COMBINED_STAGES, DIG_FEATURES, DIG_KINDS,
+                                             DIG_STAGES, ITEM_HALF, LEDGER_ROWS, PICKAXE, SENSOR_DIG, SENSOR_REPAIR, SUPPORT,
+                                             RepairJudge, RepairMonitor, SensorRepairFeed, blueprint_empty, dig_action,
+                                             dig_task, item_centre, repair_fixture)
 from minecraftrl.place_task import FACE_NORMALS, _at, _centre
 from minecraftrl.reacquire_teacher import point_delta
 from test_build_sensor import ORIGIN, YAW, full_arena
@@ -187,15 +188,34 @@ class DigTests(unittest.TestCase):
         self.step(aimed(self.target, self.normal, inventory={GOLD: 1, PICKAXE: 1}))
         self.seen.mark(self.target, 'air', 3, 'ray')
         moved = (self.target[0] + 1.6, self.target[1] + .1, self.target[2] + .5)      # one cell over
-        cell = tuple(math.floor(v) for v in moved)
-        view = self.step(sighted(frame(inventory={GOLD: 1}), ('item:gold_block', moved), ('cow', (9., 64., 9.))))
-        self.assertEqual((view.stage, view.target, view.face['centre'], view.seen_item), ('collect', cell, moved, True))
-        self.assertLessEqual(math.hypot(view.stand[0] - .5 - cell[0], view.stand[2] - .5 - cell[2]), 1.)
+        f = sighted(frame(inventory={GOLD: 1}), ('item:gold_block', moved), ('cow', (9., 64., 9.)))
+        centre = item_centre(moved, f.eye); cell = tuple(math.floor(v) for v in centre)
+        view = self.step(f)
+        self.assertEqual((view.stage, view.target, view.face['centre'], view.seen_item), ('collect', cell, centre, True))
+        self.assertLessEqual(math.hypot(view.stand[0] - centre[0], view.stand[2] - centre[2]), COLLECT_POINT_REACH)
         view = self.step(frame(inventory={GOLD: 1}))                     # out of the rays: its last point stays
         self.assertEqual((view.target, view.seen_item), (cell, True))
         feats = self.feed.features()
         self.assertNotEqual(feats[4:7], [0., 0., 0.])                    # the face slot points at the drop
         self.feed.dig.owed = None
+
+    def test_the_hit_point_on_the_items_near_face_is_moved_to_its_centre(self):
+        # Smoke 2026-11-23 (1609): the ray met the item's near face at z = -496.01, a cell short of the item.
+        eye = (-252.51, 71.62, -497.42)
+        centre = item_centre((-252.54, 70.25, -496.01), eye)
+        self.assertAlmostEqual(math.dist(centre, (-252.54, 70.25, -496.01)), ITEM_HALF)
+        self.assertEqual(math.floor(centre[2]), -496)
+
+    def test_an_arrived_collect_walks_on_toward_a_seen_drop_out_of_reach(self):
+        self.step(aimed(self.target, self.normal, inventory={GOLD: 1}))
+        self.seen.mark(self.target, 'air', 3, 'ray')
+        drop = (self.target[0] + .5, self.target[1] + .05, self.target[2] + .9)
+        view = self.step(sighted(frame(inventory={GOLD: 1}), ('item:gold_block', drop)))
+        far = (view.stand[0], view.stand[2] - 1.)                          # stopped a block short of the standpoint
+        view = self.step(frame(x=far[0], z=far[1], yaw=0., pitch=30., inventory={GOLD: 1}))
+        view = replace(view, stand=(far[0], 64., far[1]))                   # as if it counted as arrived there
+        label = dig_action(far[0], 64., far[1], 0., 30., view)
+        self.assertEqual((label['forward'], label['attack']), (1, 0))
 
     def test_a_drop_of_another_block_or_seen_before_the_dig_is_not_followed(self):
         old = (self.target[0] + 2.5, self.target[1] + .1, self.target[2] + .5)

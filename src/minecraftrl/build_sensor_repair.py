@@ -42,7 +42,7 @@ from .build_task import SCHEMA, build_fixture
 from .pipeline.entity_track import EntityTracks
 from .pipeline.seen_map import PASSABLE, UNKNOWN
 from .pipeline.stage_replay import fixture_origin
-from .place_task import EYE, REACH, _at, _centre, _turn
+from .place_task import EYE, FRONT, REACH, _at, _centre, _turn
 from .reacquire_teacher import BUTTONS, point_delta
 
 PICKAXE = 'diamond_pickaxe'
@@ -56,8 +56,18 @@ COMBINED_STAGES = BUILD2_STAGES + tuple(DIG_PREFIX + s for s in DIG_STAGES)
 COLLECT_REACH = 1.      # blocks, horizontal cell distance: a floor cell this close picks the drop up (pickup box 1.3 + item)
 COLLECT_ROWS = 100      # frames a pickup may take before the drop counts as lost
 LEDGER_ROWS = 10        # frames a ledger shortfall must last before it is an anomaly
+ITEM_HALF = .125        # blocks: half the width of a dropped item; a ray meets its near face, the centre is this far on
+COLLECT_POINT_REACH = .8  # blocks, horizontal: a standpoint this close to a seen drop's centre picks it up
+WALK_TO = 1.1           # blocks: an arrived collect still this far from a seen drop walks straight on toward it
 SCAN_YAW = 20.          # degrees per frame an arrived collect turns while it sees no drop
 SCAN_PITCH = 35.        # degrees below the horizon it looks while turning
+
+
+def item_centre(point, eye, half=ITEM_HALF):
+    """A dropped item's centre estimated from a ray's hit point on its near face: `half` further away from the eye,
+    horizontally only (the item lies on a surface; its height stays the hit point's)."""
+    dx, dz = point[0] - eye[0], point[2] - eye[2]; d = math.hypot(dx, dz)
+    return tuple(point) if d == 0 else (point[0] + dx / d * half, point[1], point[2] + dz / d * half)
 
 
 def blueprint_empty(blueprint):
@@ -195,10 +205,14 @@ class SensorDigTracker(SensorBuildTracker):
             else:
                 o['frames'] += 1
                 track = None if entities is None else entities.latest('item:' + o['block'], since=o['since'])
-                cell, face = o['cell'], None
+                cell, face, usable = o['cell'], None, self._usable_collect
                 if track is not None:
-                    cell = tuple(math.floor(v) for v in track['point']); face = dict(block=None, normal=None, centre=track['point'])
-                stand, way = self.standpoint(x, y, z, cell, usable=self._usable_collect, stand_in_open=True)
+                    point = track['point']; cell = tuple(math.floor(v) for v in point)
+                    face = dict(block=None, normal=None, centre=point)
+
+                    def usable(c, _, p=point, top=cell[1]):
+                        return math.hypot(c[0] + .5 - p[0], c[2] + .5 - p[2]) <= COLLECT_POINT_REACH and 0 <= top - c[1] <= 1
+                stand, way = self.standpoint(x, y, z, cell, usable=usable, stand_in_open=True)
                 return DigView('collect', cell, face, math.dist(eye, _centre(cell)), filled, left, stand, way,
                                seen_item=track is not None)
         left = len(self.targets)
@@ -228,7 +242,11 @@ def dig_action(x, y, z, yaw, pitch, view):
         if view.stand is not None and math.hypot(view.stand[0] - x, view.stand[2] - z) > ARRIVE:
             return teacher_action(x, y, z, yaw, pitch, dataclasses.replace(view, stage='move'))
         action = {k: 0 for k in BUTTONS}
-        if view.seen_item: action['camera'] = _turn(*point_delta(eye, yaw, pitch, view.face['centre']))
+        if view.seen_item:
+            point = view.face['centre']; dpitch, dyaw = point_delta(eye, yaw, pitch, point)
+            action['camera'] = _turn(dpitch, dyaw)
+            # Arrived but the drop is still out of reach (it slid on): walk straight toward it.
+            if math.hypot(point[0] - x, point[2] - z) > WALK_TO: action['forward'] = int(abs(dyaw) <= FRONT)
         else: action['camera'] = _turn(SCAN_PITCH - pitch, SCAN_YAW)       # look around for the drop
         return action
     action = {k: 0 for k in BUTTONS}
@@ -336,7 +354,9 @@ class SensorRepairFeed:
             empty = [_at(frame.foot, frame.yaw, *c) for c in blueprint_empty(self.blueprint)]
             self.monitor = RepairMonitor(self.build.kind_of, empty, self.given, self.build.check_kinds)
         self.build.sync(seen); self.dig.sync(seen); self.last_frame = frame
-        self.frames += 1; self.entities.update(self.frames, frame.entity_sightings())
+        self.frames += 1
+        self.entities.update(self.frames, [(k, item_centre(p, frame.eye) if k.startswith('item:') else p, d)
+                                           for k, p, d in frame.entity_sightings()])
         self.dig.targets = self.monitor.update(seen, frame.inventory, owed=self.dig.owed_counts())
         x, y, z = frame.position
         view = self.dig.update_dig(x, y, z, frame.yaw, frame.pitch, frame.inventory, self.entities, self.frames)
