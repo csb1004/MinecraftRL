@@ -123,6 +123,8 @@ class DemoSession:
         # Goal-derived guard and monitors (None = plain probe session). A hold ends policy dispatch for this run.
         self.oversight = oversight; self.last_sample = None; self.next_steps = None; self.surface_y = None
         self.last_kind = None  # kind of the step that ran last (a policy step after a rule step gets a level view)
+        # A retried step keeps the count it started from (pipeline check W0, 2026-11-24): step id -> (start, before).
+        self.attempt_from = None; self.retry_from = {}
         if oversight: oversight.emit = recorder.event
         # The fast monitor's worker (started by run() when there is oversight and the mode is 'thread'). Before each
         # dispatch the control loop waits at most monitor_wait_s for it; a later result is acted on at a later boundary.
@@ -279,7 +281,7 @@ class DemoSession:
                         elif resolution == 'retry':
                             if result['anomaly'].get('kind') == 'guard_violation_persistent' and not self.turn_away(step):
                                 break  # stopped while turning
-                            queue.insert(0, step)
+                            queue.insert(0, step); self.retry_from[step.id] = self.attempt_from
                         if self.next_steps is None and resolution in ('replan', 'insert', 'retry'):
                             self.recorder.event('resume', resolution=resolution, plan_id=result['slow_path'].get('plan_id'),
                                                 detect_to_resume_s=self.clock() - result['slow_path']['held_at'])
@@ -322,6 +324,8 @@ class DemoSession:
         result = dict(id=step.id, skill=step.skill, kind=step.kind, target=step.target, count=step.count,
                       block=step.block, controller=CONTROLLERS[step.kind], status='active', start_step=self.steps)
         start = item_count(self.inventory(), step.target); before = nonzero(self.inventory())
+        # A retry continues the held attempt: items gained before the hold still count toward the step.
+        start, before = self.attempt_from = self.retry_from.pop(step.id, (start, before))
         fields = lambda: {('step_kind' if k == 'kind' else k): v for k, v in result.items()}
         self.recorder.event('step_started', **fields(), inventory=nonzero(self.inventory()))
         try: status, extra = getattr(self, 'run_' + step.kind)(step, start)

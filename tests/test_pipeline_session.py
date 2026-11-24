@@ -518,6 +518,26 @@ class SessionTests(unittest.TestCase):
         self.assertEqual([l['kind'] for l in self.timeline()].count('turn_away'), 1)
         self.assertEqual(report['stage_results'][-1]['slow_path']['resolution'], 'stop')
 
+    def test_a_retried_step_keeps_the_progress_of_its_first_attempt(self):
+        # Pipeline check W0 (2026-11-24): the guard held the wood step and the session retried it three times; each
+        # retry counted logs from its own start, so 5 logs in hand never finished a 4-log step. A retry continues it.
+        action = noop(); action['attack'] = 1
+        turned = []
+        def script(n, a):
+            if abs(a['camera'][1]) == 180.: turned.append(n)
+            if not turned: return info({'oak_log': 2} if n > 3 else {}, hit='iron_ore', tick=1000 + n)
+            return info({'oak_log': 3}, tick=1000 + n)
+        env = FakeEnv(script)
+        steps = [Step('logs', 'dig', 'policy', 'log', 3, block='log')]
+        oversight = self.oversee('iron_ore', steps, [('iron_ore', 'harvest_requires', {'tool_class': 'pickaxe', 'min_tier': 'stone'})])
+        oversight.guard.violation_hold_s = 3.; oversight.max_retries = 2
+        report = self.session_with(env, FakePolicy(action), oversight, limit_s=900., clock=Clock(.25)).run(steps)
+        stages = report['stage_results']
+        self.assertEqual([s['status'] for s in stages], ['anomaly_hold', 'completed'])
+        self.assertEqual((stages[0]['gain'], stages[-1]['gain']), (2, 3))   # the retry counts from the first start
+        self.assertEqual(stages[-1]['gained'], {'oak_log': 3})
+        self.assertEqual(report['status'], 'completed')
+
     def test_llm_failure_stops_at_the_hold(self):
         action = noop(); action['attack'] = 1
         env = FakeEnv(lambda n, a: info(hit='iron_ore', tick=1000 + n))
