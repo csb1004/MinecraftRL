@@ -77,6 +77,28 @@ class ViewerTests(unittest.TestCase):
         self.assertEqual([(s['id'], s['status']) for s in rm_at(TIMELINE, 16.)], [('logs', 'active'), ('mine-iron_ore', 'pending')])
         self.assertEqual([(s['id'], s['status']) for s in rm_at(TIMELINE, 20.5)], [('logs', 'done'), ('mine-iron_ore', 'pending')])
 
+    def test_a_held_step_finishing_after_the_replan_stays_pending_in_the_new_plan(self):
+        # Pipeline check E1 (2026-11-24): the held step's step_finished is written after the slow path's plan event, so
+        # the video showed the replanned mine-iron_ore as held until it ran again.
+        late = dict(t=14.15, step=4, kind='step_finished', id='mine-iron_ore', status='anomaly_hold')
+        timeline = TIMELINE[:10] + [late] + TIMELINE[10:]
+        self.assertEqual([(s['id'], s['status']) for s in rm_at(timeline, 16.)], [('logs', 'active'), ('mine-iron_ore', 'pending')])
+
+    def test_steps_kept_behind_an_inserted_sub_goal_show_their_later_progress(self):
+        # Pipeline check E1: after the clear-above insert, the kept climb-2 and mine-iron_ore stayed pending to the end.
+        step = lambda i, target: dict(id=i, target=target, count=1)
+        timeline = [
+            dict(t=0., kind='session_started', plan=[step('climb-1', 'rise'), step('craft', 'stone_pickaxe')]),
+            dict(t=1., kind='step_started', id='climb-1'), dict(t=2., kind='hold', step_id='climb-1', reason='blocked_overhead'),
+            dict(t=2.5, kind='plan', steps=[step('clear-above', 'rise')], mode='insert'),
+            dict(t=2.6, kind='step_finished', id='climb-1', status='anomaly_hold'),
+            dict(t=3., kind='step_started', id='clear-above'), dict(t=4., kind='step_finished', id='clear-above', status='completed'),
+            dict(t=5., kind='step_started', id='craft'), dict(t=6., kind='step_finished', id='craft', status='completed')]
+        progress = lambda t: [(s['id'], s['status']) for s in rm_at(timeline, t)]
+        self.assertEqual(progress(3.5), [('clear-above', 'active'), ('craft', 'pending')])
+        self.assertEqual(progress(5.5), [('clear-above', 'done'), ('craft', 'active')])
+        self.assertEqual(progress(6.5), [('clear-above', 'done'), ('craft', 'done')])
+
     def test_recent_events_are_described_in_korean(self):
         lines = [e['text'] for e in events_at(TIMELINE, 14.5)]
         self.assertIn('지식 조회: iron_ore harvest_requires', lines); self.assertIn('LLM 웹 검색 요청 (gpt-5.4)', lines)

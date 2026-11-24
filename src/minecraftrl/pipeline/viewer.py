@@ -63,20 +63,23 @@ def rm_at(timeline, t):
              for e in timeline if e['kind'] in ('session_started', 'plan') and e['t'] <= t]
     if not plans: return []
     def statuses(since, until):
-        state = {}
+        state = {}; started = set()
         for e in timeline:
             if not since <= e['t'] <= until: continue
             if e['kind'] == 'hold': state[e.get('step_id')] = 'held'  # step_finished comes only after the slow path
-            elif e['kind'] in ('step_started', 'step_finished'):
-                state[e['id']] = 'active' if e['kind'] == 'step_started' else (
-                    'done' if e.get('status') == 'completed' else 'held' if e.get('status') == 'anomaly_hold' else 'failed')
+            elif e['kind'] == 'step_started': started.add(e['id']); state[e['id']] = 'active'
+            elif e['kind'] == 'step_finished' and e['id'] in started:
+                # A held step's own step_finished is written after the slow path's new plan: it belongs to the old plan.
+                state[e['id']] = ('done' if e.get('status') == 'completed' else
+                                  'held' if e.get('status') == 'anomaly_hold' else 'failed')
         return state
     steps = []
     for i, (since, plan, mode) in enumerate(plans):
         until = plans[i + 1][0] if i + 1 < len(plans) else t
         state = statuses(since, until)
         current = [dict(id=s['id'], target=s['target'], count=s['count'], status=state.get(s['id'], 'pending')) for s in plan]
-        if mode == 'insert': current += [s for s in steps if s['status'] == 'pending']
+        # The steps kept behind an inserted sub-goal run in this plan's time too.
+        if mode == 'insert': current += [dict(s, status=state.get(s['id'], 'pending')) for s in steps if s['status'] == 'pending']
         steps = current
     return steps
 
