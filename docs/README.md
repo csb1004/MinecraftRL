@@ -12,8 +12,13 @@
 | 환경·회귀 검사·변경 절차 | [development](handbook/development.md) |
 | 새 PC 설치 | [new-pc-setup](new-pc-setup.md) |
 | 학습된 기술 헤드 가중치 | [checkpoints/README](../checkpoints/README.md) |
-| 최신 연구 결과 | [E2 결과](execution-contract-e2-results-2026-11-03.md) |
-| 최신 실행·독립 학습 | [E2 사용법](execution-contract-e2-usage.md) |
+| 현재 상태 한 장 요약 (2026-11-25) | [README](../README.md)의 "현재 상태" |
+| 목표 흐름("철 캐줘") | [설계](specs/2026-11-03-iron-pipeline-demo-design.md), [11-05 결과](iron-pipeline-demo-results-2026-11-05.md) |
+| 정체 뒤 복구, 시작 전 계획 | [설계](specs/2026-11-25-stagnation-remedy-design.md) |
+| 헤드 카테고리 7개, 실행 중 갱신 | [설계](specs/2026-11-18-online-category-learning-design.md) |
+| 정책 입력 범위 (실제 센서 대응을 뺀 결정) | [설계와 11-25 결정](specs/2026-11-19-sensor-tier-observation-design.md) |
+| 신호기 복구 (건축 ↔ 캐기 헤드) | [설계](specs/2026-11-23-sensor-repair-design.md) |
+| 11-03까지의 경로 (E2) | [결과](execution-contract-e2-results-2026-11-03.md), [사용법](execution-contract-e2-usage.md) |
 
 ## 보존할 설계 기준
 

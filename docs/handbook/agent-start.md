@@ -15,6 +15,9 @@
 
 ## 지금 이어받는 상태
 
+**2026-11-25 기준 상태는 [README의 "현재 상태"](../../README.md)와 [progress.md](../progress.md) 맨 위 항목이 기준이다.**
+지금의 주 경로는 목표 흐름(`src/minecraftrl/pipeline/`)과 기술 헤드다. 아래 E2 설명과 표는 2026-11-03 시점의 기록이다.
+
 2026-11-03 기준 최신 완료 연구는 [E2](../execution-contract-e2-results-2026-11-03.md)다.
 공식 정책의 시각·순환 특징과 motor를 고정하고 작은 residual/value head를 학습했다.
 일반 개발 5조건의 retained 후보는 4/5였지만 기존 성공 조건을 잃었으므로 승격하지 않았다.

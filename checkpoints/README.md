@@ -10,7 +10,7 @@
 
 | 폴더 | 기술 | 원본 학습 폴더 | sha256 | 결과 (서버 판정) | 결과 문서 |
 |---|---|---|---|---|---|
-| `heads/mining-v3` | 채굴 v3 (조준점 입력) | `results/multi-block-20261108/train/v3-final` | `40c930c92352414119690ff988523539155f8781e34762b8559db0e960aa356b` | 개발·최종 판정 통과. 최종 8/8(공식 8/8), 채굴 시도 중 파괴 비율 5%(공식 53%), 성공 단계 시간 중앙값 11초(공식 38초) | [결과](../docs/mining-aim-results-2026-11-14.md) |
+| `heads/mining-v3` | 채굴 v3 (조준점 입력) | `results/multi-block-20261108/train/v3-final` | `40c930c92352414119690ff988523539155f8781e34762b8559db0e960aa356b` | 개발·최종 판정 통과. 최종 8/8(공식 8/8), 채굴 시도 중 파괴 비율 53%(공식 5%), 성공 단계 시간 중앙값 11초(공식 38초) | [결과](../docs/mining-aim-results-2026-11-14.md) |
 | `heads/place` | 블록 놓기 | `results/place-20261114/train/p-final` | `844f435624e2f0d1bc6a86b83988dff425f2c5b831ea1fe68497391c3517a4b3` | 개발 6/8, 최종 5/8(공식 0/8) | [결과](../docs/place-block-results-2026-11-14.md) |
 | `heads/build-r5` | 건축 5차 (잘못 놓인 블록 제거 후 건축) | `results/build5-20261115/train/p5-final` | `b74495b8fb0c2c80678f137a9c7ec647e38af8ce9a9a37c95214e3e9eab902d6` | 개발 7/8, 최종 7/8(공식 0/8) | [결과](../docs/build5-results-2026-11-15.md) |
 | `heads/bridge` | 다리 놓기 | `results/bridge-20261114/train/b-final` | `32ae5c2e3fe75285897fd6b78849c7177093f52d33c0f5130e952cda1f001056` | 개발 5/8, 최종 5/8(공식 0/8) | [결과](../docs/bridge-results-2026-11-14.md) |
