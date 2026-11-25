@@ -135,5 +135,36 @@ class AdaptorTests(unittest.TestCase):
         self.assertEqual([c.status for c in self.kb.query(key, 'remedy', context=CTX, usable_only=False) if c.id == rid], ['disputed'])
 
 
+    def test_a_policy_hold_without_a_decision_gets_a_remedy_instead_of_stopping(self):
+        # Check F3 (2026-11-25): the dirt ran out 1.25 levels below the surface (climb_without_block, too shallow for the
+        # escape replan); the slow path had no decision and stopped with oak planks in the inventory.
+        from minecraftrl.pipeline.oversight import Oversight
+        event = dict(kind='climb_without_block', hold=True, evidence=dict(depth=1.25, held='air', remaining=1.25))
+        held = dict(step='climb-2', skill='climb_out_text', success=False, failure_type='climb_without_block', progress=.6, stagnant=False)
+        planks = remedy(arg='oak_planks', risk='the hand is empty below the surface and a pillar needs a block',
+                        trigger=dict(failure_type='climb_without_block', skill='climb_out_text', climbing=True, held='air'))
+        llm = ResponsesClient('gpt-test', 'k', allow_paid=True, transport=FakeTransport(reply(planks)), max_calls=4)
+        o = Oversight(self.kb, CTX, 'iron_ore', [CLIMB], run_id='r', skills=SKILLS, llm=llm)
+        out = o.slow_path(event, {'oak_planks': 3}, CLIMB, attempt=held, held='air')
+        self.assertEqual((out['route'], out['resolution'], out['remedy_source'], out['llm']), ('remedy', 'insert', 'induced', 'called'))
+        self.assertEqual([s.id for s in out['plan_steps']], ['equip-oak_planks', 'climb-2'])
+        # The next run has no approved LLM: the stored remedy is used as it is.
+        free = Oversight(self.kb, CTX, 'iron_ore', [CLIMB], run_id='r2', skills=SKILLS); free.max_retries = 2
+        again = free.slow_path(event, {'oak_planks': 3}, CLIMB, attempt=held, held='air')
+        self.assertEqual((again['remedy_source'], again['llm'], again['resolution']), ('knowledge', 'not_needed', 'insert'))
+        # Nothing stored for this skill and no LLM: a temporary turn-away and another try, bounded by the retry limit.
+        other = Step('climb-3', 'wood_visual', 'policy', 'rise', 3, params={'until': 'rise', 'expect': 'rise'})
+        outs = [free.slow_path(event, {'oak_planks': 3}, other, held='air') for _ in range(3)]
+        self.assertEqual([(x['route'], x['resolution']) for x in outs], [('remedy', 'retry'), ('remedy', 'retry'), ('retry_limit', 'stop')])
+        self.assertEqual(outs[0]['remedy_source'], 'temporary')
+        # Low health has no repair: it still stops.
+        low = free.slow_path(dict(kind='low_health', hold=True, evidence=dict(health=4.)), {'oak_planks': 3}, CLIMB, held='air')
+        self.assertEqual((low['route'], low['resolution']), ('ask_llm', 'stop'))
+        # A rule step's failure keeps its own default.
+        craft = Step('craft-x', 'craft', 'rule', 'stone_pickaxe', 1, params={'goals': ['stone_pickaxe']})
+        rule = free.slow_path(dict(kind='rule_skill_failed', hold=True, evidence=dict(reason='boom')), {}, craft)
+        self.assertEqual((rule['route'], rule['resolution']), ('retry_stage', 'retry'))
+
+
 if __name__ == '__main__':
     unittest.main()

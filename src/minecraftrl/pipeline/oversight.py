@@ -11,6 +11,7 @@ from dataclasses import asdict
 from .guard import Guard
 from .kb import RELATIONS, Evidence
 from .knowledge import acquire, hypothesize, store, validate_candidates, validate_hypothesis
+from .feedback import STALL_KINDS
 from .monitor import FastMonitor
 from .planner import Plan, block_family, clear_plan, concrete_skill, escape_plan, harvest_verdict, oversight, plan, plan_id
 from .remedy import choose, outcome, situation, trigger_key
@@ -29,7 +30,8 @@ LEARNING_REQUESTS = {'clear_above': dict(capability='clear the blocks over the h
                                          evidence='results/pit-ceiling-probe-20261104 (0/9; mine the ceiling aims up 97-100% but attacks 1-5%)')}
 # Holds repaired with a remedy (design 2026-11-25-stagnation-remedy, MineEvolve eq. 5): a window without progress, standing
 # still, or the same step failing in REPEAT_FAILURES of its last REPEAT_WINDOW attempts.
-REMEDY_KINDS = ('stagnation', 'stationary_repetition')
+REMEDY_KINDS = STALL_KINDS
+UNDECIDED_REMEDY_KINDS = ('climb_without_block',)   # a hold with no knowledge to query that a repair can still fix
 REPEAT_WINDOW, REPEAT_FAILURES = 3, 2
 STALL_REPAIR_LIMIT = 30   # 900 s / 30 s windows
 EVIDENCE_FOR_INDUCER = ('p', 'move', 'inventory', 'goal', 'window_ticks', 'dominant_action', 'remaining', 'no_progress_ticks',
@@ -293,7 +295,13 @@ class Oversight:
         route = 'ask_llm' if subject is None else 'replan_from_kb' if hits else 'acquire_then_replan'
         out = dict(subject=subject, relation=relation, hits=hits, route=route, llm='not_needed', reason=None,
                    claim_ids=[], rejected=0, rounds=0, resolution='stop', plan=None, plan_steps=None)
-        if route == 'ask_llm': return dict(out, llm='not_called', reason='no decision prompt for this event kind yet')
+        if route == 'ask_llm':
+            # No knowledge to query and no fixed decision. An empty hand on a climb can be repaired (check F3, 2026-11-25:
+            # the dirt ran out 1.25 levels below the surface and the run stopped with planks in the inventory). Other
+            # undecided holds, such as low health, still stop.
+            if step is not None and step.kind == 'policy' and event['kind'] in UNDECIDED_REMEDY_KINDS:
+                return self.remedy(event, inventory, step, attempt, held)
+            return dict(out, llm='not_called', reason='no decision prompt for this event kind yet')
         query = dict(goal=self.goal_item, event=event['kind'], subject=subject, relation=relation)
         if observation: query['observation'] = observation  # what the game showed against the stored knowledge
         if relation == 'escape_by':  # what the LLM needs to answer for this pit (server observation, disclosed)

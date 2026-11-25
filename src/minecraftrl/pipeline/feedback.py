@@ -16,6 +16,7 @@ EPS_X = 1.      # blocks^2
 EPS_V = 1.      # items
 FLOOR_TICKS = 40  # the lowest height over this long is where the player stands (a jump in place is no rise)
 STRIDE_TICKS = 10  # how often a full window is scored
+STALL_KINDS = ('stagnation', 'stationary_repetition')  # holds that mean the attempt stalled
 
 
 def climbing(step): return step.params.get('until') == 'rise' or step.params.get('expect') == 'rise'
@@ -95,5 +96,6 @@ class Attempt:
                   if int(inv1.get(k, 0)) != int(inv0.get(k, 0))}
         return dict(step=self.step.id, skill=self.step.skill, target=self.step.target, success=success,
                     state_change=dict(start=list(p0), end=list(p1), height=p1[1] - p0[1]), inventory_change=change,
-                    failure_type=None if success else failure_type, progress=p, stagnant=bool(p < EPS_P and not success),
-                    ticks=t1 - t0)
+                    failure_type=None if success else failure_type, progress=p,
+                    # Held for a stalled window, or no progress over the whole attempt (an attempt can move first, then stall).
+                    stagnant=bool(not success and (p < EPS_P or failure_type in STALL_KINDS)), ticks=t1 - t0)

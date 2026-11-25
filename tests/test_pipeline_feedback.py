@@ -58,6 +58,13 @@ class AttemptTests(unittest.TestCase):
                          ('climb-2', 'climb_out_text', False, 'time_limit', True))
         self.assertEqual(e['inventory_change'], {}); self.assertEqual(e['ticks'], 799)
         self.assertEqual(set(e['state_change']), {'start', 'end', 'height'})
+        # Check F1 (2026-11-25): the attempt moved and placed dirt, then stood still for a window. The hold was for
+        # stagnation, so the attempt is stagnant even though its whole-attempt progress is above the threshold.
+        late = Attempt(CLIMB, 1000, (0.5, 64., 0.5), {'dirt': 9})
+        for t in range(1001, 1040): late.add(t, (0.5 + (t - 1000) / 10, 64., 0.5), {'dirt': 9 - (t - 1000) // 10})
+        for t in range(1040, 1700): late.add(t, (4.4, 64., 0.5), {'dirt': 6})
+        e = late.finish('anomaly_hold', 'stagnation')
+        self.assertGreater(e['progress'], .1); self.assertTrue(e['stagnant'])
         done = Attempt(IRON, 1000, (0.5, 64., 0.5), {})
         done.add(1010, (2.5, 64., 0.5), {'iron_ore': 1})
         e = done.finish('completed', None)
