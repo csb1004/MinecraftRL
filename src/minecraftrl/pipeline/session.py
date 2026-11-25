@@ -13,6 +13,7 @@ from pathlib import Path
 import numpy as np
 
 from ..runtime import jsonable
+from .feedback import Attempt
 from .monitor_thread import MonitorThread
 from .rm import sample_from
 from .seen_map import SeenMap
@@ -125,6 +126,8 @@ class DemoSession:
         self.last_kind = None  # kind of the step that ran last (a policy step after a rule step gets a level view)
         # A retried step keeps the count it started from (pipeline check W0, 2026-11-24): step id -> (start, before).
         self.attempt_from = None; self.retry_from = {}
+        # Typed feedback of the running policy-step attempt, and a repaired step to try next (design 2026-11-25).
+        self.attempt = None; self.retry_step = None
         if oversight: oversight.emit = recorder.event
         # The fast monitor's worker (started by run() when there is oversight and the mode is 'thread'). Before each
         # dispatch the control loop waits at most monitor_wait_s for it; a later result is acted on at a later boundary.
@@ -220,6 +223,8 @@ class DemoSession:
                 for feed in self.sensor_feeds():         # sensor-tier skill feeds decide on frames (plan 2026-11-22)
                     feed.observe_frame(frame, self.seen)
         row = self.recorder.telemetry(self.steps, sample)
+        if self.attempt is not None and controller == 'policy' and self.gui:
+            self.attempt.add(*self.pose(), nonzero(self.inventory()))
         if self.reacquire is not None: self.reacquire.observe(row)
         if self.course is not None: self.course.observe(row)
         if self.place is not None: self.place.observe(row)
@@ -276,12 +281,17 @@ class DemoSession:
                     if result['status'] == 'anomaly_hold' and not self.gate.requested.is_set():
                         resolution = result['slow_path'].get('resolution')
                         # Slow path replanned (new plan) or retries the step: release the hold and continue.
+                        slow = result['slow_path']; prelude = slow.get('prelude')
                         if self.next_steps:  # 'insert' keeps the rest of the queue behind the sub-goal
+                            if slow.get('carry') and any(s.id == step.id for s in self.next_steps):
+                                self.retry_from[step.id] = self.attempt_from   # a remedy's repair, then the same step again
                             queue = list(self.next_steps) + (queue if resolution == 'insert' else []); self.next_steps = None
                         elif resolution == 'retry':
-                            if result['anomaly'].get('kind') == 'guard_violation_persistent' and not self.turn_away(step):
-                                break  # stopped while turning
-                            queue.insert(0, step); self.retry_from[step.id] = self.attempt_from
+                            turn = prelude == 'turn_away' or (prelude is None and result['anomaly'].get('kind') == 'guard_violation_persistent')
+                            if turn and not self.turn_away(step): break  # stopped while turning
+                            if prelude == 'level_view' and not self.level_view(step): break
+                            retry = self.retry_step or step; self.retry_step = None
+                            queue.insert(0, retry); self.retry_from[retry.id] = self.attempt_from
                         if self.next_steps is None and resolution in ('replan', 'insert', 'retry'):
                             self.recorder.event('resume', resolution=resolution, plan_id=result['slow_path'].get('plan_id'),
                                                 detect_to_resume_s=self.clock() - result['slow_path']['held_at'])
@@ -328,6 +338,7 @@ class DemoSession:
         start, before = self.attempt_from = self.retry_from.pop(step.id, (start, before))
         fields = lambda: {('step_kind' if k == 'kind' else k): v for k, v in result.items()}
         self.recorder.event('step_started', **fields(), inventory=nonzero(self.inventory()))
+        if step.kind == 'policy' and self.gui: self.attempt = Attempt(step, *self.pose(), nonzero(self.inventory()))
         try: status, extra = getattr(self, 'run_' + step.kind)(step, start)
         except Exception as exc:
             if step.kind != 'rule': raise
@@ -340,7 +351,15 @@ class DemoSession:
                       gain=item_count(self.inventory(), step.target) - start,
                       gained={k: n - before.get(k, 0) for k, n in after.items() if n > before.get(k, 0)})
         self.recorder.event('step_finished', **fields())
+        if self.attempt is not None:   # MineEvolve Monitor: typed feedback for every policy-step attempt
+            feedback = self.attempt.finish(status, (extra.get('anomaly') or {}).get('kind') or status); self.attempt = None
+            self.recorder.event('execution_feedback', **feedback)
+            if self.oversight: self.oversight.record_attempt(step, feedback)
         return result
+
+    def pose(self):
+        """(tick, server position) for attempt feedback (game state for monitoring, not a policy input)."""
+        return int(self.gui.get('world_time', 0)), tuple(float(self.gui.get('server_' + a, 0.)) for a in 'xyz')
 
     def run_policy(self, step, start):
         skill = self.skills[step.skill]
@@ -568,6 +587,13 @@ class DemoSession:
             if not self.dispatch(self.noop(), 'rule'): return False
         return True
 
+    def level_view(self, step):
+        """Disclosed rule action of the level_view remedy (design 2026-11-25): level the pitch before trying again."""
+        pitch = float(self.gui.get('pitch', 0.)) if self.gui else 0.
+        self.recorder.event('level_view', step_id=step.id, pitch_before=pitch, reason='remedy')
+        action = self.noop(); action['camera'] = [max(-90., min(90., -pitch)), 0.]
+        return self.dispatch(action, 'rule')
+
     def monitor_boundary(self, step, wait_s, act=True):
         """Take the monitor thread's events at a dispatch or step boundary. The wait is bounded, so a lagging monitor
         lets the control loop go on. Events are recorded in sample order; the first hold is returned to act on, with
@@ -617,8 +643,11 @@ class DemoSession:
                             detect_to_hold_ms=event.get('detect_to_hold_ms'))
         self.recorder.event('kb_query', step_id=step.id, subject=self.oversight.query_for(event)[0],
                             relation=self.oversight.query_for(event)[1])
-        slow = self.oversight.slow_path(event, nonzero(self.inventory()), step)
+        attempt = self.attempt.finish('anomaly_hold', event['kind']) if self.attempt is not None else None
+        held = self.gui.get('server_selected_item') if self.gui else None
+        slow = self.oversight.slow_path(event, nonzero(self.inventory()), step, attempt=attempt, held=held)
         self.next_steps = slow.pop('plan_steps')  # Step objects stay out of the JSON report
+        self.retry_step = slow.pop('retry_step', None)
         self.recorder.event('slow_path', step_id=step.id, **{k: v for k, v in slow.items() if k != 'plan'})
         self.kb_snapshot('slow_path')
         return dict(anomaly=event, slow_path=dict(slow, held_at=detected))

@@ -118,6 +118,22 @@ class MonitorTests(unittest.TestCase):
                   for i in range(900)]
         self.assertTrue(all(not e['hold'] for e in self.run_samples(FastMonitor(IRON, 'r1', frozenset({'iron_ore'})), wander)))
 
+    def test_a_climb_without_progress_for_a_window_is_stagnation(self):
+        # Check E3 (2026-11-24): forward+jump in the open pit for 4,026 rows; the repeated cycle was only recorded.
+        climb = Step('climb-2', 'climb_out_text', 'policy', 'rise', 3, params={'until': 'rise', 'expect': 'rise'})
+        jumping = [replace(BASE, tick=1000 + i, action_keys=('forward', 'jump'), selected_item='oak_planks',
+                           inventory={'oak_planks': 3}, position=(0.5 + (i % 7) * .04, 64. + (1.2 if i % 10 < 5 else 0.), 0.5))
+                   for i in range(700)]
+        holds = [e for e in self.run_samples(FastMonitor(climb, 'r1', frozenset()), jumping) if e['hold']]
+        self.assertEqual(holds[0]['kind'], 'stagnation'); self.assertIn('stagnation', HOLD_KINDS)
+        self.assertLess(holds[0]['evidence']['p'], .1); self.assertEqual(holds[0]['evidence']['window_ticks'], 600)
+        self.assertLess(holds[0]['tick'] - 1000, 620)
+
+    def test_rule_steps_have_no_stagnation_window(self):
+        craft = Step('craft-stone_pickaxe', 'craft', 'rule', 'stone_pickaxe', 1, params={'goals': {'stone_pickaxe': 1}})
+        idle = [replace(BASE, tick=1000 + i, position=(0.5 + (i % 3) * .3, 64., 0.5)) for i in range(700)]
+        self.assertFalse(any(e['kind'] == 'stagnation' for e in self.run_samples(FastMonitor(craft, 'r1', frozenset()), idle)))
+
     def test_inefficiency_never_holds(self):
         self.assertTrue(inefficient(130, 60)); self.assertFalse(inefficient(100, None))
         self.assertNotIn('inefficiency', HOLD_KINDS)

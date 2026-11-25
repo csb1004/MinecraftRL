@@ -104,6 +104,20 @@ class ViewerTests(unittest.TestCase):
         self.assertIn('지식 조회: iron_ore harvest_requires', lines); self.assertIn('LLM 웹 검색 요청 (gpt-5.4)', lines)
         self.assertIn('재개 (감지→재개 11.2초)', lines)
 
+    def test_remedies_and_planning_ahead_are_described(self):
+        # Design 2026-11-25: the replay names the stagnation, the chosen repair and the plan made before the game.
+        from minecraftrl.pipeline.viewer import describe
+        chosen = dict(kind='remedy', source='induced', remedy=dict(action='equip', arg='dirt'), trigger='stagnation:climb_out_text')
+        self.assertEqual(describe(chosen), ('해결책(LLM 제안): equip dirt', 'knowledge'))
+        stored = dict(chosen, source='knowledge', remedy=dict(action='turn_away', arg=None))
+        self.assertEqual(describe(stored)[0], '해결책(저장된 지식): turn_away')
+        self.assertEqual(describe(dict(kind='plan_ahead', llm='called', rounds=2, resolution='replan', missing=[]))[0],
+                         '시작 전 계획: 지식 2회 보충 → 전체 계획')
+        self.assertEqual(describe(dict(kind='plan_ahead', llm='not_called', rounds=0, resolution='keep', missing=['iron_ore']))[0],
+                         '시작 전 계획: 부족한 지식 iron_ore (첫 계획 유지)')
+        self.assertEqual(describe(dict(kind='slow_path', route='remedy', resolution='retry'))[0], '느린 판단: 해결책 적용 → retry')
+        self.assertEqual(describe(dict(kind='llm_request', purpose='plan_ahead', model='gpt-5.4'))[0], 'LLM 웹 검색 요청 (gpt-5.4)')
+
     def test_html_contains_required_panels_offline(self):
         out = build_replay(self.run, Path(self.temp.name) / 'replay')
         html = out.read_text(encoding='utf-8')

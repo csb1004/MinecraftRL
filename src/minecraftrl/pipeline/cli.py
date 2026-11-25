@@ -102,8 +102,22 @@ def runtime_needs(steps, config, *, oversight):
     """(policy skills to load, whether the recipe catalog is needed). With oversight a replan may use any selected
     skill and craft steps, so load them before the game starts."""
     skills = {s.skill for s in steps if s.kind == 'policy'}
-    if oversight: skills |= {v for v in (config.get('selected') or {}).values() if v}
+    if oversight:
+        skills |= {v for v in (config.get('selected') or {}).values() if v}
+        # A remedy may switch to another registered skill for the same target item (design 2026-11-25 §4).
+        specs = config.get('skills') or {}
+        wanted = {item for name in skills for item in (specs.get(name) or {}).get('target_items') or ()}
+        skills |= {name for name, spec in specs.items() if wanted & set(spec.get('target_items') or ())}
     return sorted(skills), oversight or any(s.kind == 'rule' for s in steps)
+
+
+def plan_ahead_steps(oversight, initial, steps, emit):
+    """The steps the run starts from: the plan made with knowledge asked for up front when it is complete, else the
+    first steps (design 2026-11-25 §8). The result is recorded as `plan_ahead`."""
+    oversight.emit = emit
+    ahead = oversight.plan_ahead(initial)
+    emit('plan_ahead', **{k: v for k, v in ahead.items() if k not in ('plan', 'plan_steps')})
+    return ahead['plan_steps'] or steps
 
 
 def load_plan(path):
@@ -332,9 +346,11 @@ def worker(args):
                                steps=[asdict(x) for x in steps])
                 if not steps: raise ValueError('planner produced no steps: %s' % initial.problems)
             oversight = Oversight(kb, config['game_context'], args.goal[0], steps, run_id=output.name, llm=llm,
-                                  selected=config.get('selected'), goal_count=args.goal[1])
+                                  selected=config.get('selected'), goal_count=args.goal[1], skills=skills)
             oversight.max_retries = int(config['budgets']['step_retries'])
             oversight.max_rounds = int(config['budgets'].get('knowledge_rounds', oversight.max_rounds))
+            # Before the game starts: fill what the first plan lacks instead of waiting for the guard's hold.
+            if args.plan_json is None: steps = plan_ahead_steps(oversight, initial, steps, recorder.event)
         env.seed(seed)
         session = DemoSession(env, policy, catalog, recorder, gate, args.stop_file, limit_s=limit_s, skills=skills,
                               fixture_sha52=sha52, settle_steps=int(config.get('settle_steps', 20)),

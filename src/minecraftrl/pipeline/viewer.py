@@ -17,7 +17,8 @@ FRESH_S = 3.  # how long a changed knowledge row stays highlighted
 MASK_S = 1.   # how long a masked-attack badge stays visible
 CONTROLLER_LABELS = {'policy': '정책 (STEVE-1)', 'rule': '규칙 스킬', 'gui_close': '세션: GUI 닫기', 'prepare': '준비', 'hold': '정지'}
 ROUTES = {'replan_from_kb': 'SQLite 적중', 'acquire_then_replan': 'SQLite 없음 → LLM', 'retry_stage': '같은 단계 재시도',
-          'retry_limit': '재시도 상한', 'ask_llm': '결정 미구현'}
+          'retry_limit': '재시도 상한', 'ask_llm': '결정 미구현', 'remedy': '해결책 적용'}
+REMEDY_SOURCES = {'knowledge': '저장된 지식', 'induced': 'LLM 제안', 'temporary': '임시'}
 STATUS_LABELS = {'proposed': '제안', 'supported': '지지', 'disputed': '논쟁', 'retracted': '철회'}
 
 
@@ -114,6 +115,14 @@ def describe(e):
     if kind == 'knowledge_conflict':
         return '지식 충돌: %s drops %s ↔ 관측 %s → %s' % (e.get('subject'), e.get('expected'), e.get('observed'), e.get('outcome')), 'knowledge'
     if kind == 'learning_request': return '학습 요청 기록: %s (실행 안 함)' % e.get('rule_skill'), 'knowledge'
+    if kind == 'remedy':   # design 2026-11-25: the repair chosen for a stalled or repeatedly failing step
+        chosen = e.get('remedy') or {}
+        what = ' '.join(str(v) for v in (chosen.get('action'), chosen.get('arg')) if v is not None)
+        return '해결책(%s): %s' % (REMEDY_SOURCES.get(e.get('source'), e.get('source')), what), 'knowledge'
+    if kind == 'plan_ahead':
+        if e.get('resolution') == 'replan': return '시작 전 계획: 지식 %d회 보충 → 전체 계획' % (e.get('rounds') or 0), 'replan'
+        if e.get('missing'): return '시작 전 계획: 부족한 지식 %s (첫 계획 유지)' % ', '.join(e['missing']), 'knowledge'
+        return '시작 전 계획: 저장된 지식으로 충분', 'info'
     if kind == 'gui_closed': return 'GUI 닫기 (세션)', 'info'
     return None
 

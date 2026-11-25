@@ -538,6 +538,57 @@ class SessionTests(unittest.TestCase):
         self.assertEqual(stages[-1]['gained'], {'oak_log': 3})
         self.assertEqual(report['status'], 'completed')
 
+    def test_stagnation_without_a_remedy_turns_away_and_keeps_repairing(self):
+        # Check E3 (2026-11-24): forward+jump in the pit for 4,026 rows. Stagnation now holds after one window and the
+        # session repairs; with nothing stored and no approved LLM it turns away (temporary remedy, not stored). A window
+        # takes 30 s of game time, so these holds are bounded by the time limit, not by the per-step retry limit.
+        action = noop(); action['jump'] = 1; action['forward'] = 1
+        env = FakeEnv(lambda n, a: info({'oak_planks': 3}, tick=1000 + n, y=64. + (1.2 if n % 10 < 5 else 0.), selected='oak_planks'),
+                      done_at=2100)
+        steps = [Step('climb-2', 'dig', 'policy', 'rise', 3, params={'until': 'rise', 'expect': 'rise'})]
+        oversight = self.oversee('iron_ore', steps); oversight.max_retries = 1
+        report = self.session_with(env, FakePolicy(action), oversight, limit_s=900., clock=Clock(.05)).run(steps)
+        stages = report['stage_results']; held = [s for s in stages if s['status'] == 'anomaly_hold']
+        self.assertEqual([s['anomaly']['kind'] for s in held], ['stagnation'] * 3)
+        self.assertEqual([s['slow_path']['resolution'] for s in held], ['retry'] * 3)
+        self.assertLess(stages[0]['steps'], 700); self.assertEqual(report['status'], 'environment_done')
+        remedies = [l for l in self.timeline() if l['kind'] == 'remedy']
+        self.assertEqual([(r['source'], r['remedy']['action'], r['claim_id']) for r in remedies], [('temporary', 'turn_away', None)] * 3)
+        self.assertEqual(len([a for a in env.actions if abs(a['camera'][1]) == 180.]), 3)
+        feedback = [l for l in self.timeline() if l['kind'] == 'execution_feedback']
+        self.assertEqual(len(feedback), 4)
+        self.assertTrue(all(f['stagnant'] and not f['success'] and f['failure_type'] == 'stagnation' for f in feedback[:3]))
+
+    def test_a_stored_remedy_switches_the_skill_and_the_repaired_attempt_supports_it(self):
+        from minecraftrl.pipeline.remedy import store, trigger_key
+        action = noop(); action['jump'] = 1
+        height = lambda n: 64. + ((n - 700) // 10 if n >= 700 else (1.2 if n % 10 < 5 else 0.))
+        env = FakeEnv(lambda n, a: info({'oak_planks': 3}, tick=1000 + n, y=height(n), selected='oak_planks'))
+        steps = [Step('climb-2', 'dig', 'policy', 'rise', 3, params={'until': 'rise', 'expect': 'rise'})]
+        oversight = self.oversee('iron_ore', steps)
+        oversight.skills = {'dig': {'target_items': ['rise']}, 'wood': {'target_items': ['rise']}}
+        key = trigger_key('stagnation', 'dig')
+        rid = store(self.kb, key, dict(action='switch_skill', arg='wood', risk_pattern='the dig prompt jumps in place without placing',
+                                       trigger=dict(failure_type='stagnation', skill='dig')), {'game_version': '1.16.5'}, model='m', run_id='seed')
+        report = self.session_with(env, FakePolicy(action), oversight, limit_s=900., clock=Clock(.05)).run(steps)
+        stages = report['stage_results']
+        self.assertEqual([(s['skill'], s['status']) for s in stages], [('dig', 'anomaly_hold'), ('wood', 'completed')])
+        self.assertEqual((stages[0]['slow_path']['remedy_source'], stages[0]['slow_path']['llm']), ('knowledge', 'not_needed'))
+        claim = self.kb.query(key, 'remedy', context={'game_version': '1.16.5'})[0]
+        self.assertEqual((claim.id, claim.status), (rid, 'supported'))
+        self.assertEqual(report['status'], 'completed')
+
+    def test_a_second_persistent_violation_at_the_same_step_asks_for_a_remedy(self):
+        # MineEvolve eq. 5: repeated failure of the same step (2 of the last 3 attempts) triggers a remedy.
+        action = noop(); action['attack'] = 1
+        env = FakeEnv(lambda n, a: info(hit='iron_ore', tick=1000 + n))
+        steps = [Step('logs', 'dig', 'policy', 'log', 3, block='log')]
+        oversight = self.oversee('iron_ore', steps, [('iron_ore', 'harvest_requires', {'tool_class': 'pickaxe', 'min_tier': 'stone'})])
+        oversight.guard.violation_hold_s = 3.; oversight.max_retries = 2
+        report = self.session_with(env, FakePolicy(action), oversight, limit_s=900., clock=Clock(.25)).run(steps)
+        self.assertEqual([s['slow_path']['route'] for s in report['stage_results']], ['retry_stage', 'remedy', 'retry_limit'])
+        self.assertEqual(len([a for a in env.actions if abs(a['camera'][1]) == 180.]), 2)
+
     def test_llm_failure_stops_at_the_hold(self):
         action = noop(); action['attack'] = 1
         env = FakeEnv(lambda n, a: info(hit='iron_ore', tick=1000 + n))

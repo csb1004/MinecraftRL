@@ -12,6 +12,9 @@ from typing import Any
 # 'blocks_movement' added 2026-11-04 for the pit scenario (a solid block in the path blocks movement).
 # 'escape_by' added 2026-11-05: how a player leaves a 1-wide vertical pit (subject 'vertical_pit').
 RELATIONS = {'harvest_requires', 'drops', 'recipe', 'stage_duration_s', 'blocks_movement', 'escape_by'}
+# Knowledge from the agent's own execution feedback, not from the web (design 2026-11-25-stagnation-remedy): a repair
+# for a stalled or repeatedly failing step. Kept out of RELATIONS so the web-knowledge schema stays as it was.
+FEEDBACK_RELATIONS = {'remedy'}
 STATUSES = ('proposed', 'supported', 'disputed', 'retracted')
 USABLE = ('proposed', 'supported')
 EVIDENCE_KINDS = ('web', 'local_source', 'game_observation', 'llm_assertion')
@@ -112,7 +115,7 @@ class KnowledgeBase:
 
     def add_claim(self, subject, relation, obj, conditions, evidence, *, run_id):
         """Same subject/relation/object/conditions only adds evidence to the existing claim."""
-        if relation not in RELATIONS: raise ValueError('unknown relation: ' + relation)
+        if relation not in RELATIONS | FEEDBACK_RELATIONS: raise ValueError('unknown relation: ' + relation)
         key = (subject, relation, dumps(obj), dumps(conditions))
         row = self.db.execute('select id from claims where subject=? and relation=? and object_json=? and conditions_json=?', key).fetchone()
         if row is None:

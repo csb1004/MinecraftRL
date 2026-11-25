@@ -13,7 +13,8 @@ from .kb import RELATIONS, Evidence
 from .knowledge import acquire, hypothesize, store, validate_candidates, validate_hypothesis
 from .monitor import FastMonitor
 from .planner import Plan, block_family, clear_plan, concrete_skill, escape_plan, harvest_verdict, oversight, plan, plan_id
-from .steps import item_count
+from .remedy import choose, outcome, situation, trigger_key
+from .steps import Step, item_count
 
 LLM_PENDING = 'paid API calls need explicit approval (--allow-paid); not called'
 # Knowledge acquisition calls per hold (the run budget still caps the total). Round 3b (2026-11-05): a chain can lack its
@@ -26,16 +27,25 @@ PLANNED = ('harvest_requires', 'escape_by', 'blocks_movement')  # relations whos
 LEARNING_REQUESTS = {'clear_above': dict(capability='clear the blocks over the head while climbing',
                                          policy_candidates=['mine the ceiling', 'break the block above you', 'dig up'],
                                          evidence='results/pit-ceiling-probe-20261104 (0/9; mine the ceiling aims up 97-100% but attacks 1-5%)')}
+# Holds repaired with a remedy (design 2026-11-25-stagnation-remedy, MineEvolve eq. 5): a window without progress, standing
+# still, or the same step failing in REPEAT_FAILURES of its last REPEAT_WINDOW attempts.
+REMEDY_KINDS = ('stagnation', 'stationary_repetition')
+REPEAT_WINDOW, REPEAT_FAILURES = 3, 2
+STALL_REPAIR_LIMIT = 30   # 900 s / 30 s windows
+EVIDENCE_FOR_INDUCER = ('p', 'move', 'inventory', 'goal', 'window_ticks', 'dominant_action', 'remaining', 'no_progress_ticks',
+                        'depth', 'y')
 
 
 class Oversight:
-    def __init__(self, kb, context, goal_item, steps, *, run_id, tools=(), llm=None, selected=None, goal_count=1):
+    def __init__(self, kb, context, goal_item, steps, *, run_id, tools=(), llm=None, selected=None, goal_count=1, skills=None):
         self.kb = kb; self.context = dict(context); self.goal_item = goal_item; self.goal_count = goal_count
         self.run_id = run_id; self.llm = llm; self.selected = selected or {}
         self.guarded, self.needs = oversight(goal_item, steps, tools)
         self.guard = Guard(kb, context, self.guarded); self.monitor = None; self.emit = lambda kind, **fields: None
         self.max_retries = 3; self.retries = Counter()  # per (step id, anomaly kind); config budgets.step_retries
         self.max_rounds = MAX_ROUNDS  # config budgets.knowledge_rounds
+        self.skills = dict(skills or {})  # loaded skill specs: switch_skill alternatives share a target item
+        self.feedback = []; self.pending = {}  # typed attempt feedback; step id -> remedy claim awaiting its outcome
 
     def start_step(self, step):
         self.guard.reset(); self.monitor = FastMonitor(step, self.run_id, self.guarded, needs=self.needs)
@@ -102,6 +112,120 @@ class Oversight:
             self.emit('knowledge_conflict', claim_id=claim.id, subject=claim.subject, relation='drops', expected=claim.object,
                       observed=dict(gained), outcome=outcome, hypothesis=hypothesis)
 
+    def lacking(self, p):
+        """What a plan still lacks: the planner's missing subjects, then every block the plan breaks whose harvest
+        condition is unknown (the guard would hold at its first attack; check E2, 2026-11-24)."""
+        out = list(p.missing)
+        for s in p.steps:
+            family = block_family(s.block) if s.kind == 'policy' and s.block else None
+            if family and family not in out and not self.kb.query(family, 'harvest_requires', context=self.context):
+                out.append(family)
+        return out
+
+    def plan_ahead(self, initial, inventory=None):
+        """Plan the goal with knowledge asked for up front (user request 2026-11-25; MineEvolve plans from retrieved
+        knowledge before acting). The first plan used to be whatever the store allowed, naive on an empty store, and
+        the knowledge came only when the guard held in the game. Before the game starts, cited web knowledge now fills
+        what the plan lacks, by name, for at most `max_rounds` calls. A plan that is still naive or has problems is
+        not adopted: the first plan stays and the guard asks at the last moment, as before."""
+        inventory = dict(inventory or {}); new = initial
+        out = dict(route='plan_ahead', llm='not_needed', reason=None, claim_ids=[], rejected=0, rounds=0, resolution='keep',
+                   plan=None, plan_id=None, plan_steps=None, missing=[])
+        family = block_family(initial.steps[-1].block) if initial.steps and initial.steps[-1].block else self.goal_item
+        for _ in range(self.max_rounds):
+            lacking = self.lacking(new)
+            if not lacking: break
+            if self.llm is None: out.update(llm='not_called', reason=LLM_PENDING); break
+            query = dict(goal=self.goal_item, event='goal_received', subject=family, relation='harvest_requires')
+            if not new.naive:   # the whole chain was asked for once: now exactly what is still missing
+                query.update(missing=lacking, note='return claims only for these subjects; for an item, its recipe or which '
+                                                   'block drops it (relation drops with that block family as the subject, '
+                                                   'e.g. stone drops cobblestone); for a block family, its harvest_requires '
+                                                   '(also when the bare hand is enough)')
+            self.emit('llm_request', purpose='plan_ahead', model=self.llm.model, query=query)
+            try: raw, meta = acquire(self.llm, query, self.context)
+            except (RuntimeError, ValueError) as exc:
+                out.update(llm='called' if out['rounds'] else 'failed', reason=str(exc)); break
+            accepted, rejected = validate_candidates(raw, meta['citations'])
+            ids = store(self.kb, accepted, model=self.llm.model, run_id=self.run_id)
+            self.emit('kb_change', claim_ids=ids, rejected=[r['reason'] for r in rejected], citations=meta['citations'], usage=meta['usage'])
+            out.update(llm='called', rounds=out['rounds'] + 1, claim_ids=out['claim_ids'] + ids, rejected=out['rejected'] + len(rejected))
+            new = plan(self.goal_item, self.goal_count, inventory, self.kb, self.context)
+        out['missing'] = self.lacking(new)
+        if new is initial or new.naive or new.problems:
+            if new is not initial: out['reason'] = 'plan still naive or has problems: %s' % new.problems
+            return out
+        steps = [Step(**dict(asdict(s), skill=concrete_skill(s.skill, self.selected))) for s in new.steps]
+        self.kb.record_plan(new.id, [dict(id=s.id, claim_ids=list(s.claim_ids)) for s in steps])
+        self.adopt(new)
+        self.emit('plan', plan_id=new.id, steps=[asdict(s) for s in steps], guarded=sorted(new.guarded), needs=sorted(new.needs),
+                  mode='replan', reason='plan_ahead')
+        return dict(out, resolution='replan', plan=[asdict(s) for s in steps], plan_id=new.id, plan_steps=steps)
+
+    def record_attempt(self, step, feedback):
+        """An attempt ended (MineEvolve Monitor): keep its typed feedback and settle a remedy that was waiting on it."""
+        index = len(self.feedback); self.feedback.append(feedback); self.settle(step, feedback, index)
+
+    def settle(self, step, feedback, index):
+        """The repaired attempt decides the remedy (Curator usage history): completed -> support; stalled or failing the same
+        way again -> refutation and dispute. Other endings say nothing about the remedy. Attempt `index` must come after
+        the attempt the remedy was chosen for (the held attempt's own feedback is recorded after the slow path)."""
+        entry = self.pending.get(step.id)
+        if entry is None or index <= entry[1]: return
+        claim = self.pending.pop(step.id)[0]
+        success = feedback['success']
+        if not success and feedback.get('failure_type') not in REMEDY_KINDS + ('guard_violation_persistent',): return
+        outcome(self.kb, claim, success, '%s:%s' % (self.run_id, step.id), run_id=self.run_id)
+        self.emit('kb_change', claim_ids=[claim], evidence='game_observation_support' if success else 'game_observation_refute',
+                  step_id=step.id)
+
+    def repeated(self, step, current):
+        recent = [f for f in self.feedback if f['step'] == step.id][-(REPEAT_WINDOW - 1):] + [current]
+        return sum(not f['success'] for f in recent) >= REPEAT_FAILURES
+
+    def remedy(self, event, inventory, step, attempt, held):
+        """Knowledge, else an approved LLM, else a temporary turn-away; then repair the unfinished plan (MineEvolve
+        Adaptor): the completed prefix stays, the held step is tried again after the repair."""
+        sit = situation(step, event['kind'], inventory, held, self.skills)
+        evidence = {k: v for k, v in (event.get('evidence') or {}).items() if k in EVIDENCE_FOR_INDUCER}
+        recent = [f for f in self.feedback if f['step'] == step.id][-(REPEAT_WINDOW - 1):]
+        feedback = recent + ([attempt] if attempt else []) + [dict(current_event=event['kind'], evidence=evidence)]
+        choice = choose(self.kb, self.llm, self.context, sit, feedback, run_id=self.run_id)
+        key = trigger_key(sit['failure_type'], sit['skill']); source, claim, chosen = choice['source'], choice['claim_id'], choice['remedy']
+        self.emit('remedy', step_id=step.id, trigger=key, source=source, remedy=chosen, claim_id=claim, rejected=choice['rejected'],
+                  usage=choice['usage'])
+        if source == 'induced': self.emit('kb_change', claim_ids=[claim], rejected=[], evidence='remedy_induced', step_id=step.id)
+        called = choice['usage'] is not None or str(choice['rejected'] or '').startswith('llm_failed')
+        out = dict(subject=key, relation='remedy', hits=[claim] if source == 'knowledge' else [], route='remedy',
+                   llm='called' if called else 'not_needed' if source == 'knowledge' else 'not_called', reason=choice['rejected'],
+                   claim_ids=[claim] if source == 'induced' else [], rejected=int(choice['rejected'] is not None), rounds=int(called),
+                   resolution='retry', plan=None, plan_steps=None, remedy=chosen, remedy_source=source, remedy_claim=claim,
+                   retry=self.retries[(step.id, event['kind'])])
+        action, arg = chosen['action'], chosen.get('arg'); retried = step.id; steps = None; mode = 'insert'
+        if action in ('turn_away', 'level_view'): out['prelude'] = action
+        elif action == 'switch_skill': out['retry_step'] = Step(**dict(asdict(step), skill=arg))
+        elif action == 'equip':
+            steps = [Step('equip-' + arg, 'equip', 'rule', arg, 1, params={'goals': [arg], 'equip': arg, 'equip_only': True}), step]
+            out['carry'] = True   # the same step again: it keeps the count it started from
+        elif action == 'clear_above':
+            ceiling = dict(kind='blocked_overhead', evidence=dict(remaining=(event.get('evidence') or {}).get('remaining', step.count)))
+            new, _ = self.replan(ceiling, inventory, step)
+            if new.problems or not new.steps: out['prelude'] = 'turn_away'; out['reason'] = 'clear_above not plannable: %s' % new.problems
+            else: steps = list(new.steps); retried = steps[-1].id
+        elif action == 'replan':
+            new = plan(self.goal_item, self.goal_count, inventory, self.kb, self.context)
+            if new.naive or new.problems: out['prelude'] = 'turn_away'; out['reason'] = 'replan not usable: %s' % new.problems
+            else:
+                steps = [Step(**dict(asdict(s), skill=concrete_skill(s.skill, self.selected))) for s in new.steps]; mode = 'replan'
+                self.adopt(new)
+        if steps is not None:
+            pid = plan_id(steps)
+            self.emit('plan', plan_id=pid, steps=[asdict(s) for s in steps], guarded=sorted(self.guarded), needs=sorted(self.needs),
+                      mode=mode, remedy=action)
+            out.update(resolution=mode, plan=[asdict(s) for s in steps], plan_id=pid, plan_steps=steps)
+        if claim is not None: self.pending[retried] = (claim, len(self.feedback))   # the held attempt's index
+        return out
+
     def adopt(self, new_plan):
         """The RM changed: protect and track what the new plan needs."""
         self.guarded, self.needs = new_plan.guarded, new_plan.needs; self.guard.set_guarded(self.guarded)
@@ -134,16 +258,26 @@ class Oversight:
             return escape_plan(self.goal_item, self.goal_count, inventory, event['evidence']['depth'], self.kb, self.context), 'replan'
         return plan(self.goal_item, self.goal_count, inventory, self.kb, self.context), 'replan'
 
-    def slow_path(self, event, inventory, step=None):
+    def slow_path(self, event, inventory, step=None, *, attempt=None, held=None):
         """SQLite first (no LLM on a hit); a gap is filled by cited web knowledge; then the planner decides the new plan.
 
         A persistent violation is not a knowledge gap (the knowledge already forbids the attack): the policy keeps
-        fixating on a protected block, so the step is retried. Every hold at the same step and kind is bounded."""
+        fixating on a protected block, so the step is retried. Every hold at the same step and kind is bounded.
+        Stagnation, standing still and a step that keeps failing get a remedy (design 2026-11-25). `attempt` is the
+        held attempt's typed feedback, `held` the item in hand."""
         key = (step.id if step else None, event['kind']); self.retries[key] += 1
-        if self.retries[key] > self.max_retries:
+        if attempt is not None and step is not None: self.settle(step, attempt, len(self.feedback))
+        # A stagnation hold needs a full window of game time (30 s), so it is repaired for as many windows as the longest
+        # run holds (900 s) instead of the per-step retry limit; every hold stays bounded.
+        timed = step is not None and step.kind == 'policy' and event['kind'] in REMEDY_KINDS
+        if self.retries[key] > (max(self.max_retries, STALL_REPAIR_LIMIT) if timed else self.max_retries):
             return dict(subject=None, relation=None, hits=[], route='retry_limit', llm='not_needed', claim_ids=[], rejected=0,
                         rounds=0, resolution='stop', plan=None, plan_steps=None,
                         reason='%s held %d times at step %s (limit %d)' % (event['kind'], self.retries[key], key[0], self.max_retries))
+        if step is not None and step.kind == 'policy' and (
+                event['kind'] in REMEDY_KINDS
+                or (event['kind'] == 'guard_violation_persistent' and attempt is not None and self.repeated(step, attempt))):
+            return self.remedy(event, inventory, step, attempt, held)
         if event['kind'] == 'guard_violation_persistent':
             return dict(subject=event['family'], relation='harvest_requires', hits=list(event['claim_ids']), route='retry_stage',
                         llm='not_needed', reason=None, claim_ids=[], rejected=0, rounds=0, resolution='retry', retry=self.retries[key],

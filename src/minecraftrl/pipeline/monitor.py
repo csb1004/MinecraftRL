@@ -7,11 +7,13 @@ are recorded without hold.
 from collections import deque
 
 from ..stall_detection import StallDetector, StallSample
+from .feedback import ProgressWindow
 from .planner import block_family, placeable, tool_of
 from .steps import item_count
 
 HOLD_KINDS = {'guard_unknown', 'guard_violation_persistent', 'destroy_not_harvestable', 'needed_tool_lost',
-              'blocked_overhead', 'climb_without_block', 'stationary_repetition', 'low_health', 'rule_skill_failed'}
+              'blocked_overhead', 'climb_without_block', 'stationary_repetition', 'low_health', 'rule_skill_failed',
+              'stagnation'}  # a policy-step window without progress (design 2026-11-25, MineEvolve eq. 3)
 LOW_HEALTH = 6.
 # Recorded escapes: open sky <= 7 jumps per 40 ticks without a block of height; ceiling 38-41 (detected in ~1-2 s).
 BLOCKED_WINDOW_TICKS, BLOCKED_JUMPS = 40, 20
@@ -28,6 +30,7 @@ class FastMonitor:
         self.prev = None; self.pending_drop = None; self.window = deque(); self.best_y = None; self.fired = set()
         self.start_y = None; self.closed_inventory = None  # last inventory seen with no GUI open
         self.stall = StallDetector()
+        self.progress = ProgressWindow(step) if step.kind == 'policy' else None
 
     def event(self, kind, s, **evidence):
         return dict(kind=kind, hold=kind in HOLD_KINDS, tick=s.tick, step=self.step.id, evidence=evidence)
@@ -69,6 +72,9 @@ class FastMonitor:
         if report['event'] == 'stalled':
             events.append(self.event(report['reason'], s, no_progress_ticks=report.get('no_progress_ticks'),
                                      dominant_action=report.get('dominant_action')))
+        if self.progress is not None and not s.gui_open:
+            score = self.progress.update(s.tick, s.position, s.inventory)
+            if score: events.append(self.event('stagnation', s, dominant_action=report.get('dominant_action'), **score))
         return next((e for e in events if e['hold']), events[0] if events else None)
 
     def handless(self, s):
