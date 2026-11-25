@@ -94,7 +94,8 @@ class Attempt:
         p = (var / (EPS_X + var) + dv / (EPS_V + dv) + float(goal)) / 3.
         change = {k: int(inv1.get(k, 0)) - int(inv0.get(k, 0)) for k in set(inv0) | set(inv1)
                   if int(inv1.get(k, 0)) != int(inv0.get(k, 0))}
-        return dict(step=self.step.id, skill=self.step.skill, target=self.step.target, success=success,
+        # `step_id`, not `step`: a timeline event's `step` is the action count.
+        return dict(step_id=self.step.id, skill=self.step.skill, target=self.step.target, success=success,
                     state_change=dict(start=list(p0), end=list(p1), height=p1[1] - p0[1]), inventory_change=change,
                     failure_type=None if success else failure_type, progress=p,
                     # Held for a stalled window, or no progress over the whole attempt (an attempt can move first, then stall).

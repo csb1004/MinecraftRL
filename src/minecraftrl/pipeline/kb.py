@@ -131,6 +131,11 @@ class KnowledgeBase:
         self._store(claim_id, ev, run_id); status = self._promote(claim_id, run_id); self.db.commit()
         return status
 
+    def observed(self, claim_id):
+        """Game-observation evidence counts of a claim: {'support': n, 'refute': m}."""
+        rows = self.db.execute('select stance from evidence where claim_id=? and kind=?', (claim_id, 'game_observation')).fetchall()
+        return {stance: sum(s == stance for s, in rows) for stance in ('support', 'refute')}
+
     def _claim(self, row):
         claim_id, subject, relation, obj, conditions, status, revision = row
         support, refute, _ = self._counts(claim_id)

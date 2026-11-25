@@ -54,7 +54,7 @@ class AttemptTests(unittest.TestCase):
         a = Attempt(CLIMB, 1000, (0.5, 64., 0.5), {'oak_planks': 3})
         for t in range(1001, 1800): a.add(t, (0.5, 64. + (1.2 if t % 10 < 5 else 0.), 0.5), {'oak_planks': 3})
         e = a.finish('time_limit', 'time_limit')
-        self.assertEqual((e['step'], e['skill'], e['success'], e['failure_type'], e['stagnant']),
+        self.assertEqual((e['step_id'], e['skill'], e['success'], e['failure_type'], e['stagnant']),
                          ('climb-2', 'climb_out_text', False, 'time_limit', True))
         self.assertEqual(e['inventory_change'], {}); self.assertEqual(e['ticks'], 799)
         self.assertEqual(set(e['state_change']), {'start', 'end', 'height'})

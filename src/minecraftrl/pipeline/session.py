@@ -338,7 +338,9 @@ class DemoSession:
         start, before = self.attempt_from = self.retry_from.pop(step.id, (start, before))
         fields = lambda: {('step_kind' if k == 'kind' else k): v for k, v in result.items()}
         self.recorder.event('step_started', **fields(), inventory=nonzero(self.inventory()))
-        if step.kind == 'policy' and self.gui: self.attempt = Attempt(step, *self.pose(), nonzero(self.inventory()))
+        # Typed attempt feedback belongs to the goal-overseen flow; skill-head and beacon runs keep their records as they were.
+        if step.kind == 'policy' and self.gui and self.oversight:
+            self.attempt = Attempt(step, *self.pose(), nonzero(self.inventory()))
         try: status, extra = getattr(self, 'run_' + step.kind)(step, start)
         except Exception as exc:
             if step.kind != 'rule': raise

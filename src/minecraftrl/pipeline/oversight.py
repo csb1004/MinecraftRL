@@ -5,6 +5,7 @@ The game is held (no dispatch) while the slow path runs, so the world does not a
 """
 import json
 import math
+import time
 from collections import Counter
 from dataclasses import asdict
 
@@ -34,6 +35,7 @@ REMEDY_KINDS = STALL_KINDS
 UNDECIDED_REMEDY_KINDS = ('climb_without_block',)   # a hold with no knowledge to query that a repair can still fix
 REPEAT_WINDOW, REPEAT_FAILURES = 3, 2
 STALL_REPAIR_LIMIT = 30   # 900 s / 30 s windows
+PLAN_AHEAD_LIMIT_S = 120  # no further plan-ahead call after this long (cli.STARTUP_LIMIT_S is 600 s)
 EVIDENCE_FOR_INDUCER = ('p', 'move', 'inventory', 'goal', 'window_ticks', 'dominant_action', 'remaining', 'no_progress_ticks',
                         'depth', 'y')
 
@@ -47,6 +49,7 @@ class Oversight:
         self.max_retries = 3; self.retries = Counter()  # per (step id, anomaly kind); config budgets.step_retries
         self.max_rounds = MAX_ROUNDS  # config budgets.knowledge_rounds
         self.skills = dict(skills or {})  # loaded skill specs: switch_skill alternatives share a target item
+        self.clock = time.monotonic       # wall time, for the plan-ahead bound
         self.feedback = []; self.pending = {}  # typed attempt feedback; step id -> remedy claim awaiting its outcome
 
     def start_step(self, step):
@@ -134,10 +137,14 @@ class Oversight:
         out = dict(route='plan_ahead', llm='not_needed', reason=None, claim_ids=[], rejected=0, rounds=0, resolution='keep',
                    plan=None, plan_id=None, plan_steps=None, missing=[])
         family = block_family(initial.steps[-1].block) if initial.steps and initial.steps[-1].block else self.goal_item
+        began = self.clock()
         for _ in range(self.max_rounds):
             lacking = self.lacking(new)
             if not lacking: break
             if self.llm is None: out.update(llm='not_called', reason=LLM_PENDING); break
+            # The supervisor's startup limit runs until the session starts: slow calls must not use it up.
+            if out['rounds'] and self.clock() - began > PLAN_AHEAD_LIMIT_S:
+                out['reason'] = 'plan_ahead time limit (%d s); still lacking %s' % (PLAN_AHEAD_LIMIT_S, lacking); break
             query = dict(goal=self.goal_item, event='goal_received', subject=family, relation='harvest_requires')
             if not new.naive:   # the whole chain was asked for once: now exactly what is still missing
                 query.update(missing=lacking, note='return claims only for these subjects; for an item, its recipe or which '
@@ -157,6 +164,7 @@ class Oversight:
         if new is initial or new.naive or new.problems:
             if new is not initial: out['reason'] = 'plan still naive or has problems: %s' % new.problems
             return out
+        # A complete chain is adopted even when a block's harvest condition is still unknown: the guard asks there.
         steps = [Step(**dict(asdict(s), skill=concrete_skill(s.skill, self.selected))) for s in new.steps]
         self.kb.record_plan(new.id, [dict(id=s.id, claim_ids=list(s.claim_ids)) for s in steps])
         self.adopt(new)
@@ -182,7 +190,7 @@ class Oversight:
                   step_id=step.id)
 
     def repeated(self, step, current):
-        recent = [f for f in self.feedback if f['step'] == step.id][-(REPEAT_WINDOW - 1):] + [current]
+        recent = [f for f in self.feedback if f['step_id'] == step.id][-(REPEAT_WINDOW - 1):] + [current]
         return sum(not f['success'] for f in recent) >= REPEAT_FAILURES
 
     def remedy(self, event, inventory, step, attempt, held):
@@ -190,7 +198,7 @@ class Oversight:
         Adaptor): the completed prefix stays, the held step is tried again after the repair."""
         sit = situation(step, event['kind'], inventory, held, self.skills)
         evidence = {k: v for k, v in (event.get('evidence') or {}).items() if k in EVIDENCE_FOR_INDUCER}
-        recent = [f for f in self.feedback if f['step'] == step.id][-(REPEAT_WINDOW - 1):]
+        recent = [f for f in self.feedback if f['step_id'] == step.id][-(REPEAT_WINDOW - 1):]
         feedback = recent + ([attempt] if attempt else []) + [dict(current_event=event['kind'], evidence=evidence)]
         choice = choose(self.kb, self.llm, self.context, sit, feedback, run_id=self.run_id)
         key = trigger_key(sit['failure_type'], sit['skill']); source, claim, chosen = choice['source'], choice['claim_id'], choice['remedy']
@@ -217,13 +225,19 @@ class Oversight:
         elif action == 'replan':
             new = plan(self.goal_item, self.goal_count, inventory, self.kb, self.context)
             if new.naive or new.problems: out['prelude'] = 'turn_away'; out['reason'] = 'replan not usable: %s' % new.problems
-            else:
-                steps = [Step(**dict(asdict(s), skill=concrete_skill(s.skill, self.selected))) for s in new.steps]; mode = 'replan'
-                self.adopt(new)
+            # The same step first means nothing new to do before it: that would be a plain retry, which is not a repair.
+            elif new.steps and new.steps[0].id == step.id:
+                out['prelude'] = 'turn_away'; out['reason'] = 'replan gives the same step first; turn away instead'
+            else: steps = list(new.steps); mode = 'replan'; self.adopt(new)
         if steps is not None:
+            steps = [Step(**dict(asdict(s), skill=concrete_skill(s.skill, self.selected))) for s in steps]
             pid = plan_id(steps)
+            self.kb.record_plan(pid, [dict(id=s.id, claim_ids=list(s.claim_ids)) for s in steps])
             self.emit('plan', plan_id=pid, steps=[asdict(s) for s in steps], guarded=sorted(self.guarded), needs=sorted(self.needs),
                       mode=mode, remedy=action)
+            for s in steps:
+                if s.skill in LEARNING_REQUESTS:
+                    self.emit('learning_request', rule_skill=s.skill, step_id=s.id, status='recorded_not_executed', **LEARNING_REQUESTS[s.skill])
             out.update(resolution=mode, plan=[asdict(s) for s in steps], plan_id=pid, plan_steps=steps)
         if claim is not None: self.pending[retried] = (claim, len(self.feedback))   # the held attempt's index
         return out

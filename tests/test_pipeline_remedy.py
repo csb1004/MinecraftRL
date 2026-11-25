@@ -14,7 +14,8 @@ CTX = {'game_version': '1.16.5'}
 CLIMB = Step('climb-2', 'climb_out_text', 'policy', 'rise', 3, params={'until': 'rise', 'expect': 'rise'})
 IRON = Step('mine-iron_ore', 'mine_iron_text', 'policy', 'iron_ore', 1, block='iron_ore')
 SKILLS = {'mine_iron_text': {'target_items': ['iron_ore']}, 'break_iron_text': {'target_items': ['iron_ore']},
-          'climb_out_text': {'target_items': []}, 'wood_visual': {'target_items': ['log']}}
+          'climb_out_text': {'target_items': [], 'source': 'text_prompt:climb out of the hole'},
+          'wood_visual': {'target_items': ['log']}}
 
 
 def sit(step=CLIMB, held='oak_planks', inventory=None, kind='stagnation'):
@@ -55,6 +56,7 @@ class CuratorTests(unittest.TestCase):
         self.assertEqual(curate(remedy(arg='stone_pickaxe', trigger=mining),
                                 sit(IRON, held='air', inventory={'stone_pickaxe': 1}), set()), (True, None))
         self.assertEqual(curate(remedy(arg='oak_planks'), sit(), set())[1], 'spec')          # already in hand
+        self.assertEqual(curate(remedy('replan', None), sit(), set())[1], 'exec')            # the planner does not plan out of a pit
         self.assertEqual(curate(remedy(risk='stuck'), sit(), set())[1], 'spec')
         self.assertEqual(curate(remedy(), sit(), {('equip', 'dirt')})[1], 'conflict')
 
@@ -76,6 +78,21 @@ class StoreTests(unittest.TestCase):
         # Not executable now (no dirt): the next usable one.
         self.assertEqual(retrieve(self.kb, key, CTX, sit(inventory={'oak_planks': 3})).id, weak)
 
+    def test_a_remedy_with_game_support_is_not_dropped_by_one_failure(self):
+        # Curator usage history (MineEvolve): disputed only when the game refuted it more often than it supported it.
+        key = trigger_key('stagnation', 'climb_out_text')
+        rid = store(self.kb, key, remedy(), CTX, model='m', run_id='r')
+        for _ in range(2): outcome(self.kb, rid, True, 'r:climb-2', run_id='r')
+        outcome(self.kb, rid, False, 'r:climb-2', run_id='r')
+        self.assertEqual(retrieve(self.kb, key, CTX, sit()).id, rid)
+        for _ in range(2): outcome(self.kb, rid, False, 'r:climb-2', run_id='r')
+        self.assertIsNone(retrieve(self.kb, key, CTX, sit()))
+
+    def test_a_stored_equip_of_the_item_already_in_hand_is_skipped(self):
+        key = trigger_key('stagnation', 'climb_out_text')
+        store(self.kb, key, remedy(), CTX, model='m', run_id='r')
+        self.assertIsNone(retrieve(self.kb, key, CTX, sit(held='dirt')))
+
     def test_a_failed_remedy_is_disputed_and_then_a_conflict(self):
         key = trigger_key('stagnation', 'climb_out_text')
         rid = store(self.kb, key, remedy(), CTX, model='m', run_id='r')
@@ -96,7 +113,7 @@ class ChooseTests(unittest.TestCase):
     def test_knowledge_first_then_the_inducer_then_a_temporary_remedy(self):
         transport = FakeTransport(reply(remedy()))
         llm = ResponsesClient('gpt-test', 'k', allow_paid=True, transport=transport, max_calls=4)
-        feedback = [dict(step='climb-2', success=False, failure_type='stagnation', progress=.02, stagnant=True)]
+        feedback = [dict(step_id='climb-2', success=False, failure_type='stagnation', progress=.02, stagnant=True)]
         induced = choose(self.kb, llm, CTX, sit(), feedback, run_id='r')
         self.assertEqual((induced['source'], induced['remedy']['action'], induced['remedy']['arg']), ('induced', 'equip', 'dirt'))
         self.assertIsNotNone(induced['claim_id']); self.assertEqual(len(transport.requests), 1)
@@ -104,9 +121,18 @@ class ChooseTests(unittest.TestCase):
         self.assertEqual(sent['feedback'], feedback); self.assertIn('equip', sent['actions'])
         again = choose(self.kb, llm, CTX, sit(), feedback, run_id='r')
         self.assertEqual((again['source'], again['claim_id']), ('knowledge', induced['claim_id'])); self.assertEqual(len(transport.requests), 1)
+        self.assertEqual(sent['situation']['skill_prompt'], 'text_prompt:climb out of the hole')
         # No approved LLM and nothing stored for this trigger: turn away, not stored.
         other = choose(self.kb, None, CTX, sit(IRON, held='stone_pickaxe'), feedback, run_id='r')
         self.assertEqual((other['source'], other['remedy']['action'], other['claim_id']), ('temporary', 'turn_away', None))
+
+
+    def test_the_last_calls_of_the_budget_are_kept_for_knowledge(self):
+        # A stall remedy must not use up the calls the run needs to get out of a pit or past a ceiling (check E2 used all 8).
+        transport = FakeTransport(reply(remedy()))
+        llm = ResponsesClient('gpt-test', 'k', allow_paid=True, transport=transport, max_calls=2)
+        chosen = choose(self.kb, llm, CTX, sit(), [], run_id='r')
+        self.assertEqual((chosen['source'], chosen['rejected'], len(transport.requests)), ('temporary', 'llm_budget_reserved', 0))
 
 
 class AdaptorTests(unittest.TestCase):
@@ -121,7 +147,7 @@ class AdaptorTests(unittest.TestCase):
         rid = store(self.kb, key, remedy(), CTX, model='m', run_id='seed')
         o = Oversight(self.kb, CTX, 'iron_ore', [CLIMB], run_id='r', skills=SKILLS); events = []
         o.emit = lambda kind, **fields: events.append((kind, fields))
-        stalled = dict(step='climb-2', skill='climb_out_text', success=False, failure_type='stagnation', progress=.0, stagnant=True)
+        stalled = dict(step_id='climb-2', skill='climb_out_text', success=False, failure_type='stagnation', progress=.0, stagnant=True)
         event = dict(kind='stagnation', hold=True, evidence=dict(p=0., remaining=3.))
         out = o.slow_path(event, {'oak_planks': 3, 'dirt': 2}, CLIMB, attempt=stalled, held='oak_planks')
         self.assertEqual((out['route'], out['resolution'], out['remedy_source'], out['carry']), ('remedy', 'insert', 'knowledge', True))
@@ -140,7 +166,7 @@ class AdaptorTests(unittest.TestCase):
         # escape replan); the slow path had no decision and stopped with oak planks in the inventory.
         from minecraftrl.pipeline.oversight import Oversight
         event = dict(kind='climb_without_block', hold=True, evidence=dict(depth=1.25, held='air', remaining=1.25))
-        held = dict(step='climb-2', skill='climb_out_text', success=False, failure_type='climb_without_block', progress=.6, stagnant=False)
+        held = dict(step_id='climb-2', skill='climb_out_text', success=False, failure_type='climb_without_block', progress=.6, stagnant=False)
         planks = remedy(arg='oak_planks', risk='the hand is empty below the surface and a pillar needs a block',
                         trigger=dict(failure_type='climb_without_block', skill='climb_out_text', climbing=True, held='air'))
         llm = ResponsesClient('gpt-test', 'k', allow_paid=True, transport=FakeTransport(reply(planks)), max_calls=4)
@@ -164,6 +190,33 @@ class AdaptorTests(unittest.TestCase):
         craft = Step('craft-x', 'craft', 'rule', 'stone_pickaxe', 1, params={'goals': ['stone_pickaxe']})
         rule = free.slow_path(dict(kind='rule_skill_failed', hold=True, evidence=dict(reason='boom')), {}, craft)
         self.assertEqual((rule['route'], rule['resolution']), ('retry_stage', 'retry'))
+
+
+    def test_a_clear_above_remedy_is_recorded_like_the_ceiling_replan(self):
+        from minecraftrl.pipeline.kb import Evidence
+        from minecraftrl.pipeline.oversight import Oversight
+        self.kb.add_claim('solid_block', 'blocks_movement', True, {}, [Evidence('web', 'support', 'https://minecraft.wiki')], run_id='seed')
+        key = trigger_key('stagnation', 'climb_out_text')
+        store(self.kb, key, remedy('clear_above', None, 'the head keeps hitting a block over the pit'), CTX, model='m', run_id='seed')
+        o = Oversight(self.kb, CTX, 'iron_ore', [CLIMB], run_id='r', skills=SKILLS); events = []
+        o.emit = lambda kind, **fields: events.append((kind, fields))
+        out = o.slow_path(dict(kind='stagnation', hold=True, evidence=dict(p=0., remaining=2.4)), {'oak_planks': 3}, CLIMB, held='oak_planks')
+        self.assertEqual([(s.id, s.count) for s in out['plan_steps']], [('clear-above', 1), ('climb-2-after-clear', 3)])
+        self.assertEqual(out['resolution'], 'insert')
+        self.assertEqual([k for k, _ in events], ['remedy', 'plan', 'learning_request'])
+        self.assertEqual(len(self.kb.dependents(out['plan_steps'][0].claim_ids[0])), 1)   # the plan is recorded with its claims
+
+    def test_a_replan_that_gives_the_same_step_is_a_turn_away_not_a_plain_retry(self):
+        from minecraftrl.pipeline.oversight import Oversight
+        from test_pipeline_planner import iron_kb
+        iron_kb(self.kb)
+        key = trigger_key('stagnation', 'mine_iron_text')
+        store(self.kb, key, remedy('replan', None, 'the search drifted away from the ore face', dict(failure_type='stagnation')),
+              CTX, model='m', run_id='seed')
+        o = Oversight(self.kb, CTX, 'iron_ore', [IRON], run_id='r', skills=SKILLS, selected={'iron_ore': 'mine_iron_text'})
+        out = o.slow_path(dict(kind='stagnation', hold=True, evidence=dict(p=0.)), {'stone_pickaxe': 1}, IRON, held='stone_pickaxe')
+        self.assertEqual((out['resolution'], out['prelude'], out['plan_steps']), ('retry', 'turn_away', None))
+        self.assertIn('same step', out['reason'])
 
 
 if __name__ == '__main__':

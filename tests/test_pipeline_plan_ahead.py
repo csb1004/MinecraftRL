@@ -93,6 +93,14 @@ class PlanAheadTests(unittest.TestCase):
         self.assertEqual(runtime_needs([], config, oversight=True)[0], ['break_iron_text', 'climb_out_text', 'mine_iron_text'])
         self.assertEqual(runtime_needs([], config, oversight=False)[0], [])
 
+    def test_planning_ahead_stops_asking_when_it_takes_too_long(self):
+        # The supervisor's startup limit (600 s) runs until the session starts: slow calls must not use it up.
+        o, initial = self.oversight([response(BLOCKS + RECIPES[:1]), response(RECIPES[1:]), response([LOG])])
+        ticks = iter([0., 50., 130., 200., 300.]); o.clock = lambda: next(ticks)
+        out = o.plan_ahead(initial)
+        self.assertEqual((out['rounds'], out['resolution'], out['missing']), (2, 'replan', ['log']))
+        self.assertIn('time limit', out['reason'])
+
     def test_knowledge_that_still_leaves_gaps_keeps_the_first_plan(self):
         o, initial = self.oversight([response(BLOCKS)] + [response([])] * 3)
         out = o.plan_ahead(initial)

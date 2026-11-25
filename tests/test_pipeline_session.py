@@ -538,6 +538,19 @@ class SessionTests(unittest.TestCase):
         self.assertEqual(stages[-1]['gained'], {'oak_log': 3})
         self.assertEqual(report['status'], 'completed')
 
+    def test_attempt_feedback_is_recorded_only_with_goal_oversight(self):
+        # The skill-head and beacon experiments run without oversight: their records stay as they were (design 2026-11-25).
+        gain = lambda n, a: info({'cobblestone': 3} if n >= 3 else {}, tick=1000 + n)
+        steps = [Step('mine-cobblestone', 'dig', 'policy', 'cobblestone', 3, block='stone')]
+        self.session_with(FakeEnv(gain), FakePolicy(), None).run(steps)
+        self.assertEqual([l for l in self.timeline() if l['kind'] == 'execution_feedback'], [])
+        claims = [('stone', 'harvest_requires', {'tool_class': None, 'min_tier': 'hand'})]
+        self.gate = StopGate()      # a fresh run (the first run latched its gate)
+        self.session_with(FakeEnv(gain), FakePolicy(), self.oversee('cobblestone', steps, claims), run='overseen').run(steps)
+        feedback = [l for l in self.timeline() if l['kind'] == 'execution_feedback']
+        self.assertEqual([(f['step_id'], f['success'], f['inventory_change']) for f in feedback], [('mine-cobblestone', True, {'cobblestone': 3})])
+        self.assertIsInstance(feedback[0]['step'], int)   # the timeline's own action count is not overwritten
+
     def test_stagnation_without_a_remedy_turns_away_and_keeps_repairing(self):
         # Check E3 (2026-11-24): forward+jump in the pit for 4,026 rows. Stagnation now holds after one window and the
         # session repairs; with nothing stored and no approved LLM it turns away (temporary remedy, not stored). A window

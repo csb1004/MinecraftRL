@@ -20,11 +20,15 @@ ACTIONS = {
     'equip': 'hold another item from the inventory, then try again (argument: an inventory item not already held; a '
              'full block such as dirt, cobblestone or planks while climbing, a tool otherwise)',
     'clear_above': 'clear the blocks over the head, then climb the remaining height (climbing steps only, no argument)',
-    'replan': 'plan the rest of the goal again from the current inventory (no argument)',
+    'replan': 'plan the rest of the goal again from the current inventory, e.g. after a tool or material was lost (not '
+              'while climbing, no argument)',
 }
 FIELDS = ('failure_type', 'skill', 'target', 'climbing', 'held')  # the state fields a trigger may name
 NO_ARGUMENT = ('turn_away', 'level_view', 'clear_above', 'replan')
 TEMPORARY = dict(action='turn_away', arg=None, risk_pattern='no stored or induced remedy for this trigger; turn and try again')
+# Calls of the run's LLM budget a remedy leaves for knowledge the run cannot go on without (pit escape, ceiling, a
+# missing recipe): check E2 (2026-11-24) used all 8 calls on knowledge alone.
+LLM_RESERVE = 2
 
 INDUCER_PROMPT = '''A step of a Minecraft agent stalled or keeps failing. Its low-level policy (STEVE-1) is fixed; you choose
 one repair the program can execute before the step is tried again. Use only the listed actions, with an argument only
@@ -52,12 +56,14 @@ def situation(step, failure_type, inventory, held, skills):
     alternatives = sorted(name for name, spec in skills.items()
                           if name != step.skill and step.target in (spec.get('target_items') or ()))
     return dict(failure_type=failure_type, skill=step.skill, target=step.target, climbing=climbing(step), held=held or 'air',
-                inventory=dict(inventory), alternatives=alternatives)
+                inventory=dict(inventory), alternatives=alternatives,
+                skill_prompt=(skills.get(step.skill) or {}).get('source'))   # what the fixed policy is conditioned on
 
 
 def executable(action, arg, sit):
     if action in NO_ARGUMENT:
-        return arg is None and (action != 'clear_above' or sit['climbing'])
+        # The planner plans the goal chain from the inventory, not the way out of a pit: no replan while climbing.
+        return arg is None and (action != 'clear_above' or sit['climbing']) and (action != 'replan' or not sit['climbing'])
     if action == 'switch_skill': return arg in sit['alternatives']
     if action == 'equip' and isinstance(arg, str):
         # A climb pillars with a full block; a harvest step holds a tool (the guard blocks a bare-hand or wrong-tool hit).
@@ -94,6 +100,7 @@ def retrieve(kb, key, context, sit):
     """The most trusted usable remedy for this trigger that matches and can run now, or None."""
     for claim in sorted(kb.query(key, 'remedy', context=context), key=lambda c: (-confidence(c), -c.id)):
         obj = claim.object
+        if obj['action'] == 'equip' and obj.get('arg') == sit['held']: continue   # already in hand: nothing to repair
         if all(sit.get(k) == v for k, v in obj.get('trigger', {}).items()) and executable(obj['action'], obj.get('arg'), sit):
             return claim
     return None
@@ -105,10 +112,13 @@ def refuted(kb, key, context):
 
 
 def outcome(kb, claim_id, success, ref, *, run_id):
-    """The repaired attempt's result is game evidence; a remedy that did not repair is disputed (no longer retrieved)."""
+    """The repaired attempt's result is game evidence (the Curator's usage history). A remedy the game refuted more often
+    than it supported is disputed and no longer retrieved; one failure does not drop a remedy that has worked."""
     kb.add_evidence(claim_id, Evidence('game_observation', 'support' if success else 'refute', ref,
                                        'repaired attempt completed' if success else 'repaired attempt failed again'), run_id=run_id)
-    if not success: kb.set_status(claim_id, 'disputed', 'remedy did not repair the step', run_id=run_id)
+    seen = kb.observed(claim_id)
+    if not success and seen['refute'] > seen['support']:
+        kb.set_status(claim_id, 'disputed', 'remedy failed to repair the step more often than it repaired it', run_id=run_id)
 
 
 def induce(client, sit, feedback, avoid):
@@ -127,7 +137,8 @@ def choose(kb, llm, context, sit, feedback, *, run_id):
     if claim is not None:
         return dict(source='knowledge', remedy=dict(claim.object), claim_id=claim.id, rejected=None, usage=None)
     rejected = None; spent = None
-    if llm is not None:
+    if llm is not None and getattr(llm, 'remaining', LLM_RESERVE + 1) <= LLM_RESERVE: rejected = 'llm_budget_reserved'
+    elif llm is not None:
         avoid = refuted(kb, key, context)
         try: candidate, spent = induce(llm, sit, feedback, avoid)
         except (RuntimeError, ValueError) as exc: rejected = 'llm_failed: ' + str(exc)
